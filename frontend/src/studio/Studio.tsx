@@ -4,12 +4,12 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
-import type { CompanionState, ZoneId } from "@aura/contracts";
+import type { CompanionState, WindowState, ZoneId } from "@aura/contracts";
 import { World } from "./World.tsx";
 import { Astra } from "./Astra.tsx";
 import { getZone, ZONES } from "./zones.ts";
 import type { FrameSample, Report } from "./diagnostics.ts";
-import { useBridgeEvent } from "../platform/bridge.ts";
+import { bridge, useBridgeEvent } from "../platform/bridge.ts";
 import { ArrowIcon } from "../components/Icon.tsx";
 import { ZoneIcon } from "../components/ZoneIcon.tsx";
 
@@ -60,7 +60,7 @@ function CameraRig({ zone, revision, reducedMotion, report }: { zone: ZoneId; re
     minPolarAngle={0.24} maxPolarAngle={1.4} rotateSpeed={0.5} zoomSpeed={0.7} />;
 }
 
-function Measurements({ zone, report, lowerDpr }: { zone: ZoneId; report: Report; lowerDpr: () => void }) {
+function Measurements({ zone, throttled, report, lowerDpr }: { zone: ZoneId; throttled: boolean; report: Report; lowerDpr: () => void }) {
   const { gl } = useThree();
   const elapsed = useRef(0);
   const frames = useRef(0);
@@ -71,7 +71,7 @@ function Measurements({ zone, report, lowerDpr }: { zone: ZoneId; report: Report
   const gpu = useRef<{ vendor: string; renderer: string } | null>(null);
   useEffect(() => {
     elapsed.current = 0; frames.current = 0; slow.current = 0; sinceZone.current = 0; stableWindow.current = true;
-  }, [zone]);
+  }, [zone, throttled]);
   useFrame(({ camera, controls }, delta) => {
     if (gl.getContext().isContextLost() || document.hidden) {
       frames.current = 0; elapsed.current = 0; sinceZone.current = 0; stableWindow.current = true; return;
@@ -86,7 +86,8 @@ function Measurements({ zone, report, lowerDpr }: { zone: ZoneId; report: Report
     const fps = Math.round(frames.current / elapsed.current);
     const sample = { fps, drawCalls: gl.info.render.calls, triangles: gl.info.render.triangles,
       pixelRatio: gl.getPixelRatio(), sampledAt: Date.now() };
-    if (ready && stableWindow.current && sinceZone.current > 2) {
+    // A deliberately reduced background rate is neither a sample nor a reason to lower the DPR.
+    if (ready && stableWindow.current && sinceZone.current > 2 && !throttled) {
       samples.current[zone] = [...(samples.current[zone] ?? []), sample].slice(-30);
       slow.current = fps < 55 ? slow.current + 1 : 0;
       if (slow.current >= 3) { lowerDpr(); slow.current = 0; }
@@ -189,6 +190,20 @@ function ProjectHotspots({ buttons, zone }: { buttons: RefObject<Map<ZoneId, HTM
   return null;
 }
 
+/** Frame rate while AURA's window is visible but another app is active. */
+const BACKGROUND_FPS = 30;
+
+/** Drives a frameloop="demand" canvas at BACKGROUND_FPS while enabled. */
+function BackgroundFrames({ enabled }: { enabled: boolean }) {
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    if (!enabled) return;
+    const timer = window.setInterval(() => invalidate(), 1000 / BACKGROUND_FPS);
+    return () => window.clearInterval(timer);
+  }, [enabled, invalidate]);
+  return null;
+}
+
 export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart, focusCompanion }: {
   zone: ZoneId; revision: number; reducedMotion: boolean; maxDpr: number; state: CompanionState; speechLevel: number;
   report: Report; navigate: (zone: ZoneId) => void; restart: () => void; focusCompanion: () => void;
@@ -197,8 +212,15 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
   const startedAt = useRef(performance.now());
   const [adaptiveDpr, setAdaptiveDpr] = useState(maxDpr);
   const [active, setActive] = useState(!document.hidden);
-  const [hostActive, setHostActive] = useState(true);
-  useBridgeEvent("app.activeChanged", ({ active: value }) => setHostActive(value));
+  // Native window state (Phase 3A, pending Codex review). Full rate while AURA is
+  // active, BACKGROUND_FPS while its window is only visible, nothing while hidden or minimized.
+  const [hostWindow, setHostWindow] = useState<WindowState>({ active: true, visible: true });
+  useBridgeEvent("app.windowStateChanged", setHostWindow);
+  useEffect(() => {
+    let live = true;
+    void bridge.call("app.getWindowState", {}).then((value) => { if (live) setHostWindow(value); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
   useEffect(() => { setAdaptiveDpr(maxDpr); }, [maxDpr]);
   useEffect(() => {
     const update = () => setActive(!document.hidden);
@@ -206,10 +228,12 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
     return () => document.removeEventListener("visibilitychange", update);
   }, []);
   const dpr = Math.max(1, Math.min(maxDpr, adaptiveDpr));
+  const rendering = active && hostWindow.visible;
+  const throttled = rendering && !hostWindow.active;
   return <>
     <SceneBoundary onError={() => report({ context: "ready", status: "error", error: "The renderer could not start. Check WebGL2 support and retry the scene." })}>
       <Canvas className="scene-canvas" shadows="percentage" camera={{ position: getZone("studio").camera, fov: 39, near: 0.05, far: 250 }} dpr={[1, dpr]}
-        frameloop={active && hostActive ? "always" : "never"}
+        frameloop={!rendering ? "never" : throttled ? "demand" : "always"}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         fallback={<p>WebGL2 is unavailable. Your workstation and companion controls remain accessible.</p>}
         onCreated={() => report({ context: "ready" })}>
@@ -228,7 +252,8 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
           <Suspense fallback={null}><Astra startedAt={startedAt.current} state={state} speechLevel={speechLevel} reducedMotion={reducedMotion} report={report} /></Suspense>
         </SceneBoundary>
         <CameraRig zone={zone} revision={revision} reducedMotion={reducedMotion} report={report} />
-        <Measurements zone={zone} report={report} lowerDpr={() => setAdaptiveDpr((value) => Math.max(1, value - 0.25))} />
+        <BackgroundFrames enabled={throttled} />
+        <Measurements zone={zone} throttled={throttled} report={report} lowerDpr={() => setAdaptiveDpr((value) => Math.max(1, value - 0.25))} />
         <ContextEvents report={report} restored={restart} />
         <ProjectHotspots buttons={buttons} zone={zone} />
       </Canvas>
