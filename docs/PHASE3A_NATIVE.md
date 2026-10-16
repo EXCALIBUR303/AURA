@@ -17,6 +17,8 @@ AURA now builds as a sandboxed, hardened-runtime `AURA.app` from Xcode (Debug an
 | `3658930` | Studio menu ticks the current zone |
 | `2c691ee` | GitHub, AI and voice service foundations + 16 tests |
 | `c272293`, `8e9dc82` | DevProbe: Keychain round-trip; accessibility media queries vs macOS settings |
+| `f5b1d34` | Review: "Talk to Astra" on ⌃⌥Space; ⌘K labelled "Focus Chat" |
+| `8e744e6` | Review: opt-in input diagnostics (`AURA_DEV_INPUT_LOG`) and soak mode (`AURA_DEV_SOAK_MINUTES`) |
 
 Files added: `macos/AURA.xcodeproj/**`, `macos/App/{Info.plist,AURA.entitlements}`, `macos/Sources/AuraApp/{AuraWebView,WindowStateObserver}.swift`, `macos/Sources/AuraCore/Lifecycle/WindowStateStore.swift`, `macos/Sources/AuraCore/Services/{GitHub,AI,Voice}/*.swift`, `macos/Tests/AuraCoreTests/FoundationTests.swift`, `tools/build-app.sh`, this report. Modified: `AuraApp.swift`, `AppModel.swift`, `StudioWebView.swift`, `DevProbe.swift`, `AppServices.swift`, `BridgeDomain.swift`, `BridgeMethod.swift`, `shared/contracts/{domain,methods,events}.ts`, `shared/bridge/mock.ts`, `shared/fixtures/bridge-messages.json`, contract/service tests, `frontend/src/studio/Studio.tsx`, root docs.
 
@@ -66,10 +68,10 @@ Per zone in the Release app (DevProbe, 4 s each, 1100×732 @2×): 60 fps in all 
 
 Real key events:
 - ⌘1–⌘6 each navigate, persist `lastZone` and tick exactly one Studio item; clicking a zone button moves the tick too.
-- ⌘K focuses the companion input (there is no palette UI yet). Digits typed there do not navigate; ⌘4 still navigates and the draft is kept.
+- ⌘K ("Focus Chat") focuses the companion input; a command palette is later work. Digits typed there do not navigate; ⌘4 still navigates and the draft is kept.
 - On launch the page takes keyboard focus; Tab and Shift-Tab move through buttons even with full keyboard access off (`tabFocusesLinks`).
-- ⇧⌘Space ("Talk to Astra") never reaches AURA on this Mac: another app or system feature takes it before AURA does. Choosing the menu item works.
-- After leaving full screen with fn-F or the View menu, synthesized keystrokes stopped reaching AURA until a click (R12). I couldn't confirm this with a physical keyboard, and a native re-key attempt did not change it, so no fix is shipped.
+- "Talk to Astra" is now ⌃⌥Space (⇧⌘Space never reached AURA on this Mac). See the review follow-up below.
+- After leaving full screen with fn-F or the View menu, synthesized keystrokes stopped reaching AURA until a click (R12). See the review follow-up below.
 
 Test-method note: macOS sometimes left keyboard focus with the previously active app after a shell launch, so later key tests always clicked a non-interactive label in AURA first.
 
@@ -106,15 +108,35 @@ No tokens or keys are hardcoded; nothing contacts a network.
 - WKWebView reports `prefers-reduced-motion`, `prefers-reduced-transparency` and `prefers-contrast` identically to the macOS settings (all off on this Mac); the frontend handles the first two.
 - **Not verified:** VoiceOver, and the effect of turning Reduce Motion / Reduce Transparency on (changing system settings is the owner's step).
 
+## Review follow-up (2026-10-17)
+
+Owner decisions applied: "Talk to Astra" → ⌃⌥Space; 30 fps while visible-inactive kept, suspension while minimized or hidden kept; ⌘K labelled "Focus Chat"; app icon deferred to branding.
+
+**⌃⌥Space.** macOS's own ⌃⌥Space ("Select next source in Input menu", symbolic hotkey 61) is disabled on this Mac and only matters with several input sources; ChatGPT's launcher uses ⌥Space. Pressed on the physical keyboard, it reached AURA (`key code=49 mods=⌃⌥`, AURA key, web view first responder) and opened Companion. On a Mac where hotkey 61 is enabled, macOS would take it first.
+
+**Full screen (R12), physical keyboard, `AURA_DEV_INPUT_LOG=1`.** fn-F entered full screen and fn-F left it; at `didExitFullScreen` AURA was the key window and `AuraWebView` the first responder, so AppKit focus was intact (unlike the synthesized run, where the window was no longer key). ⌘2 before and ⌃⌥Space later arrived normally. No ⌘ press was recorded between the exit and the next app switch, and a requested retry produced no activity in AURA's log, so the end-to-end check is still open. No workaround applied.
+
+**Memory soak (R13).** Release app, `AURA_DEV_PROBE=1 AURA_DEV_SOAK_MINUTES=20`: 52 cycles (≈310 zone changes, 52 mock chats, 26 synthetic visible-inactive/hidden periods), no real input; `footprint` every minute.
+
+| WebContent | Start | During soak | End | 8 s after `notifyutil -p org.WebKit.lowMemory` |
+|---|---|---|---|---|
+| Total | 358 MB | 343–486 MB | 419 MB | 307 MB |
+| Graphics (WebGL) | 248 MB | 214–374 MB, follows window state | 224 MB | 214 MB |
+| WebKit Malloc (incl. JS heap) | 58 MB | sawtooth, 56 → 118 MB | 130 MB | 42 MB |
+| JS JIT code | 6 MB | 7–8 MB | 8.6 MB | 2.3 MB |
+
+DOM nodes (259), draw calls (14) and triangles (79,802) were identical in every cycle, at 60 fps. AURA's own process stayed at 30 MB; the GPU process went 109 → 119 MB (small mallocs; its graphics memory flat at ~40 MB). Conclusion: the growth is garbage-collected heap and caches that WebKit returns under memory pressure, not a leak. The GPU process's small growth is worth re-checking in Phase 3B.
+
 ## Remaining issues
 
-1. R12: keyboard input after leaving full screen by keyboard or menu (needs a physical-keyboard check).
-2. ⇧⌘Space is taken on this Mac (owner: keep or reassign).
-3. Command Palette is only a focus shortcut (Codex).
-4. Background policy is 30 fps; WebContent still uses ~17 % CPU in that state against 0.4 % when frozen (owner: 30 / 15 fps / freeze).
-5. R13: watch WebContent memory in long sessions.
-6. No app icon; ad-hoc signing (microphone may re-prompt after rebuilds); no notarisation.
-7. Phase 2.7 frontend leftovers (inspector detail, Companion framing at 1100×700, "/" contrast).
+1. R12: one physical-keyboard check left (fn-F, fn-F, ⌘4 without switching apps).
+2. ⌃⌥Space would collide with macOS input-source switching on Macs where that shortcut is enabled.
+3. ⌘K is "Focus Chat"; a command palette is later work (Codex).
+4. 30 fps background rendering costs WebContent ~17 % CPU (owner accepted).
+5. GPU process small-allocation growth (109 → 119 MB in 20 min); re-check in Phase 3B.
+6. App icon deferred to branding; ad-hoc signing (microphone may re-prompt after rebuilds); no notarisation.
+7. Not verified: VoiceOver; Reduce Motion / Reduce Transparency switched on.
+8. Phase 2.7 frontend leftovers (inspector detail, Companion framing at 1100×700, "/" contrast).
 
 ## Phase 3B handoff (GitHub)
 
@@ -123,3 +145,4 @@ No tokens or keys are hardcoded; nothing contacts a network.
 3. **Claude Code, contract (one commit):** `github.connect` → `{userCode, verificationUri, expiresAt}`, `github.disconnect`; extend `GitHubAuthStatus` with `authorizing` and `error {reason}`; emit `github.authChanged` from `GitHubConnectionManager.onChange`; mock + fixtures + tests; remove `app.activeChanged`.
 4. **Codex:** connect/disconnect UI showing the user code and opening the verification URL; signed-out, authorizing, error and rate-limited states in the inspector; review `14dec86`.
 5. **Owner checks before 3B starts:** the manual items in TASKS.md › Phase 3A.
+6. **Tools available:** `AURA_DEV_INPUT_LOG=1` (focus diagnostics), `AURA_DEV_PROBE=1` (per-zone fps, Keychain, accessibility settings), `AURA_DEV_SOAK_MINUTES=N` (long-session soak). Re-run the soak once real GitHub data flows.

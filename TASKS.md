@@ -35,11 +35,12 @@ Report: [docs/PHASE3A_NATIVE.md](docs/PHASE3A_NATIVE.md)
 - [x] [CC] GitHub / AI / voice service foundations (native only, not on the bridge yet)
 - [ ] [C] **Review** commit "frontend: render at 30 fps while AURA is visible but inactive" (`Studio.tsx`, approved cross-ownership change). Keep or adjust `BACKGROUND_FPS`.
 - [ ] [C] Move any remaining `app.activeChanged` listener to `app.windowStateChanged` (Studio.tsx already did); the event is removed in Phase 3B.
-- [ ] [C] Command Palette: ⌘K only focuses the companion input; build a palette or rename the menu item.
+- [x] [O→CC] ⌘K is documented and labelled "Focus Chat" (Studio menu). A real command palette is later work for [C].
 - [ ] [C] Phase 2.7 leftovers: inspector repo detail ignores the zone; Astra's feet touch the dock in Companion at 1100×700; "/" separator contrast 3.0:1.
-- [ ] [O] ⇧⌘Space ("Talk to Astra") never reaches AURA on this Mac: another app or system feature takes it. Keep, or pick another shortcut?
-- [ ] [O] Background rendering policy: 30 fps while visible-inactive (current) vs 15 fps vs freeze.
-- [ ] [O] Manual checks: VoiceOver pass; Reduce Motion / Reduce Transparency toggled on; leave full screen with fn-F, then press ⌘2 (R12).
+- [x] [O→CC] "Talk to Astra" moved to ⌃⌥Space (⇧⌘Space was taken on the owner's Mac). Verified with the physical keyboard.
+- [x] [O] Background rendering policy: keep 30 fps while visible-inactive; suspend when minimized or hidden.
+- [x] [O] App icon deferred to the final visual branding stage.
+- [ ] [O] Manual checks still open: VoiceOver pass; Reduce Motion / Reduce Transparency toggled on; R12 end-to-end (leave full screen with fn-F, then press ⌘4 without clicking).
 
 ## Phase 3: Real services (native-led)
 
