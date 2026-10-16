@@ -13,6 +13,8 @@ public final class AppServices {
     public let github: any GitHubService
     public let ai: AIService
     public let voice: any VoiceService
+    /// Called after the page changes preferences, so native UI (menus) can follow.
+    public var preferencesDidChange: (@MainActor (Preferences) -> Void)?
 
     public init(
         configuration: AppConfiguration,
@@ -51,10 +53,11 @@ public final class AppServices {
         router.register(.appGetWindowState, Empty.self) { _ in windowState.current }
 
         router.register(.prefsGet, Empty.self) { _ in try await store.loadPreferences() }
-        router.register(.prefsUpdate, PreferencesPatch.self) { patch in
+        router.register(.prefsUpdate, PreferencesPatch.self) { [weak self] patch in
             let next = patch.applied(to: try await store.loadPreferences())
             try await store.savePreferences(next)
             events.emit(.prefsChanged, next)
+            self?.preferencesDidChange?(next)
             return next
         }
 

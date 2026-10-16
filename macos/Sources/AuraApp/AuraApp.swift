@@ -58,7 +58,8 @@ struct StudioCommands: Commands {
     var body: some Commands {
         CommandMenu("Studio") {
             ForEach(Self.zones, id: \.0) { zone, title, key in
-                Button(title) { model.send(.navigate(zone)) }
+                // A toggle so the menu ticks the current zone; choosing it always navigates.
+                Toggle(title, isOn: Binding(get: { model.currentZone == zone }, set: { _ in model.send(.navigate(zone)) }))
                     .keyboardShortcut(key, modifiers: .command)
             }
             Divider()

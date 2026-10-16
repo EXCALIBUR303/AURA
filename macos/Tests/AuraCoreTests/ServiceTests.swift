@@ -51,6 +51,15 @@ import Testing
         #expect(try await services.store.loadPreferences().graphics.quality == .low)
     }
 
+    @Test func preferenceChangesReachNativeObserver() async throws {
+        let services = try await makeServices(recorder: EventRecorder())
+        var seen: [ZoneID] = []
+        services.preferencesDidChange = { seen.append($0.lastZone) }
+        _ = try await call(services, "prefs.update", #"{"lastZone":"software"}"#)
+        _ = try await call(services, "prefs.update", #"{"lastZone":"bogus"}"#)
+        #expect(seen == [.software])
+    }
+
     @Test func projectsUpsertAndValidate() async throws {
         let services = try await makeServices(recorder: EventRecorder())
         _ = try await call(services, "projects.update", #"{"id":"mock-user/sample-web-app","zone":"software","pinned":true}"#)

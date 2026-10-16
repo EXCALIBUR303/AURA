@@ -12,6 +12,8 @@ final class AppModel {
     }
 
     private(set) var state: State = .starting
+    /// The zone the studio shows, for the Studio menu's checkmark.
+    private(set) var currentZone: ZoneID?
     /// Set by the web view once it exists; events before that are dropped.
     @ObservationIgnored var deliverToWeb: ((String) -> Void)?
 
@@ -38,6 +40,8 @@ final class AppModel {
                 secrets: KeychainSecretStore(),
                 deliverEvent: { [weak self] json in self?.deliverToWeb?(json) }
             )
+            services.preferencesDidChange = { [weak self] prefs in self?.currentZone = prefs.lastZone }
+            currentZone = try? await store.loadPreferences().lastZone
             Log.app.notice("started (\(configuration.environment.rawValue, privacy: .public))")
             state = .ready(services)
         } catch {
