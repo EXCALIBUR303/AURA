@@ -175,6 +175,7 @@ export function AvatarProbe({ report, maxPixelRatio = 2 }: { report: Report; max
   const startedAt = useMemo(() => performance.now(), []);
   return (
     <Canvas
+      className="scene-canvas"
       dpr={[1, maxPixelRatio]}
       camera={{ position: [0, 1.4, 3.2], fov: 35, near: 0.05, far: 100 }}
       onCreated={({ gl }) => report({ renderer: readRenderer(gl) })}

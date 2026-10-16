@@ -1,0 +1,490 @@
+{
+  "phase": "2.6",
+  "branch": "codex/phase2-visual-polish",
+  "baseCommit": "4d0b896179607e331fb75f499e06e9deb78af104",
+  "environment": {
+    "os": "Linux cloud",
+    "node": "24.19.0",
+    "npm": "11.9.0",
+    "browser": "Chromium 154",
+    "gpu": "SwiftShader software rendering"
+  },
+  "checks": {
+    "typecheck": "passed, both TypeScript projects",
+    "bridgeTests": {
+      "passed": 8,
+      "failed": 0
+    },
+    "build": "passed",
+    "avatarInspection": "passed"
+  },
+  "browser": {
+    "outcomes": [
+      {
+        "name": "Scene loading is visible and excluded from per-zone performance samples",
+        "status": "passed"
+      },
+      {
+        "name": "Licensed avatar loads at human scale with the documented idle and rig",
+        "status": "passed"
+      },
+      {
+        "name": "Model author, source and CC BY 4.0 attribution stay visible",
+        "status": "passed"
+      },
+      {
+        "name": "Automated WCAG A/AA scan has no violations",
+        "status": "passed"
+      },
+      {
+        "name": "All six zone buttons reach settled camera poses",
+        "status": "passed"
+      },
+      {
+        "name": "GPU renderer strings stay cached across diagnostic samples",
+        "status": "passed"
+      },
+      {
+        "name": "Detail views hide the active card and limit nearby destinations",
+        "status": "passed"
+      },
+      {
+        "name": "Actual 3D workstation and Astra clicks navigate and focus the prompt",
+        "status": "passed"
+      },
+      {
+        "name": "Idle animation advances and procedural look-at follows the camera",
+        "status": "passed"
+      },
+      {
+        "name": "All six projected hotspots navigate from overview",
+        "status": "passed"
+      },
+      {
+        "name": "Mouse orbit, wheel zoom and reset change and restore the actual camera",
+        "status": "passed"
+      },
+      {
+        "name": "Browser shortcuts navigate; typing retains ordinary editing behavior",
+        "status": "passed"
+      },
+      {
+        "name": "Last zone survives a browser reload",
+        "status": "passed"
+      },
+      {
+        "name": "Mock streaming completes and can be cancelled",
+        "status": "passed"
+      },
+      {
+        "name": "Speech levels move the jaw and listening surfaces the mock transcript",
+        "status": "passed"
+      },
+      {
+        "name": "Project notes, pinning, and zone assignment round-trip through the bridge",
+        "status": "passed"
+      },
+      {
+        "name": "Workstation scope uses saved assignments and selection preserves unsaved drafts",
+        "status": "passed"
+      },
+      {
+        "name": "Keyboard focus is visible and layout fits the minimum target window",
+        "status": "passed"
+      },
+      {
+        "name": "Minimum-window workstation heading has an opaque backing and accessible controls",
+        "status": "passed"
+      },
+      {
+        "name": "All six hotspots remain reachable without dock overlap at 1100\u00d7700",
+        "status": "passed"
+      },
+      {
+        "name": "Keyboard-only tab navigation reaches all six zones with visible focus",
+        "status": "passed"
+      },
+      {
+        "name": "WebGL context loss shows recovery and restoration reloads the scene",
+        "status": "passed"
+      },
+      {
+        "name": "Missing GLB shows recovery UI and retry succeeds",
+        "status": "passed"
+      },
+      {
+        "name": "Unavailable WebGL shows a useful error with the workstation still usable",
+        "status": "passed"
+      },
+      {
+        "name": "Simulated native commands navigate and unavailable voice degrades gracefully",
+        "status": "passed"
+      },
+      {
+        "name": "AI start failures and streamed errors show recoverable companion state",
+        "status": "passed"
+      },
+      {
+        "name": "No uncaught browser errors or external runtime requests",
+        "status": "passed"
+      }
+    ],
+    "errors": [],
+    "external": [],
+    "nativeValidation": "Simulated transport only; AuraApp not run on Linux."
+  },
+  "accessibility": {
+    "accessibility.json": {
+      "violations": 0,
+      "passes": 30,
+      "incomplete": 1
+    },
+    "accessibility-1100.json": {
+      "violations": 0,
+      "passes": 30,
+      "incomplete": 1
+    }
+  },
+  "performance": {
+    "viewport": {
+      "width": 1100,
+      "height": 700
+    },
+    "deviceScaleFactor": 2,
+    "renderer": {
+      "webgl2": true,
+      "pixelRatio": 2,
+      "maxTextureSize": 8192,
+      "vendor": "Google Inc. (Google)",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "records": {
+      "studio": [
+        {
+          "fps": 2,
+          "drawCalls": 13,
+          "triangles": 79794,
+          "pixelRatio": 2,
+          "sampledAt": 1792144958514
+        },
+        {
+          "fps": 2,
+          "drawCalls": 13,
+          "triangles": 79794,
+          "pixelRatio": 2,
+          "sampledAt": 1792144959769
+        }
+      ],
+      "hardware": [
+        {
+          "fps": 2,
+          "drawCalls": 14,
+          "triangles": 79802,
+          "pixelRatio": 2,
+          "sampledAt": 1792144969086
+        },
+        {
+          "fps": 2,
+          "drawCalls": 14,
+          "triangles": 79802,
+          "pixelRatio": 2,
+          "sampledAt": 1792144970571
+        }
+      ],
+      "software": [
+        {
+          "fps": 2,
+          "drawCalls": 14,
+          "triangles": 79802,
+          "pixelRatio": 2,
+          "sampledAt": 1792144980501
+        },
+        {
+          "fps": 2,
+          "drawCalls": 14,
+          "triangles": 79802,
+          "pixelRatio": 2,
+          "sampledAt": 1792144982019
+        }
+      ],
+      "ai-lab": [
+        {
+          "fps": 3,
+          "drawCalls": 14,
+          "triangles": 79802,
+          "pixelRatio": 2,
+          "sampledAt": 1792144993069
+        },
+        {
+          "fps": 2,
+          "drawCalls": 14,
+          "triangles": 79802,
+          "pixelRatio": 2,
+          "sampledAt": 1792144994420
+        }
+      ],
+      "github": [
+        {
+          "fps": 1,
+          "drawCalls": 14,
+          "triangles": 79802,
+          "pixelRatio": 2,
+          "sampledAt": 1792145005376
+        },
+        {
+          "fps": 2,
+          "drawCalls": 14,
+          "triangles": 79802,
+          "pixelRatio": 2,
+          "sampledAt": 1792145006614
+        }
+      ],
+      "companion": [
+        {
+          "fps": 3,
+          "drawCalls": 13,
+          "triangles": 79794,
+          "pixelRatio": 2,
+          "sampledAt": 1792145015940
+        },
+        {
+          "fps": 2,
+          "drawCalls": 13,
+          "triangles": 79794,
+          "pixelRatio": 2,
+          "sampledAt": 1792145017511
+        }
+      ]
+    },
+    "allSamplesAtDpr2": true,
+    "meets55Fps": false,
+    "notes": "Adaptive DPR remains enabled; each sample records actual DPR. Compare on the target Apple Silicon Mac and in WKWebView before claiming performance acceptance."
+  },
+  "visualBaseline": {
+    "zones": {
+      "studio": {
+        "sample": {
+          "fps": 5,
+          "drawCalls": 62,
+          "triangles": 79514,
+          "pixelRatio": 1,
+          "sampledAt": 1792144132145
+        },
+        "renderer": {
+          "webgl2": true,
+          "pixelRatio": 1,
+          "maxTextureSize": 8192,
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        }
+      },
+      "hardware": {
+        "sample": {
+          "fps": 4,
+          "drawCalls": 40,
+          "triangles": 78098,
+          "pixelRatio": 1,
+          "sampledAt": 1792144135970
+        },
+        "renderer": {
+          "webgl2": true,
+          "pixelRatio": 1,
+          "maxTextureSize": 8192,
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        }
+      },
+      "software": {
+        "sample": {
+          "fps": 4,
+          "drawCalls": 47,
+          "triangles": 78570,
+          "pixelRatio": 1,
+          "sampledAt": 1792144140007
+        },
+        "renderer": {
+          "webgl2": true,
+          "pixelRatio": 1,
+          "maxTextureSize": 8192,
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        }
+      },
+      "ai-lab": {
+        "sample": {
+          "fps": 5,
+          "drawCalls": 48,
+          "triangles": 78570,
+          "pixelRatio": 1,
+          "sampledAt": 1792144142702
+        },
+        "renderer": {
+          "webgl2": true,
+          "pixelRatio": 1,
+          "maxTextureSize": 8192,
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        }
+      },
+      "companion": {
+        "sample": {
+          "fps": 4,
+          "drawCalls": 40,
+          "triangles": 78098,
+          "pixelRatio": 1,
+          "sampledAt": 1792144147403
+        },
+        "renderer": {
+          "webgl2": true,
+          "pixelRatio": 1,
+          "maxTextureSize": 8192,
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        }
+      }
+    },
+    "errors": [],
+    "warnings": [
+      "THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+      "THREE.WebGLShadowMap: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+    ]
+  },
+  "visualAfter": {
+    "zones": {
+      "studio": {
+        "sample": {
+          "fps": 4,
+          "drawCalls": 13,
+          "triangles": 79794,
+          "pixelRatio": 1,
+          "sampledAt": 1792145062769
+        },
+        "renderer": {
+          "webgl2": true,
+          "pixelRatio": 1,
+          "maxTextureSize": 8192,
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        }
+      },
+      "hardware": {
+        "sample": {
+          "fps": 4,
+          "drawCalls": 14,
+          "triangles": 79802,
+          "pixelRatio": 1,
+          "sampledAt": 1792145067375
+        },
+        "renderer": {
+          "webgl2": true,
+          "pixelRatio": 1,
+          "maxTextureSize": 8192,
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        }
+      },
+      "software": {
+        "sample": {
+          "fps": 4,
+          "drawCalls": 14,
+          "triangles": 79802,
+          "pixelRatio": 1,
+          "sampledAt": 1792145071627
+        },
+        "renderer": {
+          "webgl2": true,
+          "pixelRatio": 1,
+          "maxTextureSize": 8192,
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        }
+      },
+      "ai-lab": {
+        "sample": {
+          "fps": 4,
+          "drawCalls": 14,
+          "triangles": 79802,
+          "pixelRatio": 1,
+          "sampledAt": 1792145076117
+        },
+        "renderer": {
+          "webgl2": true,
+          "pixelRatio": 1,
+          "maxTextureSize": 8192,
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        }
+      },
+      "companion": {
+        "sample": {
+          "fps": 2,
+          "drawCalls": 13,
+          "triangles": 79794,
+          "pixelRatio": 1,
+          "sampledAt": 1792145080749
+        },
+        "renderer": {
+          "webgl2": true,
+          "pixelRatio": 1,
+          "maxTextureSize": 8192,
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        }
+      }
+    },
+    "errors": [],
+    "warnings": [
+      "THREE.Clock: This module has been deprecated. Please use THREE.Timer instead."
+    ]
+  },
+  "asset": {
+    "bytes": 18054896,
+    "sha256": "e9984ddc7e04a1b39d72f5ab5e1ba9fe459fc42e773f851bf52068b357eb76c1",
+    "sourceAndDistMatch": true,
+    "modified": false,
+    "license": "CC BY 4.0",
+    "author": "XRProfXR",
+    "creditFileChanged": false
+  },
+  "preservation": {
+    "cachedGpuStringBlockUnchanged": true,
+    "nativeSharedPlatformAndDependenciesUnchanged": true,
+    "nativeDevProbeInherited": true
+  },
+  "macValidation": {
+    "performedForPhase26": false,
+    "pending": [
+      "M5 browser and WKWebView \u226555 FPS at actual DPR 2 in all six zones and transitions",
+      "Dev and aura:// visual/integration review",
+      "Physical native shortcuts and companion focus",
+      "SQLite persistence across relaunch",
+      "VoiceOver and system reduced motion/transparency",
+      "Safari Web Inspector console/network"
+    ],
+    "historicalReport": "../docs/PHASE2_5_VALIDATION.md"
+  },
+  "knownWarnings": [
+    "THREE.Clock deprecation from upstream R3F"
+  ],
+  "artifactRoot": "/workspace/aura-phase2-6",
+  "productionSmoke": {
+    "baseURL": "http://127.0.0.1:4173",
+    "errors": [],
+    "external": [],
+    "zones": [
+      "studio",
+      "hardware",
+      "software",
+      "ai-lab",
+      "github",
+      "companion"
+    ],
+    "avatar": {
+      "status": "loaded",
+      "bones": 72,
+      "heightMeters": 1.75,
+      "triangles": 36508,
+      "playingClip": "Idle02_F"
+    }
+  }
+}

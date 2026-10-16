@@ -3,6 +3,8 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { getZone } from '../src/studio/zones.ts';
+import { PerspectiveCamera, Vector3 } from 'three';
 const { chromium } = await import(process.env.AURA_PLAYWRIGHT_MODULE || 'playwright');
 const baseURL = process.env.AURA_BASE_URL || 'http://127.0.0.1:5173';
 const artifacts = process.env.AURA_ARTIFACTS || '/tmp/aura-phase2-audit';
@@ -38,6 +40,14 @@ try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, reducedMotion: 'reduce' });
   const page = await context.newPage();
   observe(page);
+  await page.addInitScript(() => {
+    window.__testGpuStringReads = 0;
+    const original = WebGL2RenderingContext.prototype.getParameter;
+    WebGL2RenderingContext.prototype.getParameter = function (parameter) {
+      if ([0x9245, 0x9246, 0x1f00, 0x1f01].includes(parameter)) window.__testGpuStringReads++;
+      return original.call(this, parameter);
+    };
+  });
   let releaseModel;
   const modelGate = new Promise((resolve) => { releaseModel = resolve; });
   await page.route('**/avatar/astra-lumen/*.glb', async (route) => { await modelGate; await route.continue(); });
@@ -75,6 +85,47 @@ try {
     for (let i = 0; i < ids.length; i++) await navigate(page, i);
     await page.screenshot({ path: path.join(artifacts, 'companion.png') });
   });
+  await check('GPU renderer strings stay cached across diagnostic samples', async () => {
+    const reads = await page.evaluate(() => window.__testGpuStringReads);
+    assert.ok(reads >= 2);
+    await page.waitForTimeout(3200);
+    assert.equal(await page.evaluate(() => window.__testGpuStringReads), reads);
+  });
+  await check('Detail views hide the active card and limit nearby destinations', async () => {
+    for (let i = 1; i < ids.length; i++) {
+      await navigate(page, i);
+      await page.waitForFunction(() => document.querySelector('.hotspot.selected').style.visibility === 'hidden');
+      assert.ok(await page.locator('.hotspot:visible').count() <= (ids[i] === 'companion' ? 1 : 2));
+    }
+  });
+  await check('Actual 3D workstation and Astra clicks navigate and focus the prompt', async () => {
+    async function clickWorld(point) {
+      // Use the real diagnostic pose rather than fixed screenshot coordinates.
+      await page.waitForFunction(() => window.__AURA_DIAGNOSTICS__.camera?.fov);
+      const d = await page.evaluate(() => window.__AURA_DIAGNOSTICS__);
+      const box = await page.locator('canvas').boundingBox();
+      const camera = new PerspectiveCamera(d.camera.fov, box.width / box.height, 0.05, 250);
+      camera.position.fromArray(d.camera.position);
+      camera.lookAt(new Vector3().fromArray(d.camera.target)); camera.updateMatrixWorld();
+      const projected = new Vector3(...point).project(camera);
+      const at = { x: box.x + (projected.x + 1) * box.width / 2, y: box.y + (1 - projected.y) * box.height / 2 };
+      assert.equal(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, at), 'CANVAS');
+      await page.mouse.click(at.x, at.y);
+    }
+    await navigate(page, 0);
+    await page.waitForFunction((pose) => window.__AURA_DIAGNOSTICS__.camera.position.every((v, i) => Math.abs(v - pose[i]) < 0.03), getZone('studio').camera);
+    await clickWorld([-3.05, 0.885, -2.02]);
+    await page.waitForFunction(() => window.__AURA_DIAGNOSTICS__.zone === 'hardware' && window.__AURA_DIAGNOSTICS__.cameraSettled);
+    await navigate(page, 0);
+    await page.waitForFunction((pose) => window.__AURA_DIAGNOSTICS__.camera.position.every((v, i) => Math.abs(v - pose[i]) < 0.03), getZone('studio').camera);
+    await clickWorld([0, 1, 0]);
+    await page.waitForFunction(() => window.__AURA_DIAGNOSTICS__.zone === 'companion' && window.__AURA_DIAGNOSTICS__.cameraSettled);
+    assert.ok(await page.getByLabel('Message Astra').evaluate((el) => el === document.activeElement));
+    await navigate(page, 1);
+    await page.getByRole('button', { name: 'Focus Astra companion', exact: true }).click();
+    await page.waitForFunction(() => window.__AURA_DIAGNOSTICS__.zone === 'companion' && window.__AURA_DIAGNOSTICS__.cameraSettled);
+    assert.ok(await page.getByLabel('Message Astra').evaluate((el) => el === document.activeElement));
+  });
   await check('Idle animation advances and procedural look-at follows the camera', async () => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.waitForFunction(() => window.__AURA_DIAGNOSTICS__?.animationTime > 0.1);
@@ -109,7 +160,7 @@ try {
     await page.waitForFunction((start) => { const c = window.__AURA_DIAGNOSTICS__.camera; return Math.abs(Math.hypot(...c.position.map((value, i) => value - c.target[i])) - start) > 0.1; }, originalDistance);
     const zoomed = await distance(); assert.ok(zoomed >= 7 - 0.01 && zoomed <= 22 + 0.01);
     await page.getByRole('button', { name: 'Reset overview', exact: true }).click();
-    await page.waitForFunction(() => window.__AURA_DIAGNOSTICS__.camera.position.every((value, i) => Math.abs(value - [9, 8, 12][i]) < 0.03));
+    await page.waitForFunction((pose) => window.__AURA_DIAGNOSTICS__.camera.position.every((value, i) => Math.abs(value - pose[i]) < 0.03), getZone('studio').camera);
   });
   await check('Browser shortcuts navigate; typing retains ordinary editing behavior', async () => {
     for (let i = 0; i < ids.length; i++) {
@@ -159,6 +210,33 @@ try {
     assert.equal(await page.getByLabel('Studio zone', { exact: true }).inputValue(), 'hardware');
     assert.equal(await page.getByLabel('Pin this project', { exact: true }).isChecked(), true);
   });
+  await check('Workstation scope uses saved assignments and selection preserves unsaved drafts', async () => {
+    await navigate(page, 1);
+    await page.getByLabel('Notes', { exact: true }).fill('A draft to preserve');
+    await page.getByRole('button', { name: /sample-web-app/ }).click();
+    await page.getByLabel('Notes', { exact: true }).fill('A separate draft');
+    await page.getByRole('button', { name: /sample-firmware/ }).click();
+    assert.equal(await page.getByLabel('Notes', { exact: true }).inputValue(), 'A draft to preserve');
+    await page.getByRole('button', { name: 'This workstation 1', exact: true }).click();
+    assert.equal(await page.locator('.repo-list .repo-row').count(), 1);
+    await navigate(page, 3);
+    await page.getByText('No projects assigned here yet.', { exact: false }).waitFor();
+    assert.equal(await page.locator('.repo-list .repo-row').count(), 0);
+    assert.equal(await page.getByLabel('Notes', { exact: true }).inputValue(), 'A draft to preserve');
+    await page.getByRole('button', { name: 'Assign to AI / LLM Lab', exact: true }).click();
+    assert.equal(await page.getByLabel('Studio zone', { exact: true }).inputValue(), 'ai-lab');
+    assert.equal(await page.locator('.repo-list .repo-row').count(), 0); // No implicit write.
+    await page.getByRole('button', { name: 'Save project', exact: true }).click();
+    await page.getByText('Saved to the project store.', { exact: true }).waitFor();
+    assert.equal(await page.locator('.repo-list .repo-row').count(), 1);
+    await page.getByRole('button', { name: 'All projects', exact: true }).click();
+    await page.getByRole('button', { name: /sample-web-app/ }).click();
+    assert.equal(await page.getByLabel('Notes', { exact: true }).inputValue(), 'A separate draft');
+    await page.getByRole('button', { name: /sample-firmware/ }).click();
+    await navigate(page, 0);
+    await page.getByRole('button', { name: 'Visit AI / LLM Lab', exact: true }).click();
+    await page.waitForFunction(() => window.__AURA_DIAGNOSTICS__.zone === 'ai-lab' && window.__AURA_DIAGNOSTICS__.cameraSettled);
+  });
   await check('Keyboard focus is visible and layout fits the minimum target window', async () => {
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.getByLabel('Message Astra').focus(); await page.keyboard.press('Tab');
@@ -167,6 +245,17 @@ try {
     assert.equal(await page.locator('.aura-app').getAttribute('data-reduced-motion'), 'true');
     const targets = await page.locator('.zone-nav button').evaluateAll((buttons) => buttons.map((b) => ({ left: b.getBoundingClientRect().left, right: b.getBoundingClientRect().right })));
     assert.ok(targets.every((b) => b.left >= 80 && b.right <= 1100));
+  });
+  await check('Minimum-window workstation heading has an opaque backing and accessible controls', async () => {
+    await navigate(page, 1);
+    assert.equal(await page.locator('.viewport-heading').evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(248, 250, 247)');
+    if (process.env.AURA_AXE_MODULE) {
+      const { default: AxeBuilder } = await import(process.env.AURA_AXE_MODULE);
+      const scan = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+      await writeFile(path.join(artifacts, 'accessibility-1100.json'), JSON.stringify(scan, null, 2));
+      assert.deepEqual(scan.violations.map((v) => v.id), []);
+    }
+    await page.screenshot({ path: path.join(artifacts, 'hardware-1100.png') });
   });
   await check('All six hotspots remain reachable without dock overlap at 1100×700', async () => {
     for (let i = 0; i < ids.length; i++) {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { useGLTF } from "@react-three/drei";
 import type { AppInfo } from "@aura/contracts";
 import { bridge } from "./platform/bridge.ts";
@@ -12,6 +13,7 @@ import { Inspector } from "./components/Inspector.tsx";
 import { CommandDock } from "./components/CommandDock.tsx";
 import { useCompanion } from "./components/useCompanion.ts";
 import { ArrowIcon } from "./components/Icon.tsx";
+import { ZoneIcon } from "./components/ZoneIcon.tsx";
 import "./studio.css";
 
 export function App() {
@@ -35,6 +37,10 @@ export function App() {
     setSceneKey((value) => value + 1);
   }, [report, diagnostics.status]);
   const zone = getZone(studio.zone);
+  const focusCompanion = useCallback(() => {
+    studio.navigate("companion");
+    document.getElementById("companion-prompt")?.focus({ preventScroll: true });
+  }, [studio.navigate]);
   const probe = new URLSearchParams(location.search).has("probe");
 
   useEffect(() => {
@@ -46,15 +52,15 @@ export function App() {
     if (diagnostics.status === "error") log.error("studio avatar load failed");
   }, [diagnostics.status]);
 
-  return <div className="aura-app" data-reduced-motion={studio.reducedMotion}>
+  return <div className="aura-app" data-reduced-motion={studio.reducedMotion} data-zone={studio.zone} style={{ "--zone-accent": zone.accent } as CSSProperties}>
     <a className="skip-link" href="#companion-prompt">Skip to companion</a>
     <header className="app-bar">
       <div className="titlebar-drag-surface" data-aura-drag-region />
-      <div className="brand" data-aura-drag-region><span className="brand-mark" aria-hidden="true">◈</span><strong>AURA</strong><span className="brand-divider" /><span>Spatial studio</span></div>
+      <div className="brand" data-aura-drag-region><span className="brand-mark"><ZoneIcon zone="studio" size={24} /></span><strong>AURA</strong><span className="brand-divider" /><span>Spatial workspace</span></div>
       <nav aria-label="Studio zones" className="zone-nav">
         {ZONES.map((item, index) => <button key={item.id} aria-current={studio.zone === item.id ? "page" : undefined}
           onClick={() => studio.navigate(item.id)} title={`${item.label} · ⌘${index + 1} / Ctrl+${index + 1}`}>
-          {item.shortLabel}<kbd>{index + 1}</kbd>
+          <ZoneIcon zone={item.id} size={14} />{item.shortLabel}<kbd>{index + 1}</kbd>
         </button>)}
       </nav>
       <span className="connection-chip"><i />{bridge.transportKind === "mock" ? "Mock connected" : "Native connected"}</span>
@@ -64,15 +70,15 @@ export function App() {
         {probe ? <AvatarProbe report={report} maxPixelRatio={studio.prefs?.graphics.maxPixelRatio ?? 2} /> :
           <Studio key={sceneKey} zone={studio.zone} revision={studio.revision} reducedMotion={studio.reducedMotion}
             maxDpr={studio.prefs?.graphics.maxPixelRatio ?? 2} state={companion.state} speechLevel={companion.speechLevel}
-            report={report} navigate={studio.navigate} restart={restart} />}
+            report={report} navigate={studio.navigate} restart={restart} focusCompanion={focusCompanion} />}
         <div className="viewport-heading">
-          <div className="eyebrow"><span className="live-dot" />YOUR DEVELOPER UNIVERSE <span className="heading-slash">/</span> {String(ZONES.findIndex((item) => item.id === studio.zone) + 1).padStart(2, "0")}</div>
-          <h1>{zone.id === "studio" ? <>Room for your next <em>idea.</em></> : zone.label}</h1>
-          <p>{zone.id === "studio" ? "A little space. A different perspective." : zone.caption}</p>
+          <div className="eyebrow"><span className="live-dot" />AURA WORKSPACE <span className="heading-slash">/</span> {String(ZONES.findIndex((item) => item.id === studio.zone) + 1).padStart(2, "0")}</div>
+          <h1>{zone.id === "studio" ? <>A considered <em>workspace.</em></> : zone.label}</h1>
+          <p>{zone.caption}</p>
           <div className="view-actions"><button onClick={() => studio.navigate("studio")}><ArrowIcon reset /> Reset overview</button><span>Drag to orbit · scroll to explore</span></div>
         </div>
         <div className={`companion-pill ${companion.state}`} aria-live="polite">
-          <span className="astra-spark" aria-hidden="true">✧</span><span><strong>ASTRA LUMEN II</strong><small>{companion.state === "idle" ? "Here when you need a hand" : companion.state}</small></span><i className={`state-dot ${companion.state}`} />
+          <button className="astra-spark" onClick={focusCompanion} aria-label="Focus Astra companion"><ZoneIcon zone="companion" size={26} /></button><span><strong>ASTRA LUMEN II</strong><small>{companion.state === "idle" ? "Ready when you are" : companion.state}</small></span><i className={`state-dot ${companion.state}`} />
         </div>
         {(diagnostics.context !== "ready" || diagnostics.status === "error") && <div className="scene-message" role="alert">
           <strong>{diagnostics.context === "lost" ? "The graphics connection was interrupted." : diagnostics.error ?? "Restoring your studio…"}</strong>
@@ -95,7 +101,7 @@ export function App() {
         </aside>}
         {studio.error && <p className="preference-error" role="status">{studio.error}</p>}
       </section>
-      <Inspector zone={studio.zone} />
+      <Inspector zone={studio.zone} navigate={studio.navigate} />
     </main>
     <footer className="app-footer">
       <span>AURA{appInfo ? ` / ${appInfo.appVersion}` : ""}<span className="footer-divider">/</span>WebGL studio</span>

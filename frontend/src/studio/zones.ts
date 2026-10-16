@@ -14,12 +14,12 @@ export interface Zone {
 }
 
 export const ZONES: Zone[] = [
-  { id: "studio", label: "Studio overview", shortLabel: "Studio", caption: "A space for what comes next", accent: "#2563eb", anchor: [0, 0.1, 4], camera: [9, 8, 12], target: [0, 0.7, 0], glyph: "◈" },
-  { id: "hardware", label: "Hardware Lab", shortLabel: "Hardware", caption: "Build at the edge", accent: "#00759a", anchor: [-3.6, 1.6, -2.3], camera: [0, 3.6, 3], target: [-3.3, 1, -2.4], glyph: "▧" },
-  { id: "software", label: "Software Studio", shortLabel: "Software", caption: "Ideas into interfaces", accent: "#2563eb", anchor: [3.6, 1.6, -2.3], camera: [7.7, 3.5, 2.8], target: [3.3, 1, -2.4], glyph: "⌘" },
-  { id: "ai-lab", label: "AI / LLM Lab", shortLabel: "AI Lab", caption: "Explore the possible", accent: "#6366f1", anchor: [-3.6, 1.7, 2.1], camera: [0.4, 3.4, 7.1], target: [-3.3, 1, 2], glyph: "✳" },
-  { id: "github", label: "GitHub projects", shortLabel: "Projects", caption: "Connect the work", accent: "#15803d", anchor: [3.6, 1.6, 2.1], camera: [7.8, 3.7, 7.3], target: [3.3, 1, 2], glyph: "⑂" },
-  { id: "companion", label: "Astra Lumen II", shortLabel: "Companion", caption: "Your companion, in context", accent: "#00759a", anchor: [0, 2.3, 0], camera: [2.3, 2.1, 4.6], target: [0, 1.15, 0], glyph: "✧" },
+  { id: "studio", label: "Studio overview", shortLabel: "Studio", caption: "Four workstations. One considered workspace.", accent: "#426a7a", anchor: [0, 0.1, 4], camera: [9.6, 8.1, 12.8], target: [0, 0.7, -0.2], glyph: "◈" },
+  { id: "hardware", label: "Hardware Lab", shortLabel: "Hardware", caption: "Electronics, systems, and the workbench.", accent: "#326b70", anchor: [-3.6, 1.8, -2.3], camera: [-0.5, 3.1, 2.2], target: [-3.3, 1, -2.4], glyph: "▧" },
+  { id: "software", label: "Software Studio", shortLabel: "Software", caption: "A focused place to shape your software.", accent: "#42669a", anchor: [3.6, 1.8, -2.3], camera: [6.4, 3.1, 2.2], target: [3.3, 1, -2.4], glyph: "⌘" },
+  { id: "ai-lab", label: "AI / LLM Lab", shortLabel: "AI Lab", caption: "Models, experiments, and new directions.", accent: "#6d5f87", anchor: [-3.6, 1.8, 2.1], camera: [-0.5, 3, 6.2], target: [-3.3, 1, 1.8], glyph: "✳" },
+  { id: "github", label: "GitHub projects", shortLabel: "Projects", caption: "An organized view of your project collection.", accent: "#4f7059", anchor: [3.6, 1.7, 2.1], camera: [6.7, 3.1, 6.3], target: [3.3, 1, 1.8], glyph: "⑂" },
+  { id: "companion", label: "Astra Lumen II", shortLabel: "Companion", caption: "A companion in the context of your work.", accent: "#326b70", anchor: [0, 2.1, 0], camera: [2, 2, 4.7], target: [0, 0.8, 0], glyph: "✧" },
 ];
 
 export function getZone(id: ZoneId): Zone {

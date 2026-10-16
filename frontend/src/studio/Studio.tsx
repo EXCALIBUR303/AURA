@@ -11,6 +11,7 @@ import { getZone, ZONES } from "./zones.ts";
 import type { FrameSample, Report } from "./diagnostics.ts";
 import { useBridgeEvent } from "../platform/bridge.ts";
 import { ArrowIcon } from "../components/Icon.tsx";
+import { ZoneIcon } from "../components/ZoneIcon.tsx";
 
 class SceneBoundary extends Component<{ children: ReactNode; onError: () => void }, { failed: boolean }> {
   override state = { failed: false };
@@ -102,7 +103,8 @@ function Measurements({ zone, report, lowerDpr }: { zone: ZoneId; report: Report
     }
     const orbit = controls as OrbitControlsImpl | null;
     report({ fps, drawCalls: sample.drawCalls, sceneTriangles: sample.triangles, perZone: { ...samples.current },
-      camera: { position: camera.position.toArray(), target: orbit?.target.toArray() ?? [0, 0, 0] },
+      camera: { position: camera.position.toArray(), target: orbit?.target.toArray() ?? [0, 0, 0],
+        fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : undefined },
       renderer: { webgl2: gl.capabilities.isWebGL2, pixelRatio: sample.pixelRatio,
         maxTextureSize: gl.capabilities.maxTextureSize, ...gpu.current } });
     elapsed.current = 0; frames.current = 0; stableWindow.current = true;
@@ -126,9 +128,14 @@ function ContextEvents({ report, restored }: { report: Report; restored: () => v
 type ScreenRect = { left: number; right: number; top: number; bottom: number };
 const overlaps = (a: ScreenRect, b: ScreenRect) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 
-function ProjectHotspots({ buttons }: { buttons: RefObject<Map<ZoneId, HTMLButtonElement>> }) {
+function ProjectHotspots({ buttons, zone }: { buttons: RefObject<Map<ZoneId, HTMLButtonElement>>; zone: ZoneId }) {
   const point = useRef(new THREE.Vector3());
   const time = useRef(0);
+  const anchor = getZone(zone).anchor;
+  const nearby = zone === "studio" ? ZONES : ZONES.filter((item) => item.id !== zone && item.id !== "studio")
+    .sort((a, b) => a.anchor.reduce((sum, value, i) => sum + (value - anchor[i]!) ** 2, 0) - b.anchor.reduce((sum, value, i) => sum + (value - anchor[i]!) ** 2, 0))
+    .slice(0, zone === "companion" ? 1 : 2);
+  const visible = new Set(nearby.map((item) => item.id));
   useFrame(({ camera, size, gl }, delta) => {
     time.current += delta;
     if (time.current < 0.07) return;
@@ -157,6 +164,7 @@ function ProjectHotspots({ buttons }: { buttons: RefObject<Map<ZoneId, HTMLButto
       const button = buttons.current.get(zone.id);
       const dimension = dimensions.get(zone.id);
       if (!button || !dimension) continue;
+      if (!visible.has(zone.id)) { button.style.visibility = "hidden"; continue; }
       point.current.fromArray(zone.anchor).project(camera);
       const behind = point.current.z > 1 || point.current.z < -1;
       const anchorX = (point.current.x + 1) * size.width / 2;
@@ -181,9 +189,9 @@ function ProjectHotspots({ buttons }: { buttons: RefObject<Map<ZoneId, HTMLButto
   return null;
 }
 
-export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart }: {
+export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart, focusCompanion }: {
   zone: ZoneId; revision: number; reducedMotion: boolean; maxDpr: number; state: CompanionState; speechLevel: number;
-  report: Report; navigate: (zone: ZoneId) => void; restart: () => void;
+  report: Report; navigate: (zone: ZoneId) => void; restart: () => void; focusCompanion: () => void;
 }) {
   const buttons = useRef(new Map<ZoneId, HTMLButtonElement>());
   const startedAt = useRef(performance.now());
@@ -200,21 +208,21 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
   const dpr = Math.max(1, Math.min(maxDpr, adaptiveDpr));
   return <>
     <SceneBoundary onError={() => report({ context: "ready", status: "error", error: "The renderer could not start. Check WebGL2 support and retry the scene." })}>
-      <Canvas shadows camera={{ position: [9, 8, 12], fov: 43, near: 0.05, far: 250 }} dpr={[1, dpr]}
+      <Canvas className="scene-canvas" shadows="percentage" camera={{ position: getZone("studio").camera, fov: 39, near: 0.05, far: 250 }} dpr={[1, dpr]}
         frameloop={active && hostActive ? "always" : "never"}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         fallback={<p>WebGL2 is unavailable. Your workstation and companion controls remain accessible.</p>}
         onCreated={() => report({ context: "ready" })}>
-        <color attach="background" args={["#edf2f6"]} />
-        <fog attach="fog" args={["#edf2f6", 22, 52]} />
-        <hemisphereLight args={["#ffffff", "#b3c1d3", 2.1]} />
-        <directionalLight position={[2, 8, 5]} intensity={3} castShadow shadow-mapSize={[1024, 1024]}
+        <color attach="background" args={["#eef0ed"]} />
+        <fog attach="fog" args={["#eef0ed", 24, 52]} />
+        <hemisphereLight args={["#fffdf5", "#bac9cf", 1.8]} />
+        <directionalLight position={[-3, 8, 6]} color="#fff4e5" intensity={2.6} castShadow shadow-mapSize={[1024, 1024]}
           shadow-camera-left={-8} shadow-camera-right={8} shadow-camera-top={6} shadow-camera-bottom={-6} shadow-bias={-0.001} />
-        <directionalLight position={[-6, 4, -2]} intensity={1.4} color="#d5eeff" />
-        <World />
+        <directionalLight position={[5, 5, -3]} intensity={1.1} color="#d7e5ef" />
+        <World zone={zone} navigate={navigate} focusCompanion={focusCompanion} />
         <mesh position={[0, 0.132, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[1.17, 1.21, 64]} />
-          <meshBasicMaterial color={state === "error" ? "#ba1a1a" : state === "thinking" ? "#6366f1" : state === "speaking" ? "#0099c7" : "#91b4c4"} />
+          <meshBasicMaterial color={state === "error" ? "#a15c55" : state === "thinking" ? "#887b9b" : state === "speaking" || state === "listening" ? "#56888c" : "#a2b1ad"} />
         </mesh>
         <SceneBoundary onError={() => report({ status: "error", error: "Astra could not load. Check the model file and retry the scene." })}>
           <Suspense fallback={null}><Astra startedAt={startedAt.current} state={state} speechLevel={speechLevel} reducedMotion={reducedMotion} report={report} /></Suspense>
@@ -222,14 +230,14 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
         <CameraRig zone={zone} revision={revision} reducedMotion={reducedMotion} report={report} />
         <Measurements zone={zone} report={report} lowerDpr={() => setAdaptiveDpr((value) => Math.max(1, value - 0.25))} />
         <ContextEvents report={report} restored={restart} />
-        <ProjectHotspots buttons={buttons} />
+        <ProjectHotspots buttons={buttons} zone={zone} />
       </Canvas>
     </SceneBoundary>
     <nav className="hotspots" aria-label="Spatial zone navigation">
       {ZONES.map((item) => <button key={item.id} ref={(node) => { if (node) buttons.current.set(item.id, node); else buttons.current.delete(item.id); }}
         className={`hotspot ${zone === item.id ? "selected" : ""}`} style={{ visibility: "hidden", borderLeftColor: item.accent }}
         onClick={() => navigate(item.id)} aria-label={`Travel to ${item.label}`} aria-pressed={zone === item.id}>
-        <span aria-hidden="true">{item.glyph}</span><span>{item.shortLabel}<small>Explore zone <ArrowIcon /></small></span>
+        <span className="hotspot-icon" style={{ color: item.accent }}><ZoneIcon zone={item.id} /></span><span>{item.shortLabel}<small>Explore zone <ArrowIcon /></small></span>
       </button>)}
     </nav>
   </>;

@@ -3,18 +3,19 @@ import { motion } from "motion/react";
 import { bridge } from "../platform/bridge.ts";
 import type { useCompanion } from "./useCompanion.ts";
 import { ArrowIcon } from "./Icon.tsx";
+import { ZoneIcon } from "./ZoneIcon.tsx";
 
 export function CommandDock({ companion, reducedMotion }: { companion: ReturnType<typeof useCompanion>; reducedMotion: boolean }) {
   const [prompt, setPrompt] = useState("");
   const [expanded, setExpanded] = useState(false);
   const c = companion;
   const quickPrompts = ["Explore this workspace", "Review my projects", "Plan the next step"];
-  return <motion.section className="command-dock glass" aria-label="Astra command dock"
+  return <motion.section className="command-dock glass" data-companion-state={c.state} aria-label="Astra command dock"
     initial={reducedMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : 0.3 }}>
     <div className="dock-header">
       <button className={`talk-button ${c.voice?.listening ? "listening" : ""}`} disabled={c.voiceBusy || c.voiceUnavailable}
         aria-pressed={Boolean(c.voice?.listening)} onClick={() => void c.voiceAction("listen")}>
-        <span className="talk-symbol" aria-hidden="true">✧</span><span>{c.voice?.listening ? "Stop listening" : "Talk with Astra"}<small>{c.voiceUnavailable ? "Voice available in Phase 3" : bridge.transportKind === "mock" ? "Mock voice · no microphone captured" : "Voice companion"}</small></span>
+        <span className="talk-symbol"><ZoneIcon zone="companion" size={23} /></span><span>{c.voice?.listening ? "Stop listening" : "Talk with Astra"}<small>{c.voiceUnavailable ? "Voice available in Phase 3" : bridge.transportKind === "mock" ? "Mock voice · no microphone captured" : "Voice companion"}</small></span>
       </button>
       <span className="companion-state"><i className={`state-dot ${c.state}`} />{c.state}</span>
       <button className="icon-button" aria-expanded={expanded} aria-controls="reply-panel" aria-label={expanded ? "Collapse reply" : "Expand reply"} onClick={() => setExpanded(!expanded)}>{expanded ? "⌄" : "⌃"}</button>

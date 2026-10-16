@@ -16,7 +16,7 @@ export interface StudioDiagnostics extends AvatarDiagnostics {
   drawCalls?: number;
   sceneTriangles?: number;
   animationTime?: number;
-  camera?: { position: [number, number, number]; target: [number, number, number] };
+  camera?: { position: [number, number, number]; target: [number, number, number]; fov?: number };
   rig?: { head: boolean; eyes: boolean; jaw: boolean; jawAngle: number; headYaw: number; headPitch: number };
   perZone: Partial<Record<ZoneId, FrameSample[]>>;
 }
