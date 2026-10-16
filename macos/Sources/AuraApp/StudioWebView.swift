@@ -9,7 +9,7 @@ struct StudioWebView: NSViewRepresentable {
     let model: AppModel
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(services: services)
+        Coordinator(services: services, model: model)
     }
 
     func makeNSView(context: Context) -> WKWebView {
@@ -67,11 +67,14 @@ struct StudioWebView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDelegate, WKUIDelegate {
         let services: AppServices
+        let model: AppModel
         weak var webView: WKWebView?
         var trustedOrigin: Origin?
+        private var probeStarted = false
 
-        init(services: AppServices) {
+        init(services: AppServices, model: AppModel) {
             self.services = services
+            self.model = model
         }
 
         // MARK: bridge
@@ -118,6 +121,13 @@ struct StudioWebView: NSViewRepresentable {
                 NSWorkspace.shared.open(url)
             }
             return nil
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard DevProbe.isEnabled, !probeStarted else { return }
+            probeStarted = true
+            let model = model
+            Task { await DevProbe.run(webView: webView, model: model) }
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
