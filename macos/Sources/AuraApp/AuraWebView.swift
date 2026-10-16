@@ -44,6 +44,28 @@ final class AuraWebView: WKWebView {
         window.makeFirstResponder(self)
     }
 
+    /// Menu shortcuts that use Control (⌃⌥Space, Talk to Astra) must work while
+    /// a page text field is focused. There the text system claims Control
+    /// combinations as key bindings before the main menu sees them, which was
+    /// reproduced with real key events in Phase 3B validation. So the menu
+    /// gets the first chance at any Control (non-Command) key-down; anything
+    /// it does not match goes on to the page unchanged.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if routeControlShortcutToMenu(event) { return true }
+        return super.performKeyEquivalent(with: event)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if routeControlShortcutToMenu(event) { return }
+        super.keyDown(with: event)
+    }
+
+    private func routeControlShortcutToMenu(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard event.type == .keyDown, flags.contains(.control), !flags.contains(.command) else { return false }
+        return NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
+    }
+
     override func mouseUp(with event: NSEvent) {
         armedPressNumber = nil
         super.mouseUp(with: event)
