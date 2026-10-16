@@ -134,6 +134,10 @@ export const World = memo(function World({ zone, navigate, focusCompanion }: {
   const gl = useThree((state) => state.gl);
   useEffect(() => () => { gl.domElement.style.cursor = ""; }, [gl]);
   const station = STATIONS.find((item) => item.id === zone);
+  // Keep the ring mounted and rendered (opacity 0 outside workstations): unmounting disposes
+  // its material and an invisible mesh is never compiled, so either way the next workstation
+  // visit would link a new shader program mid-transition (a synchronous GPU stall).
+  const ring = station ?? STATIONS[0]!;
   return <group>
     <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.085, 0]}>
       <planeGeometry args={[200, 200]} /><meshStandardMaterial color="#e7e9e6" roughness={0.92} />
@@ -142,9 +146,9 @@ export const World = memo(function World({ zone, navigate, focusCompanion }: {
     <Plantings />
     <mesh position={[0, 0.095, 0]} receiveShadow><cylinderGeometry args={[1.23, 1.29, 0.07, 64]} /><meshStandardMaterial color="#c4c8c3" roughness={0.75} /></mesh>
     <mesh position={[0, 0.126, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[1.2, 64]} /><meshStandardMaterial color="#e7e8e0" roughness={0.66} /></mesh>
-    {station && <mesh position={[station.x, 0.098, station.z + 0.15]} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[1.45, 1.47, 4]} /><meshBasicMaterial color={station.accent} transparent opacity={0.5} depthWrite={false} />
-    </mesh>}
+    <mesh position={[ring.x, 0.098, ring.z + 0.15]} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[1.45, 1.47, 4]} /><meshBasicMaterial color={ring.accent} transparent opacity={station ? 0.5 : 0} depthWrite={false} />
+    </mesh>
     {/* A non-rendering, six-face hit area avoids raycasting the 36k-triangle rig. */}
     <mesh visible={false} position={[0, 1.03, 0]} onClick={(event) => { event.stopPropagation(); focusCompanion(); }}
       onPointerOver={() => { gl.domElement.style.cursor = "pointer"; }} onPointerOut={() => { gl.domElement.style.cursor = ""; }}>
