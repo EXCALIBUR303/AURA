@@ -21,8 +21,12 @@ struct StudioWebView: NSViewRepresentable {
         webConfiguration.userContentController.addScriptMessageHandler(
             context.coordinator, contentWorld: .page, name: BridgeProtocol.handlerName
         )
+        context.coordinator.windowDrag.install(in: webConfiguration.userContentController)
+        // Tab moves through every control (Safari's "Press Tab to highlight each
+        // item"), not only text fields, even when the Mac's full keyboard access is off.
+        webConfiguration.preferences.tabFocusesLinks = true
 
-        let webView = WKWebView(frame: .zero, configuration: webConfiguration)
+        let webView = AuraWebView(frame: .zero, configuration: webConfiguration)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.isInspectable = configuration.environment == .development
@@ -71,10 +75,18 @@ struct StudioWebView: NSViewRepresentable {
         weak var webView: WKWebView?
         var trustedOrigin: Origin?
         private var probeStarted = false
+        private(set) lazy var windowDrag = WindowDragHandler { [weak self] frame in
+            self?.isTrusted(frame) ?? false
+        }
 
         init(services: AppServices, model: AppModel) {
             self.services = services
             self.model = model
+        }
+
+        /// Only our own top-level document may talk to the host.
+        func isTrusted(_ frame: WKFrameInfo) -> Bool {
+            frame.isMainFrame && Origin(frame.securityOrigin) == trustedOrigin
         }
 
         // MARK: bridge
@@ -84,8 +96,7 @@ struct StudioWebView: NSViewRepresentable {
             didReceive message: WKScriptMessage,
             replyHandler: @escaping @MainActor @Sendable (Any?, String?) -> Void
         ) {
-            // Only our own top-level document may talk to the host.
-            guard message.frameInfo.isMainFrame, Origin(message.frameInfo.securityOrigin) == trustedOrigin else {
+            guard isTrusted(message.frameInfo) else {
                 Log.bridge.error("rejected message from untrusted frame or origin")
                 replyHandler(nil, "untrusted origin")
                 return
@@ -124,6 +135,7 @@ struct StudioWebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            (webView as? AuraWebView)?.takeKeyboardFocus()
             guard DevProbe.isEnabled, !probeStarted else { return }
             probeStarted = true
             let model = model

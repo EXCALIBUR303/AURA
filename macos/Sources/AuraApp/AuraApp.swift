@@ -12,7 +12,9 @@ struct AuraApp: App {
     private var model: AppModel { appDelegate.model }
 
     var body: some Scene {
-        WindowGroup("AURA") {
+        // One window: a second copy of the studio would run a second render
+        // loop, and native events reach only one web view.
+        Window("AURA", id: "main") {
             RootView(model: model)
                 .frame(minWidth: 1100, minHeight: 700)
                 .task { await model.start() }
