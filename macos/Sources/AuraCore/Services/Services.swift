@@ -15,6 +15,9 @@ public protocol GitHubService: AnyObject {
     var onStatusChange: (@MainActor (GitHubAuthStatus) -> Void)? { get set }
     /// At launch: validate a stored session, if any.
     func restore() async
+    /// Returns once the launch restore (if started) has finished, so early
+    /// bridge calls see the restored session instead of "disconnected".
+    func waitUntilRestored() async
     func connect() async -> GitHubAuthStatus
     func disconnect() async -> GitHubAuthStatus
     func refresh() async -> GitHubAuthStatus
@@ -62,6 +65,7 @@ public final class MockGitHubService: GitHubService {
     }
 
     public func restore() async {}
+    public func waitUntilRestored() async {}
 
     public func connect() async -> GitHubAuthStatus {
         approval?.cancel()

@@ -266,6 +266,18 @@ struct GitHubHarness {
         #expect(h.github.requests.first?.value(forHTTPHeaderField: "X-GitHub-Api-Version") == "2022-11-28")
     }
 
+    @Test func callsDuringLaunchRestoreWaitForIt() async throws {
+        let h = GitHubHarness()
+        try h.store(validCredentials(h.clock))
+        h.github.serveAccount(repositories: [repoJSON("a", pushedAt: nil)])
+        let service = h.service
+        // The page asks for repositories while the launch restore is still running.
+        service.beginRestore()
+        #expect(service.status == .disconnected)
+        #expect(try await service.listRepositories(cursor: nil, perPage: 10).items.map(\.name) == ["a"])
+        guard case .connected = service.status else { Issue.record("got \(service.status)"); return }
+    }
+
     @Test func expiringAccessTokenIsRefreshedWithoutASecret() async throws {
         let h = GitHubHarness()
         try h.store(validCredentials(h.clock, accessIn: 60))

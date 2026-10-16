@@ -40,7 +40,20 @@ public final class LiveGitHubService: GitHubService {
 
     public var status: GitHubAuthStatus { connection.state.authStatus }
 
-    public func restore() async { await connection.restore() }
+    private var restoring: Task<Void, Never>?
+
+    public func restore() async {
+        beginRestore()
+        await waitUntilRestored()
+    }
+
+    /// Starts the launch restore without waiting; calls made meanwhile wait for it.
+    public func beginRestore() {
+        let connection = connection
+        restoring = Task { await connection.restore() }
+    }
+
+    public func waitUntilRestored() async { await restoring?.value }
 
     public func connect() async -> GitHubAuthStatus { await connection.connect().authStatus }
 
@@ -171,6 +184,7 @@ public final class LiveGitHubService: GitHubService {
     /// connection so its state (and github.authChanged) follows reality.
     private func perform<T>(_ work: (GitHubAPIClient) async throws -> T) async throws -> T {
         guard let client = connection.client else { throw AuraError.unavailable("GitHub sign-in is not configured in this build") }
+        await waitUntilRestored()
         switch connection.state {
         case .connected, .rateLimited: break
         case .authorizing, .disconnected, .expired: throw AuraError.notAuthenticated("not connected to GitHub")

@@ -62,7 +62,10 @@ public final class AppServices {
         }
 
         github.onStatusChange = { status in events.emit(.githubAuthChanged, status) }
-        router.register(.githubGetAuthStatus, Empty.self) { _ in github.status }
+        router.register(.githubGetAuthStatus, Empty.self) { _ in
+            await github.waitUntilRestored()
+            return github.status
+        }
         router.register(.githubConnect, Empty.self) { _ in await github.connect() }
         router.register(.githubDisconnect, Empty.self) { _ in await github.disconnect() }
         router.register(.githubRefresh, Empty.self) { _ in await github.refresh() }
