@@ -16,7 +16,24 @@ enum DevProbe {
         ProcessInfo.processInfo.environment["AURA_DEV_PROBE"] == "1"
     }
 
+    /// Round-trips a throwaway Keychain item through the real SecretStore, to
+    /// show Keychain access works for this build (sandbox, signing). Never logs the value.
+    static func keychainSelfTest(_ secrets: any SecretStore) {
+        let key = SecretKey(rawValue: "probe.selftest")
+        let value = UUID().uuidString
+        do {
+            try secrets.write(value, for: key)
+            let readBack = try secrets.read(key) == value
+            try secrets.delete(key)
+            let gone = try secrets.read(key) == nil
+            log.notice("probe keychain write+read=\(readBack, privacy: .public) delete=\(gone, privacy: .public)")
+        } catch {
+            log.error("probe keychain failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
     static func run(webView: WKWebView, model: AppModel) async {
+        if let secrets = model.services?.secrets { keychainSelfTest(secrets) }
         let sampleMs = Int(ProcessInfo.processInfo.environment["AURA_DEV_PROBE_SAMPLE_MS"] ?? "") ?? 5000
         log.notice("probe start sampleMs=\(sampleMs, privacy: .public)")
 
