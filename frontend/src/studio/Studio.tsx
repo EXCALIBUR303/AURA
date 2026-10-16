@@ -67,6 +67,7 @@ function Measurements({ zone, report, lowerDpr }: { zone: ZoneId; report: Report
   const sinceZone = useRef(0);
   const stableWindow = useRef(true);
   const samples = useRef<Partial<Record<ZoneId, FrameSample[]>>>({});
+  const gpu = useRef<{ vendor: string; renderer: string } | null>(null);
   useEffect(() => {
     elapsed.current = 0; frames.current = 0; slow.current = 0; sinceZone.current = 0; stableWindow.current = true;
   }, [zone]);
@@ -89,15 +90,21 @@ function Measurements({ zone, report, lowerDpr }: { zone: ZoneId; report: Report
       slow.current = fps < 55 ? slow.current + 1 : 0;
       if (slow.current >= 3) { lowerDpr(); slow.current = 0; }
     }
-    const context = gl.getContext();
-    const extension = context.getExtension("WEBGL_debug_renderer_info");
+    // getParameter is a synchronous GPU round-trip (it waits for queued frames),
+    // so read the constant renderer strings once rather than every second.
+    if (!gpu.current) {
+      const context = gl.getContext();
+      const extension = context.getExtension("WEBGL_debug_renderer_info");
+      gpu.current = {
+        vendor: String(context.getParameter(extension ? extension.UNMASKED_VENDOR_WEBGL : context.VENDOR)),
+        renderer: String(context.getParameter(extension ? extension.UNMASKED_RENDERER_WEBGL : context.RENDERER)),
+      };
+    }
     const orbit = controls as OrbitControlsImpl | null;
     report({ fps, drawCalls: sample.drawCalls, sceneTriangles: sample.triangles, perZone: { ...samples.current },
       camera: { position: camera.position.toArray(), target: orbit?.target.toArray() ?? [0, 0, 0] },
       renderer: { webgl2: gl.capabilities.isWebGL2, pixelRatio: sample.pixelRatio,
-        maxTextureSize: gl.capabilities.maxTextureSize,
-        vendor: String(context.getParameter(extension ? extension.UNMASKED_VENDOR_WEBGL : context.VENDOR)),
-        renderer: String(context.getParameter(extension ? extension.UNMASKED_RENDERER_WEBGL : context.RENDERER)) } });
+        maxTextureSize: gl.capabilities.maxTextureSize, ...gpu.current } });
     elapsed.current = 0; frames.current = 0; stableWindow.current = true;
   });
   return null;
