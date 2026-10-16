@@ -1,0 +1,112 @@
+/*
+ * AURA design tokens — reconciled from
+ * designs/stitch/.../luminous_silicon_spatial_studio/DESIGN.md (prose sections are
+ * authoritative where they disagree with the front-matter or code.html).
+ * See docs/DESIGN_ANALYSIS.md for the reasoning. Values marked "proposed" are
+ * not in the Stitch source and are open to Codex's visual refinement.
+ *
+ * Fonts: system UI first (SF Pro renders natively in WKWebView, no network
+ * fetch). If Inter / JetBrains Mono are wanted, bundle them locally (OFL);
+ * never load fonts from a CDN in the shipped app.
+ */
+
+:root {
+  /* ---- surfaces */
+  --aura-canvas-root: #f7f9fc;
+  --aura-glass-base: rgba(255, 255, 255, 0.72);
+  --aura-glass-elevated: rgba(255, 255, 255, 0.88);
+  --aura-glass-sunken: rgba(238, 242, 248, 0.65);
+  --aura-glass-modal: rgba(255, 255, 255, 0.94);
+  --aura-blur-chrome: blur(28px) saturate(180%);
+  --aura-blur-hud: blur(40px) saturate(190%);
+
+  /* ---- titanium (dark accents) */
+  --aura-titanium-core: #1c1f26;
+  --aura-titanium-surface: #282d37;
+  --aura-titanium-border: rgba(255, 255, 255, 0.12);
+  --aura-titanium-text: #f1f5f9;
+
+  /* ---- text (contrast on --aura-canvas-root) */
+  --aura-text-primary: #111c2c; /* 16.2:1 */
+  --aura-text-secondary: #3e484e; /* 8.9:1 */
+  --aura-text-muted: #5b656b; /* proposed; 5.7:1. Stitch "outline" #6e797f is 4.2:1 — borders only */
+
+  /* ---- accents */
+  --aura-accent-cyan: #0099c7; /* 3.1:1 → large text, icons, borders only */
+  --aura-accent-cyan-text: #00759a; /* proposed; 5.0:1 for small cyan text */
+  --aura-accent-cyan-emissive: #00d2ff; /* 3D emission / glow only, never text on light */
+  --aura-accent-cobalt: #2563eb; /* primary actions; white text on it 5.2:1 */
+  --aura-accent-cobalt-hover: #3b82f6;
+  --aura-accent-cobalt-active: #1d4ed8;
+  --aura-accent-iris: #6366f1; /* 4.2:1 — not for small text */
+
+  /* ---- status (dots/badges; pair with a label, never colour alone) */
+  --aura-status-live: #00d2ff;
+  --aura-status-ok: #22c55e;
+  --aura-status-ok-text: #15803d;
+  --aura-status-inference: #6366f1;
+  --aura-status-warning: #b45309;
+  --aura-status-error: #ba1a1a;
+
+  /* ---- borders */
+  --aura-border-hairline: rgba(0, 0, 0, 0.06);
+  --aura-border-glass: rgba(255, 255, 255, 0.6);
+  --aura-border-hud: rgba(255, 255, 255, 0.95);
+  --aura-border-hud-rim: rgba(200, 215, 235, 0.45);
+  --aura-border-input: rgba(210, 220, 235, 0.6);
+  --aura-focus-ring: 0 0 0 2px rgba(37, 99, 235, 0.45); /* proposed: Stitch 0.25 alpha is too faint for keyboard users */
+
+  /* ---- elevation */
+  --aura-shadow-hud: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 24px -4px rgba(15, 23, 42, 0.08),
+    0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  --aura-shadow-modal: 0 20px 48px -8px rgba(15, 23, 42, 0.16), 0 4px 12px -2px rgba(15, 23, 42, 0.08);
+
+  /* ---- type */
+  --aura-font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --aura-font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --aura-text-display: 600 40px/48px var(--aura-font-ui);
+  --aura-text-headline-lg: 600 26px/34px var(--aura-font-ui);
+  --aura-text-headline-md: 500 18px/24px var(--aura-font-ui);
+  --aura-text-title-sm: 600 14px/20px var(--aura-font-ui);
+  --aura-text-body: 400 13px/19px var(--aura-font-ui);
+  --aura-text-body-strong: 600 13px/19px var(--aura-font-ui);
+  --aura-text-body-compact: 400 12px/17px var(--aura-font-ui);
+  --aura-text-code: 400 12px/18px var(--aura-font-mono);
+  --aura-text-label-caps: 600 10px/14px var(--aura-font-mono); /* uppercase, letter-spacing 0.06em */
+  --aura-tracking-label-caps: 0.06em;
+
+  /* ---- shape */
+  --aura-radius-sm: 4px;
+  --aura-radius-control: 8px;
+  --aura-radius-group: 12px;
+  --aura-radius-shell: 16px;
+  --aura-radius-pill: 9999px;
+
+  /* ---- spacing (4px base) */
+  --aura-space-xs: 4px;
+  --aura-space-sm: 8px;
+  --aura-space-md: 12px;
+  --aura-space-lg: 20px;
+  --aura-space-xl: 28px;
+
+  /* ---- layout */
+  --aura-titlebar-height: 48px;
+  --aura-rail-left: 260px;
+  --aura-rail-right: 320px;
+  --aura-dock-height: 240px;
+
+  /* ---- motion (proposed) */
+  --aura-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --aura-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --aura-duration-fast: 120ms;
+  --aura-duration-base: 200ms;
+  --aura-duration-slow: 360ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --aura-duration-fast: 0ms;
+    --aura-duration-base: 0ms;
+    --aura-duration-slow: 0ms;
+  }
+}

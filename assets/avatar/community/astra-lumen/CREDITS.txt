@@ -1,0 +1,20 @@
+Astra Lumen II, a rigged companion android
+Author:  XRProfXR — https://sketchfab.com/pinckneyb
+Source:  https://sketchfab.com/3d-models/astra-lumen-ii-a-rigged-companion-android-84761f55aa17493d9b226bb1f7101428
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+         https://creativecommons.org/licenses/by/4.0/
+File:    astra_lumen_ii_a_rigged_companion_android.glb (exported by Sketchfab-17.15.0)
+
+The fields above are copied verbatim from the asset.extras block embedded in
+the GLB file. AURA uses this model under CC BY 4.0, which requires:
+  - credit to the author (name + link), the title, and the source link;
+  - a link to the license;
+  - an indication if changes were made (e.g. rescaled, re-rigged, retextured,
+    re-exported) — list such changes below when they happen.
+
+Attribution must remain visible in the shipped app (About window / credits
+screen) and in any repository or release that redistributes the file.
+
+Changes made by AURA:
+  - none to the file itself. At runtime the model is rescaled to human
+    height (the Sketchfab export wraps it in a ×1.748 transform).

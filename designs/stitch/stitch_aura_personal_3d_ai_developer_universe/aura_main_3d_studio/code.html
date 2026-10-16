@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="web_standard" name="shell-type"/>
+<title>AURA — Main 3D Studio</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    @layer base {
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+      body { overscroll-behavior: none; user-select: none; }
+    }
+    ::-webkit-scrollbar { display: none; }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(28px) saturate(190%);
+      -webkit-backdrop-filter: blur(28px) saturate(190%);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 10px 32px -4px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+    }
+    .glass-hud {
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      box-shadow: 0 8px 24px -2px rgba(15, 23, 42, 0.1);
+    }
+    .glass-dark-pill {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .spatial-pulse-ring::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 9999px;
+      border: 2px solid currentColor;
+      opacity: 0.6;
+      animation: ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+    @keyframes subtle-float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+    .animate-float {
+      animation: subtle-float 5s ease-in-out infinite;
+    }
+  </style>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#007ea4",
+            "primary-container": "#c0e8ff",
+            secondary: "#0051d5",
+            tertiary: "#7c3aed",
+            surface: "#f8faff",
+            "surface-elevated": "#ffffff",
+            "surface-dim": "#eef3fa",
+            "surface-border": "rgba(226, 232, 240, 0.85)",
+            "on-surface": "#0f172a",
+            "on-surface-variant": "#475569",
+            "subtle-slate": "#64748b"
+          },
+          fontFamily: {
+            sans: ["Inter", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    };
+  </script>
+</head>
+<body class="bg-[#f4f7fb] font-sans text-on-surface antialiased h-screen w-screen overflow-hidden flex flex-col justify-between select-none">
+<!-- macOS Native Window Chrome / Navigation Bar -->
+<header class="h-13 w-full bg-white/80 backdrop-blur-xl border-b border-slate-200/80 z-40 px-4 py-2 flex items-center justify-between shrink-0 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
+<!-- Left: Traffic Lights & App Brand -->
+<div class="flex items-center gap-3">
+<!-- Window Controls -->
+<div class="flex items-center gap-2 pl-1 pr-2">
+<button aria-label="Close" class="w-3 h-3 rounded-full bg-[#ff5f57] hover:brightness-90 transition-all border border-[#e0443e]/40 shadow-inner flex items-center justify-center group">
+<span class="material-symbols-outlined text-[8px] text-[#4d0000] opacity-0 group-hover:opacity-100 font-bold leading-none">close</span>
+</button>
+<button aria-label="Minimize" class="w-3 h-3 rounded-full bg-[#febc2e] hover:brightness-90 transition-all border border-[#d89e24]/40 shadow-inner flex items-center justify-center group">
+<span class="material-symbols-outlined text-[8px] text-[#543b00] opacity-0 group-hover:opacity-100 font-bold leading-none">remove</span>
+</button>
+<button aria-label="Zoom" class="w-3 h-3 rounded-full bg-[#28c840] hover:brightness-90 transition-all border border-[#1a9928]/40 shadow-inner flex items-center justify-center group">
+<span class="material-symbols-outlined text-[8px] text-[#004008] opacity-0 group-hover:opacity-100 font-bold leading-none">add</span>
+</button>
+</div>
+<!-- App Icon & Title -->
+<div class="h-5 w-px bg-slate-200 mx-1"></div>
+<div class="flex items-center gap-2">
+<div class="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#006483] via-[#0284c7] to-[#38bdf8] p-0.5 shadow-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-[16px]">view_in_ar</span>
+</div>
+<div class="flex items-baseline gap-1.5">
+<span class="font-bold text-[14px] tracking-tight text-slate-900">AURA</span>
+<span class="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200/70">v2.4 macOS</span>
+</div>
+</div>
+</div>
+<!-- Center: macOS Segmented Studio View Controller -->
+<nav class="flex items-center bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/80 shadow-inner text-[12px] font-medium text-slate-600">
+<button class="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white text-slate-900 shadow-sm font-semibold transition-all" id="nav-btn-overview" onclick="selectZone('overview')">
+<span class="material-symbols-outlined text-[15px] text-[#007ea4]">domain</span>
+<span>Main Studio</span>
+<span class="text-[10px] font-mono text-slate-400 ml-0.5">⌘1</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1 rounded-lg hover:text-slate-900 hover:bg-white/60 transition-all" id="nav-btn-hardware" onclick="selectZone('hardware')">
+<span class="material-symbols-outlined text-[15px] text-amber-600">precision_manufacturing</span>
+<span>Hardware Lab</span>
+<span class="text-[10px] font-mono text-slate-400 ml-0.5">⌘2</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1 rounded-lg hover:text-slate-900 hover:bg-white/60 transition-all" id="nav-btn-software" onclick="selectZone('software')">
+<span class="material-symbols-outlined text-[15px] text-sky-600">terminal</span>
+<span>Software Studio</span>
+<span class="text-[10px] font-mono text-slate-400 ml-0.5">⌘3</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1 rounded-lg hover:text-slate-900 hover:bg-white/60 transition-all" id="nav-btn-ai" onclick="selectZone('ai')">
+<span class="material-symbols-outlined text-[15px] text-purple-600">neurology</span>
+<span>AI / LLM Lab</span>
+<span class="text-[10px] font-mono text-slate-400 ml-0.5">⌘4</span>
+</button>
+<div class="h-4 w-px bg-slate-300 mx-1"></div>
+<a class="px-2.5 py-1 rounded-lg hover:text-slate-900 hover:bg-white/60 transition-all flex items-center gap-1" href="#">
+<span>GitHub Projects</span>
+<span class="text-[10px] font-mono text-slate-400">⌘5</span>
+</a>
+<button class="px-2.5 py-1 rounded-lg hover:text-slate-900 hover:bg-white/60 transition-all flex items-center gap-1 text-[#007ea4] font-medium" onclick="toggleChatDrawer(true)">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+<span>AI Companion</span>
+<span class="text-[10px] font-mono text-slate-400">⌘6</span>
+</button>
+<a class="px-2 py-1 rounded-lg hover:text-slate-900 hover:bg-white/60 transition-all flex items-center" href="#">
+<span class="material-symbols-outlined text-[16px] text-slate-500">settings</span>
+</a>
+</nav>
+<!-- Right: Telemetry & Developer Account Status -->
+<div class="flex items-center gap-2">
+<div class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-100/90 border border-slate-200/80 text-[11px] font-mono text-slate-600">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<span>github.com/developer</span>
+</div>
+<div class="h-5 w-px bg-slate-200 mx-0.5"></div>
+<button class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition-colors text-[11px] font-medium" id="btn-audio-status" onclick="toggleAudioInput()">
+<span class="material-symbols-outlined text-[15px]">graphic_eq</span>
+<span>Voice Stream</span>
+</button>
+<div class="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200/80">
+<button class="p-1 rounded bg-white text-slate-700 shadow-xs" title="Perspective View">
+<span class="material-symbols-outlined text-[16px] block">view_in_ar</span>
+</button>
+<button class="p-1 rounded text-slate-500 hover:text-slate-800 transition-colors" title="Top-down Blueprint">
+<span class="material-symbols-outlined text-[16px] block">grid_view</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Central 3D Spatial Canvas with Astra Lumen II Full-Body Android Viewport -->
+<main class="relative flex-1 w-full h-[calc(100vh-3.25rem)] overflow-hidden bg-slate-900">
+<!-- Cinematic Photographic Asset Viewport -->
+<div class="absolute inset-0 z-0">
+<img alt="Cinematic realistic 3D developer studio with Astra Lumen II" class="w-full h-full object-cover object-center filter brightness-[1.01] contrast-[1.02]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3dWPeKGV7VtLheIG-Z4g0kYE25AW1PM3QUepq9TV4sVRinCSzXY01t2NV_hcbYHiGUH4bbk298ep9lvUL9dcpZs7Se972DGhgpqn6u5TPONUHAyjhstiiMrIooOtlBCUyq-Q57XZVmDkO-Wct9RDQNoVgGJWzTU5hIru1927j_HRXsJQ6REzmVQONWSbcHgyWjpsXUWQb-DogMYQEh3B0nXjZJV3ETneGS44_LeiEcKhAq0dXXZDBdg"/>
+<!-- Soft ambient lens gradation for spatial readability -->
+<div class="absolute inset-0 bg-gradient-to-t from-slate-950/40 via-transparent to-slate-900/15 pointer-events-none"></div>
+</div>
+<!-- Spatial HUD Engine Tag -->
+<div class="absolute top-4 left-6 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/75 backdrop-blur-md border border-white/80 shadow-md">
+<span class="w-2 h-2 rounded-full bg-[#007ea4] animate-ping"></span>
+<span class="text-[11px] font-mono font-semibold tracking-wider text-slate-800">REALITYKIT 3D VIEWPORT</span>
+<span class="text-slate-300">|</span>
+<span class="text-[10px] font-mono text-slate-600">METAL 3 • 120 FPS RETINA</span>
+<span class="text-slate-300">|</span>
+<span class="text-[10px] font-mono text-emerald-600 font-medium">ULTRA-LOW LATENCY (0.4ms)</span>
+</div>
+<!-- SPATIAL ANCHORS ON 3D SCENE -->
+<!-- Station 1: Hardware Engineering Lab Anchor (Left Zone) -->
+<div class="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer group" onclick="selectZone('hardware')" style="top: 32%; left: 16%;">
+<div class="flex flex-col items-center">
+<!-- Floating Station Card -->
+<div class="glass-hud px-3.5 py-2 rounded-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl border border-white/90 flex flex-col gap-1 w-64 shadow-lg backdrop-blur-xl" id="anchor-card-hardware">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5 text-amber-700">
+<span class="material-symbols-outlined text-[16px]">precision_manufacturing</span>
+<span class="text-[10px] font-mono font-bold tracking-wide uppercase">Zone Alpha</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+<span class="text-[10px] font-mono text-slate-500">Rig Online</span>
+</div>
+</div>
+<div class="text-[13px] font-semibold text-slate-900 leading-tight">Hardware Engineering Lab</div>
+<div class="flex items-center justify-between text-[11px] text-slate-500 font-mono mt-0.5">
+<span>ESP32-S3 • Robotic Twin</span>
+<span class="text-amber-600 font-semibold text-[10px] bg-amber-50 px-1 rounded">3 Telemetry Streams</span>
+</div>
+</div>
+<!-- Spatial Target Pin -->
+<div class="mt-2 flex flex-col items-center">
+<div class="w-3 h-3 rounded-full bg-amber-500 ring-4 ring-white/90 shadow-lg spatial-pulse-ring text-amber-500"></div>
+<div class="w-0.5 h-6 bg-gradient-to-b from-amber-500 to-transparent"></div>
+</div>
+</div>
+</div>
+<!-- Center: Astra Lumen II Presence Marker (Floating above humanoid) -->
+<div class="absolute z-20 -translate-x-1/2 cursor-pointer animate-float" onclick="toggleChatDrawer(true)" style="top: 18%; left: 51%;">
+<div class="flex flex-col items-center">
+<!-- Companion Capsule Indicator -->
+<div class="glass-dark-pill text-white px-3.5 py-1.5 rounded-full border border-cyan-400/40 shadow-xl flex items-center gap-2.5 backdrop-blur-md hover:border-cyan-400 transition-all">
+<div class="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] animate-pulse"></div>
+<div class="flex items-baseline gap-1.5">
+<span class="text-[11px] font-bold tracking-wider font-mono text-cyan-200">ASTRA LUMEN II</span>
+<span class="text-[10px] text-slate-300 font-mono" id="astra-state-text">• State: Working / Syncing Context</span>
+</div>
+<div class="flex items-center gap-1 ml-1 pl-1.5 border-l border-white/20">
+<button class="text-[9px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/25 transition-colors font-mono" onclick="event.stopPropagation(); setAstraState('Idle')">Idle</button>
+<button class="text-[9px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/25 transition-colors font-mono" onclick="event.stopPropagation(); setAstraState('Listening')">Listen</button>
+<button class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/40 text-cyan-200 font-semibold font-mono" onclick="event.stopPropagation(); setAstraState('Working')">Working</button>
+</div>
+</div>
+<div class="w-0.5 h-8 bg-gradient-to-b from-cyan-400/60 to-transparent"></div>
+</div>
+</div>
+<!-- Station 2: Software Development Studio Anchor (Center-Right Desk) -->
+<div class="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer group" onclick="selectZone('software')" style="top: 30%; left: 70%;">
+<div class="flex flex-col items-center">
+<!-- Floating Station Card -->
+<div class="glass-hud px-3.5 py-2 rounded-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl border border-white/90 flex flex-col gap-1 w-64 shadow-lg backdrop-blur-xl" id="anchor-card-software">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5 text-sky-700">
+<span class="material-symbols-outlined text-[16px]">code_blocks</span>
+<span class="text-[10px] font-mono font-bold tracking-wide uppercase">Zone Beta</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-sky-500"></span>
+<span class="text-[10px] font-mono text-slate-500">Active Desk</span>
+</div>
+</div>
+<div class="text-[13px] font-semibold text-slate-900 leading-tight">Software Development Studio</div>
+<div class="flex items-center justify-between text-[11px] text-slate-500 font-mono mt-0.5">
+<span>Branch: feat/m5-metal</span>
+<span class="text-emerald-700 font-semibold text-[10px] bg-emerald-50 px-1 rounded">Clean (0 err)</span>
+</div>
+</div>
+<!-- Spatial Target Pin -->
+<div class="mt-2 flex flex-col items-center">
+<div class="w-3 h-3 rounded-full bg-sky-500 ring-4 ring-white/90 shadow-lg spatial-pulse-ring text-sky-500"></div>
+<div class="w-0.5 h-6 bg-gradient-to-b from-sky-500 to-transparent"></div>
+</div>
+</div>
+</div>
+<!-- Station 3: AI / LLM Research Lab Anchor (Far Right Server Pedestal) -->
+<div class="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer group" onclick="selectZone('ai')" style="top: 40%; left: 88%;">
+<div class="flex flex-col items-center">
+<!-- Floating Station Card -->
+<div class="glass-hud px-3.5 py-2 rounded-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl border border-white/90 flex flex-col gap-1 w-64 shadow-lg backdrop-blur-xl" id="anchor-card-ai">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5 text-purple-700">
+<span class="material-symbols-outlined text-[16px]">dns</span>
+<span class="text-[10px] font-mono font-bold tracking-wide uppercase">Zone Gamma</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-purple-500 animate-ping"></span>
+<span class="text-[10px] font-mono text-purple-700 font-medium">94 TFLOPS</span>
+</div>
+</div>
+<div class="text-[13px] font-semibold text-slate-900 leading-tight">AI / LLM Research Lab</div>
+<div class="flex items-center justify-between text-[11px] text-slate-500 font-mono mt-0.5">
+<span>LLaMA-3.3-70B Q4_K_M</span>
+<span class="text-purple-700 font-semibold text-[10px] bg-purple-50 px-1 rounded">Epoch 4/12</span>
+</div>
+</div>
+<!-- Spatial Target Pin -->
+<div class="mt-2 flex flex-col items-center">
+<div class="w-3 h-3 rounded-full bg-purple-500 ring-4 ring-white/90 shadow-lg spatial-pulse-ring text-purple-500"></div>
+<div class="w-0.5 h-6 bg-gradient-to-b from-purple-500 to-transparent"></div>
+</div>
+</div>
+</div>
+<!-- FLOATING RIGHT CONTEXTUAL INSPECTOR PANEL -->
+<aside class="absolute right-5 top-5 bottom-24 w-[360px] glass-panel rounded-2xl flex flex-col overflow-hidden z-30 transition-all duration-300 shadow-2xl" id="inspector-panel">
+<!-- Inspector Header & Tab Switcher -->
+<div class="p-4 border-b border-slate-200/80 bg-white/50 backdrop-blur-md">
+<div class="flex items-center justify-between mb-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-slate-700 text-[18px]">space_dashboard</span>
+<h2 class="text-[13px] font-bold uppercase tracking-wider text-slate-900">Workstation Inspector</h2>
+</div>
+<button class="text-[11px] font-medium text-[#007ea4] hover:text-[#0051d5] flex items-center gap-0.5 px-2 py-0.5 rounded-md hover:bg-sky-50 transition-colors" onclick="selectZone('overview')">
+<span class="material-symbols-outlined text-[13px]">zoom_out_map</span>
+<span>Studio View</span>
+</button>
+</div>
+<!-- Workstation Tab Selector -->
+<div class="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl text-[11px] font-semibold">
+<button class="py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all text-center" id="tab-hardware" onclick="selectZone('hardware')">Hardware</button>
+<button class="py-1.5 rounded-lg bg-white text-slate-900 shadow-xs transition-all text-center" id="tab-software" onclick="selectZone('software')">Software</button>
+<button class="py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all text-center" id="tab-ai" onclick="selectZone('ai')">AI / LLM</button>
+</div>
+</div>
+<!-- Inspector Dynamic Body -->
+<div class="flex-1 overflow-y-auto p-4 space-y-4">
+<!-- STATE 1: HARDWARE LAB (Visible when 'hardware' selected) -->
+<div class="hidden space-y-4" id="inspector-hardware">
+<div class="flex items-start justify-between">
+<div>
+<span class="text-[10px] font-mono uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Robotics &amp; IoT Rig</span>
+<h3 class="text-[16px] font-bold text-slate-900 mt-1">Hardware Engineering Lab</h3>
+<p class="text-[12px] text-slate-500 mt-0.5">Physical testing bench with 6-DOF robotic manipulator &amp; dual ESP32-S3 CAN telemetry bus.</p>
+</div>
+<div class="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 shrink-0">
+<span class="material-symbols-outlined text-[20px]">developer_board</span>
+</div>
+</div>
+<!-- Active Hardware Targets -->
+<div class="space-y-2">
+<div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">Active Target Hardware</div>
+<div class="p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-slate-50 transition-colors">
+<div class="flex items-center justify-between">
+<span class="font-mono text-[12px] font-bold text-slate-900">robotic-arm-kinematics</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">CAN: 1.0 Mbps</span>
+</div>
+<p class="text-[11px] text-slate-600 mt-1">Inverse kinematics solver for 6-axis end-effector with force-feedback sensor array.</p>
+<div class="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200/60 text-[10px] font-mono text-slate-500">
+<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>IMU BNO055: 98.4 Hz</span>
+<span>•</span>
+<span>Temp: 34.2°C</span>
+</div>
+</div>
+<div class="p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-slate-50 transition-colors">
+<div class="flex items-center justify-between">
+<span class="font-mono text-[12px] font-bold text-slate-900">iot-sensor-telemetry-esp32</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-medium">BLE GATT 5.3</span>
+</div>
+<p class="text-[11px] text-slate-600 mt-1">FreeRTOS dual-core firmware streaming 16-channel analog biometrics telemetry.</p>
+<div class="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200/60 text-[10px] font-mono text-slate-500">
+<span>ESP-IDF v5.2</span>
+<span>•</span>
+<span class="text-emerald-600">Zero packet loss</span>
+</div>
+</div>
+</div>
+<!-- Recent Firmware Commit -->
+<div>
+<div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono mb-1.5">Latest Firmware Patch</div>
+<div class="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start gap-2 text-[11px]">
+<span class="material-symbols-outlined text-[15px] text-slate-400 mt-0.5">commit</span>
+<div>
+<span class="font-mono text-slate-800 font-medium">Fix I2C bus collision on IMU BNO055</span>
+<div class="text-[10px] font-mono text-slate-500 mt-0.5">Commit 4f2c99a • 14 min ago by astra-assistant</div>
+</div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="space-y-1.5 pt-2">
+<button class="w-full py-2 px-3 rounded-xl bg-[#007ea4] hover:bg-[#006483] text-white text-[12px] font-semibold transition-all shadow-sm flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[16px]">upload</span>
+<span>Flash Firmware via JTAG</span>
+</button>
+<div class="grid grid-cols-2 gap-1.5">
+<button class="py-1.5 px-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-medium flex items-center justify-center gap-1.5">
+<span class="material-symbols-outlined text-[14px]">code</span>
+<span>Open in VS Code</span>
+</button>
+<button class="py-1.5 px-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-medium flex items-center justify-center gap-1.5">
+<span class="material-symbols-outlined text-[14px]">center_focus_strong</span>
+<span>Focus Rig Camera</span>
+</button>
+</div>
+</div>
+</div>
+<!-- STATE 2: SOFTWARE STUDIO (Default selected) -->
+<div class="space-y-4" id="inspector-software">
+<div class="flex items-start justify-between">
+<div>
+<span class="text-[10px] font-mono uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800">Native Systems &amp; Metal</span>
+<h3 class="text-[16px] font-bold text-slate-900 mt-1">Software Development Studio</h3>
+<p class="text-[12px] text-slate-500 mt-0.5">High-performance Rust runtime, Metal 3 compute kernels, and RealityKit spatial shaders.</p>
+</div>
+<div class="w-9 h-9 rounded-xl bg-sky-50 border border-sky-200/80 flex items-center justify-center text-sky-600 shrink-0">
+<span class="material-symbols-outlined text-[20px]">terminal</span>
+</div>
+</div>
+<!-- Git Branch & Core Architecture -->
+<div class="p-3 rounded-xl bg-slate-50/80 border border-slate-200/80">
+<div class="flex items-center justify-between text-[11px] font-mono">
+<span class="text-slate-500">Repository</span>
+<span class="font-bold text-slate-900">AuraCore-Runtime</span>
+</div>
+<div class="flex items-center justify-between text-[11px] font-mono mt-1.5">
+<span class="text-slate-500">Active Branch</span>
+<span class="font-semibold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/60">feat/m5-metal</span>
+</div>
+<div class="flex items-center justify-between text-[11px] font-mono mt-1.5">
+<span class="text-slate-500">Build Status</span>
+<span class="text-emerald-700 font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">check_circle</span> LLVM 18 Passing
+              </span>
+</div>
+</div>
+<!-- Active Repositories in Workspace -->
+<div class="space-y-2">
+<div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">Active Project Repos</div>
+<div class="p-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 transition-colors">
+<div class="flex items-center justify-between">
+<span class="font-mono text-[12px] font-bold text-slate-900">spatial-mesh-pipeline</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">Rust • Metal</span>
+</div>
+<p class="text-[11px] text-slate-600 mt-1">Real-time volumetric point cloud meshing with ray-marched signed distance fields (SDF).</p>
+</div>
+<div class="p-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 transition-colors">
+<div class="flex items-center justify-between">
+<span class="font-mono text-[12px] font-bold text-slate-900">aura-macos-companion</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">Swift 6.0</span>
+</div>
+<p class="text-[11px] text-slate-600 mt-1">SwiftUI desktop application chrome with AppKit accessibility and hotkey hooks.</p>
+</div>
+</div>
+<!-- Recent Commits -->
+<div>
+<div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono mb-1.5">Recent Git Commits</div>
+<div class="space-y-1.5">
+<div class="p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-start gap-2 text-[11px]">
+<span class="w-2 h-2 rounded-full bg-sky-500 mt-1.5 shrink-0"></span>
+<div class="min-w-0 flex-1">
+<div class="font-mono text-slate-800 font-medium truncate">feat: RealityKit spatial mesh binding</div>
+<div class="text-[10px] font-mono text-slate-400">commit 8a2f1c • 21m ago</div>
+</div>
+</div>
+<div class="p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-start gap-2 text-[11px]">
+<span class="w-2 h-2 rounded-full bg-slate-300 mt-1.5 shrink-0"></span>
+<div class="min-w-0 flex-1">
+<div class="font-mono text-slate-800 font-medium truncate">ci: enable unified tensor memory caching</div>
+<div class="text-[10px] font-mono text-slate-400">PR #42 merged • 45m ago</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Actions -->
+<div class="space-y-1.5 pt-2">
+<button class="w-full py-2 px-3 rounded-xl bg-[#007ea4] hover:bg-[#006483] text-white text-[12px] font-semibold transition-all shadow-sm flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[16px]">play_arrow</span>
+<span>Run Local Cargo Test Suite</span>
+</button>
+<div class="grid grid-cols-2 gap-1.5">
+<button class="py-1.5 px-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-medium flex items-center justify-center gap-1.5">
+<span class="material-symbols-outlined text-[14px]">open_in_new</span>
+<span>Open in Xcode</span>
+</button>
+<button class="py-1.5 px-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-medium flex items-center justify-center gap-1.5">
+<span class="material-symbols-outlined text-[14px]">fork_right</span>
+<span>View on GitHub</span>
+</button>
+</div>
+</div>
+</div>
+<!-- STATE 3: AI / LLM LAB (Visible when 'ai' selected) -->
+<div class="hidden space-y-4" id="inspector-ai">
+<div class="flex items-start justify-between">
+<div>
+<span class="text-[10px] font-mono uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">Neural Engine &amp; LLMs</span>
+<h3 class="text-[16px] font-bold text-slate-900 mt-1">AI / LLM Research Lab</h3>
+<p class="text-[12px] text-slate-500 mt-0.5">High-throughput local LLM reasoning, RAG memory vectors, and LoRA fine-tuning pipelines.</p>
+</div>
+<div class="w-9 h-9 rounded-xl bg-purple-50 border border-purple-200/80 flex items-center justify-center text-purple-600 shrink-0">
+<span class="material-symbols-outlined text-[20px]">neurology</span>
+</div>
+</div>
+<!-- Active Training / Inference Status -->
+<div class="p-3 rounded-xl bg-purple-50/50 border border-purple-200/80">
+<div class="flex items-center justify-between text-[11px] font-mono">
+<span class="text-slate-600 font-medium">Fine-tuning Progress</span>
+<span class="text-purple-700 font-bold">Epoch 4/12 (33%)</span>
+</div>
+<div class="w-full bg-slate-200 rounded-full h-1.5 mt-2 overflow-hidden">
+<div class="bg-purple-600 h-full rounded-full w-[33%] transition-all duration-500"></div>
+</div>
+<div class="flex items-center justify-between text-[10px] font-mono text-slate-500 mt-2">
+<span>Loss: 0.142 (Target: &lt;0.12)</span>
+<span>Perplexity: 4.81</span>
+</div>
+</div>
+<!-- Active Neural Models -->
+<div class="space-y-2">
+<div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">Hosted Local Models</div>
+<div class="p-3 rounded-xl bg-white border border-slate-200">
+<div class="flex items-center justify-between">
+<span class="font-mono text-[12px] font-bold text-slate-900">auraflow-agent-v2</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-medium">16-bit MLX</span>
+</div>
+<p class="text-[11px] text-slate-600 mt-1">Autonomous multi-agent controller trained on robotics telemetry &amp; spatial coordination.</p>
+</div>
+<div class="p-3 rounded-xl bg-white border border-slate-200">
+<div class="flex items-center justify-between">
+<span class="font-mono text-[12px] font-bold text-slate-900">rag-neural-retrieval</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">MiniLM-L6</span>
+</div>
+<p class="text-[11px] text-slate-600 mt-1">384-dimensional vector embeddings for code search across 42 git repositories.</p>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="space-y-1.5 pt-2">
+<button class="w-full py-2 px-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-[12px] font-semibold transition-all shadow-sm flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[16px]">tune</span>
+<span>Inspect Evaluation Checkpoints</span>
+</button>
+<div class="grid grid-cols-2 gap-1.5">
+<button class="py-1.5 px-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-medium flex items-center justify-center gap-1.5">
+<span class="material-symbols-outlined text-[14px]">psychology</span>
+<span>Eval Benchmark</span>
+</button>
+<button class="py-1.5 px-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-medium flex items-center justify-center gap-1.5">
+<span class="material-symbols-outlined text-[14px]">memory</span>
+<span>Profile ANE (M5)</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Inspector Footer Status -->
+<div class="p-3 border-t border-slate-200/80 bg-white/40 flex items-center justify-between text-[11px] font-mono text-slate-500">
+<span class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<span>Apple M5 Neural Engine</span>
+</span>
+<span>38.4 GB / 64 GB</span>
+</div>
+</aside>
+<!-- BOTTOM FLOATING AI COMPANION DOCK & EXPANDABLE DRAWER -->
+<div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-4 flex flex-col items-center">
+<!-- Expandable Conversation History Drawer -->
+<div class="hidden w-full mb-3 glass-panel rounded-2xl shadow-2xl border border-white/95 overflow-hidden flex flex-col transition-all" id="companion-drawer">
+<!-- Drawer Header -->
+<div class="px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></div>
+<span class="text-[12px] font-mono font-bold tracking-wider text-cyan-200">ASTRA LUMEN II — REAL-TIME STUDIO CONVERSATION</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-mono bg-white/10 px-2 py-0.5 rounded text-slate-300">Spatial Context: Active</span>
+<button class="text-slate-400 hover:text-white transition-colors" onclick="toggleChatDrawer(false)">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+</div>
+</div>
+<!-- Chat Log Scroll Area -->
+<div class="p-4 max-h-56 overflow-y-auto space-y-3 bg-white/60 text-[12px]">
+<!-- Astra Message -->
+<div class="flex items-start gap-2.5 max-w-[85%]">
+<div class="w-7 h-7 rounded-full bg-cyan-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0 font-mono shadow-sm">
+              AL
+            </div>
+<div class="bg-white p-3 rounded-2xl rounded-tl-sm border border-slate-200/80 shadow-xs text-slate-800 leading-relaxed">
+<p>Good morning. I'm actively monitoring all 3 studio stations. I noticed your ESP32 CAN bus telemetry on Rig Alpha is running nominal at <strong class="text-slate-900 font-mono">34.2°C</strong> with zero packet drops. Would you like me to flash the kinematic calibration patch for the 6-DOF arm now?</p>
+<div class="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
+<span class="text-[10px] font-mono bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200/60 font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">verified</span> Flash firmware verified
+                </span>
+<span class="text-[10px] font-mono text-slate-400">09:41 AM</span>
+</div>
+</div>
+</div>
+<!-- Developer Response -->
+<div class="flex items-start gap-2.5 max-w-[80%] ml-auto flex-row-reverse">
+<div class="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-[10px] shrink-0 font-mono">
+              DEV
+            </div>
+<div class="bg-slate-900 text-white p-3 rounded-2xl rounded-tr-sm shadow-xs leading-relaxed">
+<p>Yes, flash the kinematic patch and let's run a test loop on the gripper while reviewing PR #42.</p>
+<div class="text-[10px] font-mono text-slate-400 text-right mt-1">09:42 AM</div>
+</div>
+</div>
+<!-- Astra Action Confirmation -->
+<div class="flex items-start gap-2.5 max-w-[85%]">
+<div class="w-7 h-7 rounded-full bg-cyan-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0 font-mono shadow-sm">
+              AL
+            </div>
+<div class="bg-white p-3 rounded-2xl rounded-tl-sm border border-slate-200/80 shadow-xs text-slate-800 leading-relaxed">
+<p>Flashing firmware build <span class="font-mono text-[#007ea4] bg-sky-50 px-1 py-0.5 rounded">v2.4.9-kinematics</span> to ESP32-S3 via JTAG. Initializing IMU BNO055 zero-plane reference...</p>
+<div class="mt-2 flex items-center gap-2">
+<button class="text-[11px] font-medium bg-[#007ea4] hover:bg-[#006483] text-white px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1" id="btn-flash-run" onclick="simulateFlashAction()">
+<span class="material-symbols-outlined text-[13px]">bolt</span>
+<span>Confirm Kinematic Calibration</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Chat Input Field -->
+<div class="p-2.5 bg-white border-t border-slate-200 flex items-center gap-2">
+<input class="flex-1 bg-slate-100 hover:bg-slate-100/80 focus:bg-white text-[12px] px-3 py-1.5 rounded-xl border border-transparent focus:border-[#007ea4] focus:outline-none transition-all" id="chat-user-input" placeholder="Ask Astra or give directives (e.g. 'teleport camera to hardware rig')..." type="text"/>
+<button class="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors">
+<span class="material-symbols-outlined text-[18px]">mic</span>
+</button>
+<button class="px-3 py-1.5 rounded-xl bg-[#007ea4] hover:bg-[#006483] text-white text-[12px] font-semibold transition-colors flex items-center gap-1" onclick="sendChatMessage()">
+<span>Send</span>
+<span class="material-symbols-outlined text-[14px]">arrow_upward</span>
+</button>
+</div>
+</div>
+<!-- Main Unobtrusive Bottom Dock Bar -->
+<div class="w-full glass-hud rounded-2xl px-3 py-2 flex items-center justify-between gap-3 shadow-xl border border-white/90">
+<!-- Left: Push To Talk Trigger -->
+<div class="flex items-center gap-2 shrink-0">
+<button class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#0051d5] to-[#007ea4] hover:brightness-105 active:scale-95 text-white font-medium text-[12px] shadow-sm transition-all" id="voice-trigger-btn">
+<span class="material-symbols-outlined text-[16px] animate-pulse">mic</span>
+<span class="whitespace-nowrap font-semibold">Talk with Astra</span>
+<span class="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded text-white/90">Hold Space</span>
+</button>
+<!-- Audio Waveform Visualization Simulation -->
+<div class="flex items-center gap-0.5 h-5 px-1">
+<span class="w-1 h-2 rounded-full bg-sky-500 animate-bounce"></span>
+<span class="w-1 h-4 rounded-full bg-[#007ea4] animate-bounce [animation-delay:120ms]"></span>
+<span class="w-1 h-5 rounded-full bg-blue-600 animate-bounce [animation-delay:240ms]"></span>
+<span class="w-1 h-3 rounded-full bg-purple-500 animate-bounce [animation-delay:180ms]"></span>
+<span class="w-1 h-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:300ms]"></span>
+</div>
+</div>
+<!-- Center: Quick Suggestion Chips -->
+<div class="hidden md:flex items-center gap-1.5 overflow-x-auto text-[11px] font-medium text-slate-600 shrink min-w-0">
+<button class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200/80 transition-colors whitespace-nowrap" onclick="quickPrompt('Analyze hardware telemetry')">
+            Analyze telemetry
+          </button>
+<button class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200/80 transition-colors whitespace-nowrap" onclick="quickPrompt('Summarize pending PRs')">
+            Summarize PR #42
+          </button>
+<button class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200/80 transition-colors whitespace-nowrap" onclick="quickPrompt('Inspect neural epoch')">
+            Inspect Epoch 4/12
+          </button>
+</div>
+<!-- Right: Status Badge & Drawer Toggle -->
+<div class="flex items-center gap-2 shrink-0">
+<div class="flex items-center gap-1.5 text-[11px] font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200/60">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<span class="font-medium">Astra Lumen II • Ready</span>
+</div>
+<button class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors" id="btn-toggle-drawer" onclick="toggleChatDrawer()" title="Toggle Conversation Drawer">
+<span class="material-symbols-outlined text-[18px] block" id="drawer-toggle-icon">keyboard_arrow_up</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Footnote / System Status Line -->
+<footer class="h-6 w-full bg-white border-t border-slate-200 px-4 flex items-center justify-between text-[10.5px] font-mono text-slate-500 shrink-0 z-30">
+<div class="flex items-center gap-3">
+<span>Apple Silicon M5 Architecture</span>
+<span>•</span>
+<span>Native Metal 3 Accelerated Spatial Runtime</span>
+<span>•</span>
+<span class="text-emerald-700 font-semibold">DSP Latency: 1.2ms</span>
+</div>
+<div class="flex items-center gap-3">
+<span>Astra Lumen II Neural Core: Nominal</span>
+<span>•</span>
+<span>Vulkan Metal Layer: Active</span>
+<span>•</span>
+<span>© 2025 AURA Spatial Labs</span>
+</div>
+</footer>
+<!-- Vanilla JavaScript Interactivity -->
+<script>
+    // State management for zone selection
+    let activeZone = 'software';
+    let isDrawerOpen = false;
+
+    function selectZone(zone) {
+      activeZone = zone;
+
+      // Update Inspector Sections
+      const hwSection = document.getElementById('inspector-hardware');
+      const swSection = document.getElementById('inspector-software');
+      const aiSection = document.getElementById('inspector-ai');
+
+      const tabHw = document.getElementById('tab-hardware');
+      const tabSw = document.getElementById('tab-software');
+      const tabAi = document.getElementById('tab-ai');
+
+      // Update Top Nav Buttons
+      const navOverview = document.getElementById('nav-btn-overview');
+      const navHw = document.getElementById('nav-btn-hardware');
+      const navSw = document.getElementById('nav-btn-software');
+      const navAi = document.getElementById('nav-btn-ai');
+
+      // Clear tabs
+      [tabHw, tabSw, tabAi].forEach(btn => {
+        btn.className = 'py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all text-center';
+      });
+      [navOverview, navHw, navSw, navAi].forEach(btn => {
+        btn.classList.remove('bg-white', 'text-slate-900', 'shadow-sm', 'font-semibold');
+        btn.classList.add('text-slate-600');
+      });
+
+      // Spatial Anchor Highlights
+      const cardHw = document.getElementById('anchor-card-hardware');
+      const cardSw = document.getElementById('anchor-card-software');
+      const cardAi = document.getElementById('anchor-card-ai');
+      [cardHw, cardSw, cardAi].forEach(c => c.classList.remove('ring-2', 'ring-[#007ea4]', 'scale-105'));
+
+      if (zone === 'hardware') {
+        hwSection.classList.remove('hidden');
+        swSection.classList.add('hidden');
+        aiSection.classList.add('hidden');
+        tabHw.className = 'py-1.5 rounded-lg bg-white text-slate-900 shadow-xs transition-all text-center font-bold';
+        navHw.classList.add('bg-white', 'text-slate-900', 'shadow-sm', 'font-semibold');
+        cardHw.classList.add('ring-2', 'ring-amber-500', 'scale-105');
+      } else if (zone === 'ai') {
+        hwSection.classList.add('hidden');
+        swSection.classList.add('hidden');
+        aiSection.classList.remove('hidden');
+        tabAi.className = 'py-1.5 rounded-lg bg-white text-slate-900 shadow-xs transition-all text-center font-bold';
+        navAi.classList.add('bg-white', 'text-slate-900', 'shadow-sm', 'font-semibold');
+        cardAi.classList.add('ring-2', 'ring-purple-500', 'scale-105');
+      } else if (zone === 'software') {
+        hwSection.classList.add('hidden');
+        swSection.classList.remove('hidden');
+        aiSection.classList.add('hidden');
+        tabSw.className = 'py-1.5 rounded-lg bg-white text-slate-900 shadow-xs transition-all text-center font-bold';
+        navSw.classList.add('bg-white', 'text-slate-900', 'shadow-sm', 'font-semibold');
+        cardSw.classList.add('ring-2', 'ring-sky-500', 'scale-105');
+      } else {
+        // Overview mode
+        hwSection.classList.add('hidden');
+        swSection.classList.remove('hidden');
+        aiSection.classList.add('hidden');
+        tabSw.className = 'py-1.5 rounded-lg bg-white text-slate-900 shadow-xs transition-all text-center font-bold';
+        navOverview.classList.add('bg-white', 'text-slate-900', 'shadow-sm', 'font-semibold');
+      }
+    }
+
+    // Toggle Chat Drawer
+    function toggleChatDrawer(forceState) {
+      const drawer = document.getElementById('companion-drawer');
+      const icon = document.getElementById('drawer-toggle-icon');
+      
+      if (typeof forceState === 'boolean') {
+        isDrawerOpen = forceState;
+      } else {
+        isDrawerOpen = !isDrawerOpen;
+      }
+
+      if (isDrawerOpen) {
+        drawer.classList.remove('hidden');
+        icon.innerText = 'keyboard_arrow_down';
+      } else {
+        drawer.classList.add('hidden');
+        icon.innerText = 'keyboard_arrow_up';
+      }
+    }
+
+    // Companion State Setter
+    function setAstraState(state) {
+      const stateEl = document.getElementById('astra-state-text');
+      stateEl.innerText = `• State: ${state}`;
+    }
+
+    // Send chat prompt helper
+    function quickPrompt(text) {
+      toggleChatDrawer(true);
+      const input = document.getElementById('chat-user-input');
+      input.value = text;
+      input.focus();
+    }
+
+    function sendChatMessage() {
+      const input = document.getElementById('chat-user-input');
+      if (!input.value.trim()) return;
+      alert(`Directive dispatched to Astra Lumen II: "${input.value}"`);
+      input.value = '';
+    }
+
+    function simulateFlashAction() {
+      const btn = document.getElementById('btn-flash-run');
+      btn.innerHTML = `<span class="material-symbols-outlined text-[13px] animate-spin">sync</span> Flashing Firmware...`;
+      setTimeout(() => {
+        btn.innerHTML = `<span class="material-symbols-outlined text-[13px] text-emerald-300">check</span> Calibration Complete`;
+        btn.classList.remove('bg-[#007ea4]');
+        btn.classList.add('bg-emerald-600');
+      }, 1200);
+    }
+
+    function toggleAudioInput() {
+      const btn = document.getElementById('btn-audio-status');
+      btn.classList.toggle('bg-sky-200');
+    }
+
+    // Spacebar listener for Push-to-Talk
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        e.preventDefault();
+        const pttBtn = document.getElementById('voice-trigger-btn');
+        if (pttBtn) {
+          pttBtn.classList.add('scale-95', 'ring-2', 'ring-cyan-300');
+        }
+      }
+      // Hotkeys ⌘1, ⌘2, ⌘3, ⌘4
+      if (e.metaKey || e.ctrlKey) {
+        if (e.key === '1') { e.preventDefault(); selectZone('overview'); }
+        if (e.key === '2') { e.preventDefault(); selectZone('hardware'); }
+        if (e.key === '3') { e.preventDefault(); selectZone('software'); }
+        if (e.key === '4') { e.preventDefault(); selectZone('ai'); }
+        if (e.key === '6') { e.preventDefault(); toggleChatDrawer(); }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space') {
+        const pttBtn = document.getElementById('voice-trigger-btn');
+        if (pttBtn) {
+          pttBtn.classList.remove('scale-95', 'ring-2', 'ring-cyan-300');
+        }
+      }
+    });
+  </script>
+</body></html>

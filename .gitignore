@@ -1,0 +1,42 @@
+# --- OS / editors
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# --- secrets & local config (secrets belong in the macOS Keychain, never in files)
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.mobileprovision
+
+# --- frontend
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+*.log
+
+# --- native
+macos/.build/
+macos/.swiftpm/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+build/
+
+# --- local data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# --- large binaries kept out of git until Git LFS is set up (see docs/ASSETS.md)
+*.glb
+*.gltf
+*.fbx
+*.blend
+designs/stitch/**/screen.png
+
+# --- agent scratch
+.claude/settings.local.json

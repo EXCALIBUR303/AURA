@@ -1,0 +1,22 @@
+{
+  "description": "Canonical wire messages. Both shared/test (TypeScript) and macos/Tests (Swift) decode every entry; a contract change must update this file.",
+  "valid": [
+    { "name": "request app.getInfo", "message": { "kind": "request", "v": 1, "id": "w1", "method": "app.getInfo", "params": {} } },
+    { "name": "request prefs.update", "message": { "kind": "request", "v": 1, "id": "w2", "method": "prefs.update", "params": { "lastZone": "hardware", "voice": { "locale": "en-GB" } } } },
+    { "name": "request github.listCommits", "message": { "kind": "request", "v": 1, "id": "w3", "method": "github.listCommits", "params": { "fullName": "mock-user/sample-web-app", "limit": 5 } } },
+    { "name": "request ai.chat", "message": { "kind": "request", "v": 1, "id": "w4", "method": "ai.chat", "params": { "messages": [{ "role": "user", "content": "hello" }] } } },
+    { "name": "request voice.speak", "message": { "kind": "request", "v": 1, "id": "w5", "method": "voice.speak", "params": { "text": "Hello", "interrupt": true } } },
+    { "name": "response ok app.getInfo", "message": { "kind": "response", "v": 1, "id": "w1", "ok": true, "result": { "appVersion": "0.1.0", "build": "1", "host": "macos", "bridgeVersion": 1, "environment": "development" } } },
+    { "name": "response ok empty", "message": { "kind": "response", "v": 1, "id": "w5", "ok": true, "result": {} } },
+    { "name": "response error", "message": { "kind": "response", "v": 1, "id": "w9", "ok": false, "error": { "code": "not_authenticated", "message": "GitHub token missing", "retryable": false } } },
+    { "name": "event app.command navigate", "message": { "kind": "event", "v": 1, "event": "app.command", "payload": { "command": "navigate", "zone": "ai-lab" } } },
+    { "name": "event ai.chunk", "message": { "kind": "event", "v": 1, "event": "ai.chunk", "payload": { "streamId": "s1", "delta": "Hel" } } },
+    { "name": "event voice.statusChanged", "message": { "kind": "event", "v": 1, "event": "voice.statusChanged", "payload": { "microphone": "granted", "speechRecognition": "denied", "listening": false, "speaking": false } } }
+  ],
+  "invalidRequests": [
+    { "name": "unknown method", "json": "{\"kind\":\"request\",\"v\":1,\"id\":\"x1\",\"method\":\"nope.nothing\",\"params\":{}}", "expectedCode": "unknown_method" },
+    { "name": "wrong version", "json": "{\"kind\":\"request\",\"v\":99,\"id\":\"x2\",\"method\":\"app.getInfo\",\"params\":{}}", "expectedCode": "unsupported_version" },
+    { "name": "bad params", "json": "{\"kind\":\"request\",\"v\":1,\"id\":\"x3\",\"method\":\"voice.speak\",\"params\":{\"text\":42}}", "expectedCode": "invalid_request" },
+    { "name": "not json", "json": "{oops", "expectedCode": "invalid_request" }
+  ]
+}
