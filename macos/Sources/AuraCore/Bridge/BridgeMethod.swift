@@ -4,6 +4,7 @@
 
 public enum BridgeMethod: String, CaseIterable, Sendable {
     case appGetInfo = "app.getInfo"
+    case appGetWindowState = "app.getWindowState"
 
     case prefsGet = "prefs.get"
     case prefsUpdate = "prefs.update"
@@ -32,6 +33,7 @@ public enum BridgeMethod: String, CaseIterable, Sendable {
 public enum BridgeEventName: String, CaseIterable, Sendable {
     case appCommand = "app.command"
     case appActiveChanged = "app.activeChanged"
+    case appWindowStateChanged = "app.windowStateChanged"
     case prefsChanged = "prefs.changed"
     case githubAuthChanged = "github.authChanged"
     case aiChunk = "ai.chunk"

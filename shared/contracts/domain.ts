@@ -28,6 +28,14 @@ export interface AppInfo {
   environment: "development" | "production";
 }
 
+/** Host window state, so the studio can match its render rate to what is on screen. */
+export interface WindowState {
+  /** AURA is the active (frontmost) app. */
+  active: boolean;
+  /** Part of the window is on screen: not minimized, hidden, fully covered or on another Space. */
+  visible: boolean;
+}
+
 // ---------------------------------------------------------------- preferences
 
 export interface Preferences {

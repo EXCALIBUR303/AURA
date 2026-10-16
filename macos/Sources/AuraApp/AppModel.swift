@@ -14,7 +14,6 @@ final class AppModel {
     private(set) var state: State = .starting
     /// Set by the web view once it exists; events before that are dropped.
     @ObservationIgnored var deliverToWeb: ((String) -> Void)?
-    @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
     var services: AppServices? {
         if case .ready(let services) = state { services } else { nil }
@@ -39,7 +38,6 @@ final class AppModel {
                 secrets: KeychainSecretStore(),
                 deliverEvent: { [weak self] json in self?.deliverToWeb?(json) }
             )
-            observeActivation(services.events)
             Log.app.notice("started (\(configuration.environment.rawValue, privacy: .public))")
             state = .ready(services)
         } catch {
@@ -50,14 +48,5 @@ final class AppModel {
 
     func send(_ command: AppCommand) {
         services?.events.emit(.appCommand, command)
-    }
-
-    private func observeActivation(_ events: BridgeEventEmitter) {
-        let center = NotificationCenter.default
-        for (name, active) in [(NSApplication.didBecomeActiveNotification, true), (NSApplication.didResignActiveNotification, false)] {
-            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { _ in
-                MainActor.assumeIsolated { events.emit(.appActiveChanged, ActiveChangedPayload(active: active)) }
-            })
-        }
     }
 }

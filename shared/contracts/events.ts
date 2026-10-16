@@ -1,7 +1,7 @@
 // Push events (native → web). Fire-and-forget; no reply expected.
 
 import type { BridgeError } from "./errors.ts";
-import type { FinishReason, GitHubAuthStatus, Preferences, VoiceStatus, ZoneId } from "./domain.ts";
+import type { FinishReason, GitHubAuthStatus, Preferences, VoiceStatus, WindowState, ZoneId } from "./domain.ts";
 
 export interface BridgeEvents {
   /** Native menu items / global shortcuts asking the frontend to act. */
@@ -9,8 +9,16 @@ export interface BridgeEvents {
     | { command: "navigate"; zone: ZoneId }
     | { command: "focusCompanion" }
     | { command: "openCommandPalette" };
-  /** Window became key / resigned key; frontend should throttle rendering when inactive. */
+  /**
+   * AURA became / stopped being the active app.
+   * @deprecated Use app.windowStateChanged. Still sent when `active` flips, until Phase 3B.
+   */
   "app.activeChanged": { active: boolean };
+  /**
+   * Sent whenever WindowState changes. Render at full rate while active, at a
+   * reduced rate while only visible, and not at all while not visible.
+   */
+  "app.windowStateChanged": WindowState;
 
   "prefs.changed": Preferences;
   "github.authChanged": GitHubAuthStatus;

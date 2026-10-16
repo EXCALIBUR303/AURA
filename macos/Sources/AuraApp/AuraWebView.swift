@@ -27,6 +27,14 @@ final class AuraWebView: WKWebView {
         super.mouseDragged(with: event)
     }
 
+    /// Called when the view joins or leaves a window.
+    var onWindowChange: ((NSWindow?) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        onWindowChange?(window)
+    }
+
     /// Gives the page keyboard focus unless something inside it already has
     /// it. At launch the window (not the page) is first responder, so Tab and
     /// typing would reach the studio only after a click.

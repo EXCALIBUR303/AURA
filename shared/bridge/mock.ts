@@ -107,6 +107,9 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
       environment: "development",
     }),
 
+    // A browser tab has no native window; the page already pauses via document.hidden.
+    "app.getWindowState": () => ({ active: true, visible: true }),
+
     "prefs.get": () => prefs,
     "prefs.update": (patch) => {
       prefs = {

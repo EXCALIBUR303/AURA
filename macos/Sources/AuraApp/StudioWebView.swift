@@ -27,6 +27,8 @@ struct StudioWebView: NSViewRepresentable {
         webConfiguration.preferences.tabFocusesLinks = true
 
         let webView = AuraWebView(frame: .zero, configuration: webConfiguration)
+        let coordinator = context.coordinator
+        webView.onWindowChange = { [weak coordinator] window in coordinator?.attach(to: window) }
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.isInspectable = configuration.environment == .development
@@ -75,6 +77,7 @@ struct StudioWebView: NSViewRepresentable {
         weak var webView: WKWebView?
         var trustedOrigin: Origin?
         private var probeStarted = false
+        private var windowStateObserver: WindowStateObserver?
         private(set) lazy var windowDrag = WindowDragHandler { [weak self] frame in
             self?.isTrusted(frame) ?? false
         }
@@ -82,6 +85,10 @@ struct StudioWebView: NSViewRepresentable {
         init(services: AppServices, model: AppModel) {
             self.services = services
             self.model = model
+        }
+
+        func attach(to window: NSWindow?) {
+            windowStateObserver = window.map { WindowStateObserver(window: $0, store: services.windowState) }
         }
 
         /// Only our own top-level document may talk to the host.

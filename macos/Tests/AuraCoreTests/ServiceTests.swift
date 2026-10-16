@@ -10,6 +10,28 @@ import Testing
         #expect(reply["result"]?["bridgeVersion"] == .number(1))
     }
 
+    @Test func windowStateIsQueryableAndEmittedOnlyOnChange() async throws {
+        let recorder = EventRecorder()
+        let services = try await makeServices(recorder: recorder)
+        var reply = try await call(services, "app.getWindowState")
+        #expect(reply["result"] == .object(["active": .bool(true), "visible": .bool(true)]))
+
+        services.windowState.update(WindowState(active: true, visible: true))
+        #expect(recorder.names().isEmpty)
+
+        // Visible but inactive: the new event, plus the deprecated one because `active` flipped.
+        services.windowState.update(WindowState(active: false, visible: true))
+        #expect(recorder.names() == ["app.windowStateChanged", "app.activeChanged"])
+        #expect(recorder.events[0].payload == .object(["active": .bool(false), "visible": .bool(true)]))
+
+        // Only visibility changes: no deprecated event.
+        services.windowState.update(WindowState(active: false, visible: false))
+        #expect(recorder.names() == ["app.windowStateChanged", "app.activeChanged", "app.windowStateChanged"])
+
+        reply = try await call(services, "app.getWindowState")
+        #expect(reply["result"] == .object(["active": .bool(false), "visible": .bool(false)]))
+    }
+
     @Test func preferencesPersistAndEmitChange() async throws {
         let recorder = EventRecorder()
         let services = try await makeServices(recorder: recorder)

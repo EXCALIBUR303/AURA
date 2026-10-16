@@ -16,12 +16,15 @@ import type {
   ProjectRecord,
   RepositorySummary,
   VoiceStatus,
+  WindowState,
 } from "./domain.ts";
 
 type Empty = Record<string, never>;
 
 export interface BridgeMethods {
   "app.getInfo": { params: Empty; result: AppInfo };
+  /** Current window state. Call on load: events sent before the page was listening are lost. */
+  "app.getWindowState": { params: Empty; result: WindowState };
 
   "prefs.get": { params: Empty; result: Preferences };
   "prefs.update": { params: PreferencesPatch; result: Preferences };

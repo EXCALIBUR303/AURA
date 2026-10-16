@@ -7,6 +7,7 @@ public final class AppServices {
     public let configuration: AppConfiguration
     public let router = BridgeRouter()
     public let events: BridgeEventEmitter
+    public let windowState: WindowStateStore
     public let store: AppStore
     public let secrets: any SecretStore
     public let github: any GitHubService
@@ -28,12 +29,14 @@ public final class AppServices {
         self.github = github
         self.voice = voice
         events = BridgeEventEmitter(deliver: deliverEvent)
+        windowState = WindowStateStore(events: events)
         ai = AIService(providers: aiProviders, defaultProviderId: aiProviders.first?.info.id ?? "mock", events: events)
         registerHandlers()
     }
 
     private func registerHandlers() {
         let configuration = configuration, store = store, github = github, ai = ai, voice = voice, events = events
+        let windowState = windowState
 
         router.register(.appGetInfo, Empty.self) { _ in
             AppInfo(
@@ -44,6 +47,8 @@ public final class AppServices {
                 environment: configuration.environment == .development ? .development : .production
             )
         }
+
+        router.register(.appGetWindowState, Empty.self) { _ in windowState.current }
 
         router.register(.prefsGet, Empty.self) { _ in try await store.loadPreferences() }
         router.register(.prefsUpdate, PreferencesPatch.self) { patch in

@@ -395,6 +395,17 @@ public struct ActiveChangedPayload: Codable, Equatable, Sendable {
     public init(active: Bool) { self.active = active }
 }
 
+public struct WindowState: Codable, Equatable, Sendable {
+    /// AURA is the active (frontmost) app.
+    public var active: Bool
+    /// Part of the window is on screen: not minimized, hidden, fully covered or on another Space.
+    public var visible: Bool
+    public init(active: Bool, visible: Bool) {
+        self.active = active
+        self.visible = visible
+    }
+}
+
 // MARK: logging
 
 public enum WebLogLevel: String, Codable, Sendable { case debug, info, notice, error, fault }

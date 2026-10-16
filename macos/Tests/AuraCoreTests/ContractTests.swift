@@ -79,11 +79,14 @@ import Testing
                     _ = try #require(fixture.message["error"]).decode(BridgeError.self)
                 } else if fixture.name.hasSuffix("app.getInfo") {
                     _ = try #require(fixture.message["result"]).decode(AppInfo.self)
+                } else if fixture.name.hasSuffix("app.getWindowState") {
+                    _ = try #require(fixture.message["result"]).decode(WindowState.self)
                 }
             case .string("event"):
                 let payload = try #require(fixture.message["payload"])
                 switch fixture.message["event"] {
                 case .string("app.command"): _ = try payload.decode(AppCommand.self)
+                case .string("app.windowStateChanged"): _ = try payload.decode(WindowState.self)
                 case .string("ai.chunk"): _ = try payload.decode(AIChunkPayload.self)
                 case .string("voice.statusChanged"): _ = try payload.decode(VoiceStatus.self)
                 default: Issue.record("unhandled event fixture \(fixture.name)")
