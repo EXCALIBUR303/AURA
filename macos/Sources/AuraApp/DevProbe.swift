@@ -66,6 +66,56 @@ enum DevProbe {
             log.notice("probe zone=\(zone.rawValue, privacy: .public) \(sample, privacy: .public)")
         }
         log.notice("probe done")
+        if let minutes = Int(ProcessInfo.processInfo.environment["AURA_DEV_SOAK_MINUTES"] ?? ""), minutes > 0 {
+            await soak(webView: webView, model: model, minutes: minutes)
+        }
+    }
+
+    /// `AURA_DEV_SOAK_MINUTES=N`: after the zone pass, keeps using the studio
+    /// for N minutes without posting any real input: every zone in turn, one
+    /// mock chat per cycle, and every other cycle a synthetic visible-inactive
+    /// and hidden period (WindowStateStore, so the next real window event
+    /// overrides it). Logs page-side counters per cycle; sample process
+    /// memory from outside with `footprint`.
+    static func soak(webView: WKWebView, model: AppModel, minutes: Int) async {
+        guard let services = model.services else { return }
+        let deadline = ContinuousClock.now + .seconds(minutes * 60)
+        let started = ContinuousClock.now
+        var cycle = 0
+        log.notice("soak start minutes=\(minutes, privacy: .public)")
+        while ContinuousClock.now < deadline {
+            cycle += 1
+            for zone in ZoneID.allCases {
+                model.send(.navigate(zone))
+                _ = await waitFor(webView, "d?.zone === '\(zone.rawValue)' && d.cameraSettled", timeout: .seconds(10))
+                try? await Task.sleep(for: .milliseconds(1200))
+            }
+            _ = await evaluate(webView, """
+                const input = document.getElementById('companion-prompt');
+                Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'soak message \(cycle)');
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.form.requestSubmit();
+                return 'sent';
+                """)
+            try? await Task.sleep(for: .seconds(3))
+            if cycle.isMultiple(of: 2) {
+                services.windowState.update(WindowState(active: false, visible: true))
+                try? await Task.sleep(for: .seconds(5))
+                services.windowState.update(WindowState(active: false, visible: false))
+                try? await Task.sleep(for: .seconds(3))
+                services.windowState.update(WindowState(active: true, visible: true))
+                try? await Task.sleep(for: .seconds(2))
+            }
+            let counters = await evaluate(webView, """
+                const d = window.__AURA_DIAGNOSTICS__;
+                return JSON.stringify({ dom: document.getElementsByTagName('*').length,
+                  replies: document.querySelectorAll('.reply, [data-reply], .companion-reply').length,
+                  fps: d?.fps, drawCalls: d?.drawCalls, triangles: d?.sceneTriangles, status: d?.status });
+                """) ?? "nil"
+            let elapsed = Int((ContinuousClock.now - started).components.seconds)
+            log.notice("soak cycle=\(cycle, privacy: .public) elapsedS=\(elapsed, privacy: .public) \(counters, privacy: .public)")
+        }
+        log.notice("soak done cycles=\(cycle, privacy: .public)")
     }
 
     private static func sampler(ms: Int) -> String {
