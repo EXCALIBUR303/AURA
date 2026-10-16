@@ -34,16 +34,20 @@ final class AppModel {
                 return
             }
             let store = try await AppStore.open(in: configuration.dataDirectory)
+            let secrets = KeychainSecretStore()
             let services = AppServices(
                 configuration: configuration,
                 store: store,
-                secrets: KeychainSecretStore(),
+                secrets: secrets,
+                github: LiveGitHubService(clientID: configuration.gitHubClientID, secrets: secrets),
                 deliverEvent: { [weak self] json in self?.deliverToWeb?(json) }
             )
             services.preferencesDidChange = { [weak self] prefs in self?.currentZone = prefs.lastZone }
             currentZone = try? await store.loadPreferences().lastZone
             Log.app.notice("started (\(configuration.environment.rawValue, privacy: .public))")
             state = .ready(services)
+            await services.github.restore()
+            if GitHubProbe.isEnabled { Task { await GitHubProbe.run(services.github) } }
         } catch {
             Log.app.fault("startup failed: \(String(describing: error), privacy: .public)")
             state = .failed("AURA could not start: \(error)")
