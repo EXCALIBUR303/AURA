@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate()
         }
+        if InputDiagnostics.isEnabled { InputDiagnostics.install() }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -63,9 +64,13 @@ struct StudioCommands: Commands {
                     .keyboardShortcut(key, modifiers: .command)
             }
             Divider()
+            // ⌃⌥Space: ⇧⌘Space is taken system-wide on the owner's Mac. macOS's own
+            // ⌃⌥Space ("Select next source in Input menu") is off by default and
+            // only matters with several input sources; see docs/PHASE3A_NATIVE.md.
             Button("Talk to Astra") { model.send(.focusCompanion) }
-                .keyboardShortcut(.space, modifiers: [.command, .shift])
-            Button("Command Palette") { model.send(.openCommandPalette) }
+                .keyboardShortcut(.space, modifiers: [.control, .option])
+            // Focuses the companion input until a real command palette exists.
+            Button("Focus Chat") { model.send(.openCommandPalette) }
                 .keyboardShortcut("k", modifiers: .command)
         }
     }
