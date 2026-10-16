@@ -1,3 +1,4 @@
+import AppKit
 import AuraCore
 import Foundation
 import os
@@ -46,9 +47,13 @@ enum DevProbe {
             const d = window.__AURA_DIAGNOSTICS__;
             return JSON.stringify({ zone: d.zone, loadMs: d.loadMs, heightMeters: d.heightMeters, clip: d.playingClip,
               renderer: d.renderer, window: [innerWidth, innerHeight, devicePixelRatio],
-              href: location.href, transport: document.querySelector('.connection-chip')?.textContent });
+              href: location.href, transport: document.querySelector('.connection-chip')?.textContent,
+              media: Object.fromEntries(['prefers-reduced-motion: reduce', 'prefers-reduced-transparency: reduce',
+                'prefers-contrast: more'].map((q) => [q, matchMedia(`(${q})`).matches])) });
             """) ?? "nil"
         log.notice("probe initial \(initial, privacy: .public)")
+        let workspace = NSWorkspace.shared
+        log.notice("probe system reduceMotion=\(workspace.accessibilityDisplayShouldReduceMotion, privacy: .public) reduceTransparency=\(workspace.accessibilityDisplayShouldReduceTransparency, privacy: .public) increaseContrast=\(workspace.accessibilityDisplayShouldIncreaseContrast, privacy: .public) voiceOver=\(workspace.isVoiceOverEnabled, privacy: .public)")
 
         for zone in ZoneID.allCases {
             model.send(.navigate(zone))
