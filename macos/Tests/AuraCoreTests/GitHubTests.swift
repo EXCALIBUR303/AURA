@@ -322,6 +322,20 @@ struct GitHubHarness {
         #expect(try h.storedCredentials() == nil)
     }
 
+    @Test func anyOAuthRefusalOfARefreshEndsTheSessionAsRevoked() async throws {
+        // Revoking the app on github.com makes the refresh fail with
+        // incorrect_client_credentials (seen live), not bad_refresh_token.
+        for error in ["incorrect_client_credentials", "unauthorized_client", "invalid_grant"] {
+            let h = GitHubHarness()
+            try h.store(validCredentials(h.clock))
+            h.github.on("GET /user") { _ in HTTPResponse(status: 401) }
+            h.github.on("POST /login/oauth/access_token") { _ in FakeGitHub.json(["error": error]) }
+            await h.service.restore()
+            #expect(h.service.status == .expired(login: "octo", reason: .revoked), "\(error)")
+            #expect(try h.storedCredentials() == nil, "\(error)")
+        }
+    }
+
     @Test func expiredRefreshTokenEndsTheSessionWithoutANetworkCall() async throws {
         let h = GitHubHarness()
         try h.store(validCredentials(h.clock, accessIn: -10, refreshIn: -10))

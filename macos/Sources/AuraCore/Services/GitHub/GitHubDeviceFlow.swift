@@ -170,8 +170,13 @@ public struct GitHubDeviceFlowClient: Sendable {
             "refresh_token": refreshToken,
         ])
         if let error = json["error"] as? String {
-            if error == "bad_refresh_token" { throw AuraError.notAuthenticated("GitHub rejected the refresh token") }
-            throw Self.failure(error)
+            // This client ID already issued the session, so any OAuth rejection
+            // here means the grant is gone. Revoking AURA on github.com yields
+            // incorrect_client_credentials rather than bad_refresh_token
+            // (observed live, 2026-10-17). End the session instead of reporting
+            // a configuration error that would strand the user.
+            Log.github.error("GitHub refused the token refresh (\(error, privacy: .public))")
+            throw AuraError.notAuthenticated("GitHub rejected the refresh token")
         }
         var next = try self.credentials(from: json)
         next.account = credentials.account
