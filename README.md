@@ -2,13 +2,13 @@
 
 A native macOS app for Apple Silicon: a navigable 3D developer studio (hardware lab, software studio, AI/LLM lab, GitHub projects) with **Astra Lumen II** as an interactive AI companion. It uses a SwiftUI shell and Swift services, and hosts a React and three.js studio in WKWebView.
 
-**Status:** Phase 1 (engineering foundation). The studio is a validation scene; GitHub, AI and voice are mocked. See [TASKS.md](TASKS.md).
+**Status:** Phase 3A (native foundation) on top of the Phase 2 studio. GitHub, AI and voice are still mocked or unavailable over the bridge; their native foundations exist. See [TASKS.md](TASKS.md) and [docs/PHASE3A_NATIVE.md](docs/PHASE3A_NATIVE.md).
 
 ## Requirements
 
 - macOS 15+ on Apple Silicon
 - Node ≥ 23.6 (native TypeScript type-stripping is used for tests). Verified with Node 26.11.
-- Swift 6 toolchain: Command Line Tools are enough to build and test. **Full Xcode is required** for the signed `.app`, voice and SwiftUI macros. See [ARCHITECTURE.md § Native build](ARCHITECTURE.md#native-build-what-the-clt-can-and-cannot-do).
+- Xcode 27.1 (Swift 6.4) for the `AURA.app` target. The Command Line Tools alone still build and test the SwiftPM package. See [ARCHITECTURE.md § Native build](ARCHITECTURE.md#native-build-the-auraapp-target).
 - The Astra Lumen GLB in `assets/avatar/community/astra-lumen/`. It is not in git; see [docs/ASSETS.md](docs/ASSETS.md).
 
 ## Quick start
@@ -22,6 +22,13 @@ Open http://127.0.0.1:5173 for the studio in a browser, which uses the mock brid
 
 ```bash
 AURA_DEV_SERVER_URL=http://127.0.0.1:5173 swift run --package-path macos AuraApp
+```
+
+To build the sandboxed app with the frontend bundled (production mode):
+
+```bash
+tools/build-app.sh
+open macos/.build/xcode/Build/Products/Release/AURA.app
 ```
 
 ## Checks

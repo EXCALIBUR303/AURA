@@ -20,9 +20,26 @@ Full brief: [docs/PHASE2_CODEX_HANDOFF.md](docs/PHASE2_CODEX_HANDOFF.md)
 - [ ] [C] UI shell from Stitch: top bar, zone navigator, inspector, command dock, companion pill, zone cards (mock data)
 - [ ] [C] Accessibility fixes from DESIGN_ANALYSIS, reduced motion, visible credits
 - [ ] [C] Performance report (fps, draw calls, triangles) in the browser **and** `AuraApp`
-- [ ] [CC] Native window dragging for the hidden title bar (`data-aura-drag-region` contract, see handoff)
+- [x] [CC] Native window dragging for the hidden title bar (`data-aura-drag-region` contract, see handoff). Done in Phase 3A.
 - [ ] [CC] About / Credits window (native) with the CC BY 4.0 attribution
-- [ ] [CC] Xcode app target (after [O] installs Xcode): bundle `frontend/dist`, Info.plist usage strings, hardened runtime, icon
+- [x] [CC] Xcode app target: bundles `frontend/dist`, Info.plist usage strings, sandbox, hardened runtime. Done in Phase 3A; the icon is still missing.
+
+## Phase 3A: Native foundation ✅ (awaiting owner review)
+
+Report: [docs/PHASE3A_NATIVE.md](docs/PHASE3A_NATIVE.md)
+
+- [x] [CC] `AURA.xcodeproj`: Debug/Release, sandbox, hardened runtime, ad-hoc signing, embedded frontend, `tools/build-app.sh`
+- [x] [CC] Single `Window` scene; native title-bar dragging and double-click; page takes keyboard focus on load; Tab reaches every control
+- [x] [CC] Window-state contract (`app.getWindowState`, `app.windowStateChanged`); `app.activeChanged` deprecated
+- [x] [CC] Studio menu ticks the current zone; ⌘1–⌘6 and ⌘K verified with real key events
+- [x] [CC] GitHub / AI / voice service foundations (native only, not on the bridge yet)
+- [ ] [C] **Review** commit "frontend: render at 30 fps while AURA is visible but inactive" (`Studio.tsx`, approved cross-ownership change). Keep or adjust `BACKGROUND_FPS`.
+- [ ] [C] Move any remaining `app.activeChanged` listener to `app.windowStateChanged` (Studio.tsx already did); the event is removed in Phase 3B.
+- [ ] [C] Command Palette: ⌘K only focuses the companion input; build a palette or rename the menu item.
+- [ ] [C] Phase 2.7 leftovers: inspector repo detail ignores the zone; Astra's feet touch the dock in Companion at 1100×700; "/" separator contrast 3.0:1.
+- [ ] [O] ⇧⌘Space ("Talk to Astra") never reaches AURA on this Mac: another app or system feature takes it. Keep, or pick another shortcut?
+- [ ] [O] Background rendering policy: 30 fps while visible-inactive (current) vs 15 fps vs freeze.
+- [ ] [O] Manual checks: VoiceOver pass; Reduce Motion / Reduce Transparency toggled on; leave full screen with fn-F, then press ⌘2 (R12).
 
 ## Phase 3: Real services (native-led)
 
@@ -64,7 +81,7 @@ Codex: add requests here (method, event or field, payload shape, why). Claude Co
 
 ### Phase 2 frontend handoff
 
-- [CC] Documentation sync: `motion` 14.3.0 is now installed for accessible dock/reply transitions, as requested in the Phase 2 handoff. Update ARCHITECTURE.md's existing motion entry from "not installed yet" when reviewing the root docs. No new bridge methods were required.
+- [x] [CC] Documentation sync (done in Phase 3A): `motion` 14.3.0 is now installed for accessible dock/reply transitions, as requested in the Phase 2 handoff. Update ARCHITECTURE.md's existing motion entry from "not installed yet" when reviewing the root docs. No new bridge methods were required.
 - [O] Browser implementation and cloud checks are recorded in `frontend/PHASE2_HANDOFF.md`. Complete the remaining AuraApp, native keyboard/window dragging, Safari network, and Apple Silicon performance acceptance on the Mac before marking Phase 2 fully accepted. The GLB remains ignored and unchanged.
 
 ### Phase 2 completion audit

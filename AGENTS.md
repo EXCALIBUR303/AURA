@@ -41,7 +41,7 @@ Read-only for both: `designs/stitch/**` and `assets/**`. Exception: adding a new
 - Services throw `AuraError`. The router maps errors to `BridgeError`. No `fatalError` / `try!` on input paths.
 - `os.Logger` (subsystem `com.aura.app`): remote and user data is `.private`.
 - Every bridge change follows the checklist in ARCHITECTURE.md § Adding a bridge method, in one commit.
-- Avoid SwiftUI macros (`@State`, `#Preview`) until Xcode is installed (CLT builds lack the plugin).
+- SwiftUI macros work with the Xcode toolchain. Keep `swift build --package-path macos` working too: it builds the unbundled dev executable.
 
 ## Commands
 
@@ -55,6 +55,7 @@ npm --prefix frontend run inspect:avatar
 swift build --package-path macos
 tools/swift-test.sh
 AURA_DEV_SERVER_URL=http://127.0.0.1:5173 swift run --package-path macos AuraApp
+tools/build-app.sh                       # frontend + AURA.app (Release)
 ```
 
 Before handing work back, run `typecheck`, `test` and `build` (frontend) and/or `tools/swift-test.sh` (native), and report the results verbatim.

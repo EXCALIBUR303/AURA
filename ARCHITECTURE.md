@@ -21,11 +21,11 @@ AURA is a native macOS app (SwiftUI shell plus Swift services) that hosts a Reac
 
 | Layer | Choice | Version | Why |
 |---|---|---|---|
-| Shell | SwiftUI and AppKit, SwiftPM package | Swift 6.4, macOS 15+ target | Native menus, windows, permissions and Keychain. SwiftPM builds with the CLT; Xcode adds bundling. |
+| Shell | SwiftUI and AppKit: SwiftPM package (`AuraCore`, dev executable `AuraApp`) plus the Xcode app target `AURA.app` | Swift 6.4, Xcode 27.1, macOS 15+ target | Native menus, windows, permissions and Keychain. The app target compiles `Sources/AuraApp` against the local `AuraCore` package. |
 | Web host | WKWebView, `WKScriptMessageHandlerWithReply`, custom `aura://` scheme | system WebKit | No Electron, no bundled Chromium. The custom scheme gives a real origin for fetch, CSP and modules. |
 | UI | React, TypeScript, Vite | 19.3.1 / TS 7.0.2 / Vite 8.3.4 | TS 7 (native `tsc`) verified working. |
 | 3D | three, @react-three/fiber, @react-three/drei | 0.186.1 / 9.8.2 / 10.7.9 | R3F 9 requires React <19.4. Do not bump React past 19.3.x without bumping R3F. |
-| UI motion | `motion` | 14.x, **not installed yet** | Codex adds it in Phase 2 when the first animated component needs it. |
+| UI motion | `motion` | 14.3.0 | Installed by Codex in Phase 2 for the dock and reply transitions. |
 | Persistence | System SQLite via `import SQLite3` | macOS SQLite 3.54 | No ORM dependency. The schema is tiny. |
 | Secrets | Keychain generic passwords | — | `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, not synced. |
 | Speech | `Speech` (SFSpeechRecognizer) and `AVSpeechSynthesizer` | Phase 3 | Requires the signed .app bundle (see Native build). |
@@ -63,8 +63,8 @@ All messages are JSON **strings**, which avoids `NSNumber`/`Bool` ambiguity in W
 | native → web reply | the reply handler resolves that Promise | `{kind:"response", v:1, id, ok:true, result}` or `{…, ok:false, error:{code, message, retryable}}` |
 | native → web event | `callAsyncJavaScript("window.__AURA_BRIDGE__?.dispatch(message)", arguments:)` | `{kind:"event", v:1, event, payload}` |
 
-- **Methods** (see `shared/contracts/methods.ts`): `app.getInfo`, `prefs.get|update`, `github.getAuthStatus|listRepositories|listCommits`, `projects.list|update`, `ai.listProviders|chat|cancel`, `voice.getStatus|requestPermissions|startListening|stopListening|speak|stopSpeaking`, `log.write`.
-- **Events** (`events.ts`): `app.command` (menu and shortcut actions), `app.activeChanged`, `prefs.changed`, `github.authChanged`, `ai.chunk|done|error`, `voice.statusChanged|transcript|speechLevel`.
+- **Methods** (see `shared/contracts/methods.ts`): `app.getInfo|getWindowState`, `prefs.get|update`, `github.getAuthStatus|listRepositories|listCommits`, `projects.list|update`, `ai.listProviders|chat|cancel`, `voice.getStatus|requestPermissions|startListening|stopListening|speak|stopSpeaking`, `log.write`.
+- **Events** (`events.ts`): `app.command` (menu and shortcut actions), `app.windowStateChanged` (`app.activeChanged` is deprecated, still sent until Phase 3B), `prefs.changed`, `github.authChanged`, `ai.chunk|done|error`, `voice.statusChanged|transcript|speechLevel`.
 - Streaming (LLM output, transcripts) is always a request that returns a `streamId` immediately, followed by events. No request stays open longer than the client timeout (15 s).
 - Versioning: `v` must equal `BRIDGE_PROTOCOL_VERSION` (1), or the host replies `unsupported_version`. Additive changes (new optional fields, new methods or events) keep v1. Renames and removals bump the version.
 - Drift protection: `ContractParityTests` parses the TS files and fails if method, event, error-code or zone names differ from the Swift enums. Both test suites decode `shared/fixtures/bridge-messages.json`.
@@ -97,7 +97,11 @@ All messages are JSON **strings**, which avoids `NSNumber`/`Bool` ambiguity in W
 - Treat content rendered in the web view (READMEs, commit messages, model output) as untrusted. Never use `dangerouslySetInnerHTML` with it. Use a sanitising markdown renderer.
 - `isInspectable` is enabled only in development.
 
-**Persistence.** `~/Library/Application Support/AURA/aura.sqlite` (WAL). Schema v1: `kv` (preferences JSON) and `projects` (app-local repo metadata). Migrations run through `PRAGMA user_version`. Nothing fetched from GitHub is persisted yet; caching is a Phase 3 decision.
+**Window and lifecycle.** One window (`Window` scene, so no File › New Window). `WindowStateObserver` reports `{active, visible}` (app activation, occlusion, minimize, hide) to `WindowStateStore`, which answers `app.getWindowState` and emits `app.windowStateChanged` on change. The studio renders at full rate while active, at 30 fps while only visible, and not at all while hidden. Window dragging: the page marks empty title-bar areas with `data-aura-drag-region`; a script in an isolated content world reports presses there, and `AuraWebView` starts `NSWindow.performDrag` from the press's next mouse-dragged event (AppKit ignores a drag started outside a live event).
+
+**Services (Phase 3A foundations).** GitHub: `GitHubConnectionManager` (device-flow states, Keychain token, `UnconfiguredGitHubAuthenticator` until the owner picks the auth method). AI: `AIProviderConfiguration` (loopback-only local or https remote), `AICredentialStore`, `AIProviderCatalog`. Voice: `VoicePermissions`, `SpeechInput`/`SpeechOutput`, `VoiceSession` (barge-in, interruptions). None is wired to the bridge yet; the bridge still serves the mocks and `UnavailableVoiceService`.
+
+**Persistence.** `~/Library/Application Support/AURA/aura.sqlite` (WAL); inside the sandboxed `AURA.app` that is `~/Library/Containers/com.aura.app/Data/Library/Application Support/AURA/`. Schema v1: `kv` (preferences JSON) and `projects` (app-local repo metadata). Migrations run through `PRAGMA user_version`. Nothing fetched from GitHub is persisted yet; caching is a Phase 3 decision.
 
 ## Development and test commands
 
@@ -110,24 +114,26 @@ npm --prefix frontend test             # shared contract/bridge tests (node --te
 npm --prefix frontend run build        # typecheck + vite build → frontend/dist
 npm --prefix frontend run inspect:avatar
 
-# native (Command Line Tools are enough for these)
+# native
 swift build --package-path macos
-tools/swift-test.sh                    # = swift test (+ CLT plugin-path workaround)
-AURA_DEV_SERVER_URL=http://127.0.0.1:5173 swift run --package-path macos AuraApp   # live dev
+tools/swift-test.sh                    # = swift test (the plugin-path workaround is now only needed with the CLT)
+AURA_DEV_SERVER_URL=http://127.0.0.1:5173 swift run --package-path macos AuraApp   # live dev, unbundled
 AURA_WEB_ROOT="$PWD/frontend/dist" swift run --package-path macos AuraApp           # built files via aura://
+tools/build-app.sh                     # frontend build + AURA.app (Release) → macos/.build/xcode/Build/Products/Release
+tools/build-app.sh Debug               # Debug AURA.app; Xcode's Run (scheme AURA) loads the dev server
+open macos/AURA.xcodeproj              # Xcode: scheme AURA, Run = Debug + AURA_DEV_SERVER_URL
 ```
 
-## Native build: what the CLT can and cannot do
+## Native build: the AURA.app target
 
-This Mac currently has **Command Line Tools only** (no Xcode). Verified:
-- ✅ `swift build` / `swift test` (Swift Testing), SwiftUI, WebKit, `@Observable`, SQLite3, Security.
-- ⚠️ `swift test` alone fails intermittently (about 50 % of runs) with "plugin for module 'TestingMacros' not found". Always use `tools/swift-test.sh`, which passes the plugin path explicitly (6/6 passes).
-- ✅ `swift run AuraApp` opens a working window hosting the studio (dev server or `aura://`).
-- ❌ SwiftUI's own macros (`@State`, `@Entry`, `#Preview`) fail with "plugin for module 'SwiftUIMacros' not found". The shell avoids them for now. Xcode ships the plugin.
-- ❌ There is no `.app` bundle, so there is no `Info.plist`: no `NSMicrophoneUsageDescription` / `NSSpeechRecognitionUsageDescription` (macOS kills the process on mic or speech access without them), no bundle identifier, no code signing or entitlements, and no app icon.
+`macos/AURA.xcodeproj` (hand-written, no generator) has one app target, `AURA` (`com.aura.app`), built with Xcode 27.1:
+- Sources: `macos/Sources/AuraApp` (synchronized folder), linked against the `AuraCore` product of the local package. The SwiftPM `AuraApp` executable builds the same files for quick unbundled runs.
+- `macos/App/Info.plist`: microphone and speech-recognition usage strings, developer-tools category. `macos/App/AURA.entitlements`: App Sandbox, `network.client` (loopback dev server; GitHub and AI later), `device.audio-input`.
+- Hardened runtime; ad-hoc signing ("Sign to Run Locally", no team). Release drops `get-task-allow`. Ad-hoc signatures change on every build, so macOS may ask for microphone access again after a rebuild.
+- Build phase "Embed frontend" copies `frontend/dist` to `Contents/Resources/web` (required for Release; Debug warns and relies on the dev server). `AppConfiguration` serves it through `aura://app/`.
+- Sandbox consequences: the app has its own data container and Keychain items (separate from `swift run`), and `AURA_WEB_ROOT` outside the bundle is unreadable to it.
 
-**Required before Phase 3 (voice) and before daily use:** install Xcode (App Store), then
-`sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`, then add an app target (Xcode project or XcodeGen spec, decided at that point) that depends on `AuraCore`, embeds `frontend/dist` as `Resources/web`, and declares the usage strings and the hardened runtime. The SwiftPM package stays as the library and test layer.
+Not done yet: app icon, Developer ID signing and notarisation (Phase 5).
 
 ## Technical risks
 
@@ -135,12 +141,14 @@ This Mac currently has **Command Line Tools only** (no Xcode). Verified:
 |---|---|---|---|
 | R1 | **WKWebView 3D performance** under a full studio scene | Partly measured. A single 36.5k-tri avatar with clearcoat, 2 lights, pixel ratio 2 ran at **60 fps** in WKWebView (`AuraApp`, dev and `aura://`, M5, 16 GB). The GLB load took **485 ms** (`aura://`) and **750 ms** (dev server). That is far from a full scene. | Codex reports the fps and draw calls of every new zone. Budget: hold 60 fps at pixel ratio 2 with all zones. Add an adaptive-quality fallback (`Preferences.graphics`). |
 | R2 | **rAF may be capped at 60 Hz** in WKWebView even on 120 Hz ProMotion | 60 fps measured. We can't yet tell whether that is a cap or the display rate. | Test on the built-in display versus an external one. Treat 60 as the target. |
-| R3 | **No Xcode**, so no app bundle, voice, signing or SwiftUI macros | Blocking for Phase 3 | Install Xcode. See above. |
+| R3 | ~~No Xcode~~ | Resolved in Phase 3A: Xcode 27.1 and the `AURA.app` target | Developer ID signing and notarisation remain (Phase 5). |
 | R4 | The avatar has **one idle clip**, **no blend shapes**, **no finger bones**, and loads at **3.34 m** | Verified in `docs/ASSETS.md` | Normalise the scale. Drive procedural look-at and jaw. Source and retarget clips (licence check). |
 | R5 | The GPU name is masked (`"Apple GPU"`) in WKWebView | Verified | Get hardware info natively if needed. |
 | R6 | WebGL context loss or web-process termination (memory pressure, GPU reset) | The shell reloads on `webViewWebContentProcessDidTerminate`. Context loss is unhandled. | The frontend handles `webglcontextlost` / `restored`. Persist the UI state needed to resume. |
 | R7 | The scheme handler reads files synchronously on the main thread | Acceptable for 17 MB (tens of ms) | Move to a background read if it shows up in profiles. Compress textures (KTX2). |
 | R8 | Large binaries are gitignored (no Git LFS), so worktrees lack the GLB | Known | Copy them per `docs/ASSETS.md`. Install `git lfs` before the first push if the assets should be versioned. |
 | R9 | TypeScript 7 / Vite 8 are recent majors, and plugins may lag | Typecheck and build pass today | Pin via lockfile. Fall back to TS 6 if a tool breaks. |
-| R10 | Window dragging: the hidden title bar plus a full-bleed web view leaves no native drag area | Not implemented | Claude Code adds a native drag strip. The frontend keeps the top bar mostly non-interactive (see DESIGN_ANALYSIS). |
-| R11 | CLT `swift test` macro-plugin lookup is flaky | Worked around in `tools/swift-test.sh` | Re-check once Xcode is installed |
+| R10 | Window dragging with the hidden title bar | Resolved in Phase 3A (`data-aura-drag-region` → `performDrag`), verified with real mouse events | Keep empty top-bar areas marked. |
+| R11 | CLT `swift test` macro-plugin lookup is flaky | With the Xcode toolchain plain `swift test` passed 4/4 | `tools/swift-test.sh` stays for CLT-only machines. |
+| R12 | After leaving full screen with fn-F or View › Exit Full Screen, keystrokes did not reach AURA until a click (seen with synthesized input; leaving via the green button was fine) | Open; not yet reproduced with a physical keyboard | Owner check: enter full screen, press fn-F, then ⌘2. |
+| R13 | Web content memory over long sessions | Flat in fresh 20-cycle and 18-transition runs (284 → 290 MB); one long session reached 371 MB | Re-measure with Web Inspector's memory timeline during Phase 3B. |
