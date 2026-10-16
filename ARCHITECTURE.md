@@ -29,7 +29,7 @@ AURA is a native macOS app (SwiftUI shell plus Swift services) that hosts a Reac
 | Persistence | System SQLite via `import SQLite3` | macOS SQLite 3.54 | No ORM dependency. The schema is tiny. |
 | Secrets | Keychain generic passwords | — | `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, not synced. |
 | Speech | `Speech` (SFSpeechRecognizer) and `AVSpeechSynthesizer` | Phase 3 | Requires the signed .app bundle (see Native build). |
-| GitHub | REST/GraphQL via `URLSession` | Phase 3 | Mocked until the user authorises a token. |
+| GitHub | REST via ephemeral `URLSession` | Phase 3B | GitHub App "AURA Developer Companion", device flow, Metadata + Contents read-only. No client secret. See docs/PHASE3B_GITHUB.md. |
 | LLMs | `AIProvider` protocol: local (e.g. Ollama on localhost) and cloud providers | Phase 4 | Mocked. No paid service without approval. |
 
 Everything else is deliberately absent: no state library, no CSS framework, no runtime validation library, no native package dependencies. Add one only when a concrete need appears, and record it here.
@@ -63,8 +63,8 @@ All messages are JSON **strings**, which avoids `NSNumber`/`Bool` ambiguity in W
 | native → web reply | the reply handler resolves that Promise | `{kind:"response", v:1, id, ok:true, result}` or `{…, ok:false, error:{code, message, retryable}}` |
 | native → web event | `callAsyncJavaScript("window.__AURA_BRIDGE__?.dispatch(message)", arguments:)` | `{kind:"event", v:1, event, payload}` |
 
-- **Methods** (see `shared/contracts/methods.ts`): `app.getInfo|getWindowState`, `prefs.get|update`, `github.getAuthStatus|listRepositories|listCommits`, `projects.list|update`, `ai.listProviders|chat|cancel`, `voice.getStatus|requestPermissions|startListening|stopListening|speak|stopSpeaking`, `log.write`.
-- **Events** (`events.ts`): `app.command` (menu and shortcut actions), `app.windowStateChanged` (`app.activeChanged` is deprecated, still sent until Phase 3B), `prefs.changed`, `github.authChanged`, `ai.chunk|done|error`, `voice.statusChanged|transcript|speechLevel`.
+- **Methods** (see `shared/contracts/methods.ts`): `app.getInfo|getWindowState`, `prefs.get|update`, `github.getAuthStatus|connect|disconnect|refresh|listRepositories|getRepository|listBranches|listCommits`, `projects.list|update|suggestZones`, `ai.listProviders|chat|cancel`, `voice.getStatus|requestPermissions|startListening|stopListening|speak|stopSpeaking`, `log.write`.
+- **Events** (`events.ts`): `app.command` (menu and shortcut actions), `app.windowStateChanged` (`app.activeChanged` was removed in Phase 3B), `prefs.changed`, `github.authChanged` (every connection state change), `ai.chunk|done|error`, `voice.statusChanged|transcript|speechLevel`.
 - Streaming (LLM output, transcripts) is always a request that returns a `streamId` immediately, followed by events. No request stays open longer than the client timeout (15 s).
 - Versioning: `v` must equal `BRIDGE_PROTOCOL_VERSION` (1), or the host replies `unsupported_version`. Additive changes (new optional fields, new methods or events) keep v1. Renames and removals bump the version.
 - Drift protection: `ContractParityTests` parses the TS files and fails if method, event, error-code or zone names differ from the Swift enums. Both test suites decode `shared/fixtures/bridge-messages.json`.
@@ -79,7 +79,7 @@ All messages are JSON **strings**, which avoids `NSNumber`/`Bool` ambiguity in W
 
 ## Conventions
 
-**Configuration.** Non-secret runtime config comes from env vars read once at launch (`AppConfiguration.load`): `AURA_DEV_SERVER_URL` (loopback http only, enforced), `AURA_WEB_ROOT`, `AURA_DATA_DIR`. The frontend reads only `VITE_AURA_BRIDGE`. User-facing settings live in `Preferences`, which is persisted in SQLite and exposed via `prefs.*`. See `.env.example`.
+**Configuration.** Non-secret runtime config comes from env vars read once at launch (`AppConfiguration.load`): `AURA_DEV_SERVER_URL` (loopback http only, enforced), `AURA_WEB_ROOT`, `AURA_DATA_DIR`, `AURA_GITHUB_CLIENT_ID` (public GitHub App client ID for `swift run`; the app bundle reads `AURAGitHubClientID` from Info.plist). The frontend reads only `VITE_AURA_BRIDGE`. User-facing settings live in `Preferences`, which is persisted in SQLite and exposed via `prefs.*`. See `.env.example`.
 
 **Errors.** Native services throw `AuraError`. The router maps every error to a `BridgeError {code, message, retryable}`; unknown error types become `internal` with only the type name, so messages never carry secrets. The router never crashes on bad input: malformed JSON gives `invalid_request`, an unknown method gives `unknown_method`, and bad params give `invalid_request`. In the frontend, `bridge.call` throws `BridgeCallError` with `.code`, and UI logic branches on `code`, never on `message`.
 
@@ -99,7 +99,15 @@ All messages are JSON **strings**, which avoids `NSNumber`/`Bool` ambiguity in W
 
 **Window and lifecycle.** One window (`Window` scene, so no File › New Window). `WindowStateObserver` reports `{active, visible}` (app activation, occlusion, minimize, hide) to `WindowStateStore`, which answers `app.getWindowState` and emits `app.windowStateChanged` on change. The studio renders at full rate while active, at 30 fps while only visible, and not at all while hidden. Window dragging: the page marks empty title-bar areas with `data-aura-drag-region`; a script in an isolated content world reports presses there, and `AuraWebView` starts `NSWindow.performDrag` from the press's next mouse-dragged event (AppKit ignores a drag started outside a live event).
 
-**Services (Phase 3A foundations).** GitHub: `GitHubConnectionManager` (device-flow states, Keychain token, `UnconfiguredGitHubAuthenticator` until the owner picks the auth method). AI: `AIProviderConfiguration` (loopback-only local or https remote), `AICredentialStore`, `AIProviderCatalog`. Voice: `VoicePermissions`, `SpeechInput`/`SpeechOutput`, `VoiceSession` (barge-in, interruptions). None is wired to the bridge yet; the bridge still serves the mocks and `UnavailableVoiceService`.
+**GitHub (Phase 3B).** `LiveGitHubService` serves the bridge in the app:
+- `GitHubConnectionManager` owns the state machine (`disconnected`, `authorizing`, `connected`, `rate_limited`, `expired`, `error`), the launch restore, connect and disconnect.
+- `GitHubDeviceFlowClient` handles the device flow and token refresh against github.com.
+- `GitHubAPIClient` is an actor holding the Keychain credentials. It refreshes tokens, retries once after a 401, honours the rate limit, keeps an in-memory ETag cache and only accepts the `api.github.com` host.
+- `ProjectZoneClassifier` produces `projects.suggestZones`. Suggestions are never applied automatically.
+
+Tests use `MockGitHubService`. Details and the security boundaries are in docs/PHASE3B_GITHUB.md.
+
+**Services (Phase 3A foundations).** AI: `AIProviderConfiguration` (loopback-only local or https remote), `AICredentialStore`, `AIProviderCatalog`. Voice: `VoicePermissions`, `SpeechInput`/`SpeechOutput`, `VoiceSession` (barge-in, interruptions). Neither is wired to the bridge yet: the bridge still serves the mock AI provider and `UnavailableVoiceService`.
 
 **Persistence.** `~/Library/Application Support/AURA/aura.sqlite` (WAL); inside the sandboxed `AURA.app` that is `~/Library/Containers/com.aura.app/Data/Library/Application Support/AURA/`. Schema v1: `kv` (preferences JSON) and `projects` (app-local repo metadata). Migrations run through `PRAGMA user_version`. Nothing fetched from GitHub is persisted yet; caching is a Phase 3 decision.
 
@@ -128,7 +136,7 @@ open macos/AURA.xcodeproj              # Xcode: scheme AURA, Run = Debug + AURA_
 
 `macos/AURA.xcodeproj` (hand-written, no generator) has one app target, `AURA` (`com.aura.app`), built with Xcode 27.1:
 - Sources: `macos/Sources/AuraApp` (synchronized folder), linked against the `AuraCore` product of the local package. The SwiftPM `AuraApp` executable builds the same files for quick unbundled runs.
-- `macos/App/Info.plist`: microphone and speech-recognition usage strings, developer-tools category. `macos/App/AURA.entitlements`: App Sandbox, `network.client` (loopback dev server; GitHub and AI later), `device.audio-input`.
+- `macos/App/Info.plist`: microphone and speech-recognition usage strings, developer-tools category. `macos/App/AURA.entitlements`: App Sandbox, `network.client` (loopback dev server, the GitHub API since Phase 3B, AI later), `device.audio-input`.
 - Hardened runtime; ad-hoc signing ("Sign to Run Locally", no team). Release drops `get-task-allow`. Ad-hoc signatures change on every build, so macOS may ask for microphone access again after a rebuild.
 - Build phase "Embed frontend" copies `frontend/dist` to `Contents/Resources/web` (required for Release; Debug warns and relies on the dev server). `AppConfiguration` serves it through `aura://app/`.
 - Sandbox consequences: the app has its own data container and Keychain items (separate from `swift run`), and `AURA_WEB_ROOT` outside the bundle is unreadable to it.

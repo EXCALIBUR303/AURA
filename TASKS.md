@@ -34,7 +34,7 @@ Report: [docs/PHASE3A_NATIVE.md](docs/PHASE3A_NATIVE.md)
 - [x] [CC] Studio menu ticks the current zone; ⌘1–⌘6 and ⌘K verified with real key events
 - [x] [CC] GitHub / AI / voice service foundations (native only, not on the bridge yet)
 - [ ] [C] **Review** commit "frontend: render at 30 fps while AURA is visible but inactive" (`Studio.tsx`, approved cross-ownership change). Keep or adjust `BACKGROUND_FPS`.
-- [ ] [C] Move any remaining `app.activeChanged` listener to `app.windowStateChanged` (Studio.tsx already did); the event is removed in Phase 3B.
+- [x] [C] Move any remaining `app.activeChanged` listener to `app.windowStateChanged`. None remained; the event was removed in Phase 3B.
 - [x] [O→CC] ⌘K is documented and labelled "Focus Chat" (Studio menu). A real command palette is later work for [C].
 - [ ] [C] Phase 2.7 leftovers: inspector repo detail ignores the zone; Astra's feet touch the dock in Companion at 1100×700; "/" separator contrast 3.0:1.
 - [x] [O→CC] "Talk to Astra" moved to ⌃⌥Space (⇧⌘Space was taken on the owner's Mac). Verified with the physical keyboard.
@@ -42,10 +42,20 @@ Report: [docs/PHASE3A_NATIVE.md](docs/PHASE3A_NATIVE.md)
 - [x] [O] App icon deferred to the final visual branding stage.
 - [ ] [O] Manual checks still open: VoiceOver pass; Reduce Motion / Reduce Transparency toggled on; R12 end-to-end (leave full screen with fn-F, then press ⌘4 without clicking).
 
+## Phase 3B: GitHub integration ✅ (awaiting owner review)
+
+Report and Codex brief: [docs/PHASE3B_GITHUB.md](docs/PHASE3B_GITHUB.md)
+
+- [x] [CC] GitHub App device flow, Keychain credentials, refresh, revocation, launch restore, `github.authChanged`. Verified live in the sandboxed Release app.
+- [x] [CC] Repositories across installations, repository detail and languages, branches, commits, pagination, ETag cache, rate limits
+- [x] [CC] `projects.suggestZones` (explainable, never auto-applied); manual zones unchanged
+- [ ] [C] GitHub frontend: connect, authorizing, connected, expired, rate-limited and error states; repository explorer with paging, detail, branches and commits; zone suggestions with Accept. See the Codex section of the report.
+- [ ] [O] Optional live check: revoke at github.com/settings/apps/authorizations, relaunch AURA, expect `expired (revoked)`, then reconnect.
+
 ## Phase 3: Real services (native-led)
 
-- [ ] [CC] GitHub auth (method to be decided by [O]: device-flow OAuth app or fine-grained PAT) → Keychain, `github.authChanged`
-- [ ] [CC] GitHub REST/GraphQL client: repos, commits, rate-limit handling (`rate_limited`), optional cache
+- [x] [CC] GitHub auth → Keychain, `github.authChanged` (Phase 3B)
+- [x] [CC] GitHub REST client: repos, commits, rate-limit handling, cache (Phase 3B)
 - [ ] [CC] Voice: `SFSpeechRecognizer` (on-device where available), `AVSpeechSynthesizer`, `voice.speechLevel` metering, permission flow
 - [ ] [C] Wire real loading, empty, error and permission-denied states into the UI
 
@@ -67,7 +77,7 @@ Report: [docs/PHASE3A_NATIVE.md](docs/PHASE3A_NATIVE.md)
 1. **Xcode install.** It is required for the app bundle, voice and SwiftUI macros. It blocks Phase 3.
 2. **Binary assets in git.** Install Git LFS and track `*.glb` / `screen.png`, or keep them out of the repo?
 3. **Animations for Astra.** Retarget CC-compatible clips (licence check per clip), go procedural only, or commission?
-4. **GitHub auth method** and the scopes AURA may request (read-only recommended).
+4. ~~**GitHub auth method**~~ Decided 2026-10-17: GitHub App "AURA Developer Companion", device flow, Metadata + Contents read-only, installed on EXCALIBUR303 (selected repositories).
 5. **LLM providers** and any spending limits.
 
 ## Bridge requests

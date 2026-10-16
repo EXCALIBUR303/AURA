@@ -2,7 +2,7 @@
 
 A native macOS app for Apple Silicon: a navigable 3D developer studio (hardware lab, software studio, AI/LLM lab, GitHub projects) with **Astra Lumen II** as an interactive AI companion. It uses a SwiftUI shell and Swift services, and hosts a React and three.js studio in WKWebView.
 
-**Status:** Phase 3A (native foundation) on top of the Phase 2 studio. GitHub, AI and voice are still mocked or unavailable over the bridge; their native foundations exist. See [TASKS.md](TASKS.md) and [docs/PHASE3A_NATIVE.md](docs/PHASE3A_NATIVE.md).
+**Status:** Phase 3B (GitHub integration) on top of the Phase 3A native foundation and the Phase 2 studio. GitHub is live: a read-only GitHub App with device-flow sign-in and the tokens in the Keychain. AI and voice are still mocked or unavailable over the bridge; their native foundations exist. See [TASKS.md](TASKS.md) and [docs/PHASE3A_NATIVE.md](docs/PHASE3A_NATIVE.md).
 
 ## Requirements
 
