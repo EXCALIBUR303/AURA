@@ -61,9 +61,17 @@ public final class AppServices {
             return next
         }
 
-        router.register(.githubGetAuthStatus, Empty.self) { _ in try await github.authStatus() }
+        github.onStatusChange = { status in events.emit(.githubAuthChanged, status) }
+        router.register(.githubGetAuthStatus, Empty.self) { _ in github.status }
+        router.register(.githubConnect, Empty.self) { _ in await github.connect() }
+        router.register(.githubDisconnect, Empty.self) { _ in await github.disconnect() }
+        router.register(.githubRefresh, Empty.self) { _ in await github.refresh() }
         router.register(.githubListRepositories, ListRepositoriesParams.self) { params in
             try await github.listRepositories(cursor: params.cursor, perPage: min(max(params.perPage ?? 30, 1), 100))
+        }
+        router.register(.githubGetRepository, RepositoryRef.self) { params in try await github.repository(fullName: params.fullName) }
+        router.register(.githubListBranches, ListBranchesParams.self) { params in
+            try await github.listBranches(fullName: params.fullName, cursor: params.cursor, perPage: min(max(params.perPage ?? 30, 1), 100))
         }
         router.register(.githubListCommits, ListCommitsParams.self) { params in
             try await github.listCommits(fullName: params.fullName, branch: params.branch, limit: min(max(params.limit ?? 10, 1), 100))
@@ -71,6 +79,9 @@ public final class AppServices {
 
         router.register(.projectsList, Empty.self) { _ in try await store.listProjects() }
         router.register(.projectsUpdate, ProjectPatch.self) { patch in try await store.applyProjectPatch(patch) }
+        router.register(.projectsSuggestZones, Empty.self) { _ in
+            ProjectZoneClassifier.suggestions(for: try await github.accessibleRepositories(), records: try await store.listProjects())
+        }
 
         router.register(.aiListProviders, Empty.self) { _ in ai.providerInfos }
         router.register(.aiChat, ChatParams.self) { params in try ai.startChat(params) }

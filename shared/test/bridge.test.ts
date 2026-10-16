@@ -92,13 +92,52 @@ test("malformed events are dropped and reported; valid ones are delivered", () =
   );
   const warnings: string[] = [];
   const received: boolean[] = [];
-  bridge.on("app.activeChanged", ({ active }) => received.push(active));
+  bridge.on("app.windowStateChanged", ({ active }) => received.push(active));
 
   push("{not json");
-  push(JSON.stringify({ kind: "event", event: "app.activeChanged" }));
-  push(JSON.stringify({ kind: "event", v: 1, event: "app.activeChanged", payload: { active: true } }));
+  push(JSON.stringify({ kind: "event", event: "app.windowStateChanged" }));
+  push(JSON.stringify({ kind: "event", v: 1, event: "app.windowStateChanged", payload: { active: true, visible: true } }));
 
   assert.deepEqual(warnings, ["dropped unparseable event", "dropped malformed event"]);
   assert.deepEqual(received, [true]);
+  bridge.dispose();
+});
+
+test("mock GitHub walks disconnect → authorizing → connected and reports it as events", async () => {
+  const bridge = createBridgeClient(createMockTransport({ githubApprovalMs: 5 }));
+  const states: string[] = [];
+  bridge.on("github.authChanged", (status) => states.push(status.state));
+
+  assert.equal((await bridge.call("github.getAuthStatus", {})).state, "connected");
+  assert.equal((await bridge.call("github.disconnect", {})).state, "disconnected");
+  await assert.rejects(bridge.call("github.listRepositories", {}), { code: "not_authenticated" });
+
+  const authorizing = await bridge.call("github.connect", {});
+  assert.equal(authorizing.state, "authorizing");
+  if (authorizing.state === "authorizing") assert.equal(authorizing.userCode, "MOCK-0000");
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.deepEqual(states, ["disconnected", "authorizing", "connected"]);
+
+  const page = await bridge.call("github.listRepositories", { perPage: 2 });
+  assert.equal(page.items.length, 2);
+  assert.equal(page.nextCursor, "offset:2");
+  const rest = await bridge.call("github.listRepositories", { cursor: page.nextCursor ?? undefined, perPage: 2 });
+  assert.equal(rest.items.length, 1);
+  assert.equal(rest.nextCursor, null);
+
+  const detail = await bridge.call("github.getRepository", { fullName: "mock-user/sample-web-app" });
+  assert.deepEqual(detail.languages, [{ name: "TypeScript", bytes: 1000 }]);
+  assert.equal((await bridge.call("github.listBranches", { fullName: "mock-user/sample-web-app" })).items[0]?.isDefault, true);
+  bridge.dispose();
+});
+
+test("mock zone suggestions skip projects that already have a zone", async () => {
+  const bridge = createBridgeClient(createMockTransport());
+  await bridge.call("projects.update", { id: "mock-user/sample-firmware", zone: "software" });
+  const suggestions = await bridge.call("projects.suggestZones", {});
+  assert.deepEqual(suggestions.map((s) => [s.id, s.zone]), [
+    ["mock-user/sample-web-app", "software"],
+    ["mock-user/sample-llm-eval", "ai-lab"],
+  ]);
   bridge.dispose();
 });

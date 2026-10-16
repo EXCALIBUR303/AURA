@@ -7,7 +7,8 @@ public struct SecretKey: RawRepresentable, Hashable, Sendable {
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
 
-    public static let githubToken = SecretKey(rawValue: "github.token")
+    /// JSON-encoded GitHubCredentials (access + refresh tokens and their expiry).
+    public static let githubCredentials = SecretKey(rawValue: "github.credentials")
     public static func aiProviderKey(_ providerId: String) -> SecretKey {
         SecretKey(rawValue: "ai.\(providerId).apiKey")
     }

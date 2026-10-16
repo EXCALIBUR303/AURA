@@ -5,6 +5,7 @@
 import type {
   AIProviderInfo,
   AppInfo,
+  BranchSummary,
   ChatMessage,
   CommitSummary,
   GitHubAuthStatus,
@@ -14,6 +15,8 @@ import type {
   PreferencesPatch,
   ProjectPatch,
   ProjectRecord,
+  ProjectZoneSuggestion,
+  RepositoryDetail,
   RepositorySummary,
   VoiceStatus,
   WindowState,
@@ -30,10 +33,27 @@ export interface BridgeMethods {
   "prefs.update": { params: PreferencesPatch; result: Preferences };
 
   "github.getAuthStatus": { params: Empty; result: GitHubAuthStatus };
+  /**
+   * Starts GitHub device authorization (also used to reconnect). Resolves with
+   * the `authorizing` state once GitHub has issued a code; the outcome arrives
+   * as github.authChanged. Calling it again restarts the attempt.
+   */
+  "github.connect": { params: Empty; result: GitHubAuthStatus };
+  /** Cancels any authorization in progress and deletes the stored session from the Keychain. */
+  "github.disconnect": { params: Empty; result: GitHubAuthStatus };
+  /** Re-validates the stored session and drops cached GitHub data. Use for "Refresh" and "Retry". */
+  "github.refresh": { params: Empty; result: GitHubAuthStatus };
+  /** Repositories AURA's GitHub App can see, across installations, most recently pushed first. */
   "github.listRepositories": {
     params: { cursor?: string; perPage?: number };
     result: Page<RepositorySummary>;
   };
+  "github.getRepository": { params: { fullName: string }; result: RepositoryDetail };
+  "github.listBranches": {
+    params: { fullName: string; cursor?: string; perPage?: number };
+    result: Page<BranchSummary>;
+  };
+  /** Most recent commits on `branch` (default branch when omitted). Empty for an empty repository. */
   "github.listCommits": {
     params: { fullName: string; branch?: string; limit?: number };
     result: CommitSummary[];
@@ -41,6 +61,8 @@ export interface BridgeMethods {
 
   "projects.list": { params: Empty; result: ProjectRecord[] };
   "projects.update": { params: ProjectPatch; result: ProjectRecord };
+  /** Zone suggestions for accessible repositories that have no zone yet. Read-only. */
+  "projects.suggestZones": { params: Empty; result: ProjectZoneSuggestion[] };
 
   "ai.listProviders": { params: Empty; result: AIProviderInfo[] };
   /** Starts a streamed completion. Output arrives as ai.chunk / ai.done / ai.error events. */

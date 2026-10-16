@@ -18,13 +18,8 @@ public final class WindowStateStore {
     /// Records a new state; emits only when something changed.
     public func update(_ next: WindowState) {
         guard next != current else { return }
-        let activeChanged = next.active != current.active
         current = next
         Log.app.info("window state active=\(next.active, privacy: .public) visible=\(next.visible, privacy: .public)")
         events.emit(.appWindowStateChanged, next)
-        if activeChanged {
-            // Deprecated event, kept until the frontend has moved off it (Phase 3B).
-            events.emit(.appActiveChanged, ActiveChangedPayload(active: next.active))
-        }
     }
 }

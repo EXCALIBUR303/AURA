@@ -1,110 +1,40 @@
 import Foundation
 
-// GitHub connection foundation (Phase 3A). Shaped for GitHub's OAuth device
-// flow, which suits a desktop app because it needs no client secret: AURA
-// shows a short user code, the user approves it on github.com, and AURA polls
-// for the token. The token goes straight into the Keychain and never crosses
-// the bridge; the page sees only GitHubAuthStatus. The real HTTP
-// authenticator lands in Phase 3B, once the owner has chosen the auth method
-// and scopes (TASKS.md › Open decisions 4).
-
-/// An access token. Its description is redacted so it cannot leak into logs.
-public struct GitHubToken: Sendable, Equatable, CustomStringConvertible {
-    public let value: String
-    public init(_ value: String) { self.value = value }
-    public var description: String { "GitHubToken(redacted)" }
-}
-
-public struct GitHubAccount: Equatable, Sendable {
-    public var login: String
-    public var scopes: [String]
-    public init(login: String, scopes: [String]) {
-        self.login = login
-        self.scopes = scopes
-    }
-}
-
-/// What the user needs to approve a device authorization.
-public struct DeviceAuthorization: Equatable, Sendable {
-    public var userCode: String
-    public var verificationURL: URL
-    public var expiresAt: Date
-    public init(userCode: String, verificationURL: URL, expiresAt: Date) {
-        self.userCode = userCode
-        self.verificationURL = verificationURL
-        self.expiresAt = expiresAt
-    }
-}
-
-/// A started device authorization. `deviceCode` is a credential: keep it in memory only.
-public struct DeviceAuthorizationGrant: Sendable {
-    public var deviceCode: String
-    public var display: DeviceAuthorization
-    public var pollInterval: Duration
-    public init(deviceCode: String, display: DeviceAuthorization, pollInterval: Duration) {
-        self.deviceCode = deviceCode
-        self.display = display
-        self.pollInterval = pollInterval
-    }
-}
-
-public enum GitHubConnectionFailure: Equatable, Sendable {
-    /// The user declined on github.com.
-    case denied
-    /// The user code expired before approval.
-    case expired
-    /// A stored token no longer works (revoked or expired); it has been deleted.
-    case revoked
-    /// The token lacks scopes AURA needs.
-    case insufficientScopes(missing: [String])
-    /// Not configured (no OAuth client), offline, or GitHub unavailable.
-    case unavailable(String)
-}
+// GitHub connection lifecycle: restore at launch, device authorization,
+// disconnect, session expiry and rate limits. The page sees only the derived
+// GitHubAuthStatus; tokens and the device code stay in this process (and the
+// Keychain).
 
 public enum GitHubConnectionState: Equatable, Sendable {
     case disconnected
     case authorizing(DeviceAuthorization)
-    case connected(GitHubAccount)
-    case failed(GitHubConnectionFailure)
+    case connected(GitHubAccount, [GitHubInstallation])
+    case rateLimited(GitHubAccount, [GitHubInstallation], resetAt: Date)
+    case expired(login: String?, reason: GitHubExpiryReason)
+    case failed(GitHubConnectionErrorReason, message: String, retryable: Bool)
 
-    /// The page-visible projection: never includes tokens or device codes.
+    /// The page-visible projection.
     public var authStatus: GitHubAuthStatus {
-        if case .connected(let account) = self { .signedIn(login: account.login, scopes: account.scopes) } else { .signedOut }
+        switch self {
+        case .disconnected: .disconnected
+        case .authorizing(let display):
+            .authorizing(userCode: display.userCode, verificationUri: display.verificationURL.absoluteString, expiresAt: display.expiresAt.formatted(.iso8601))
+        case .connected(let account, let installations): .connected(account: account, installations: installations)
+        case .rateLimited(let account, let installations, let resetAt):
+            .rateLimited(account: account, installations: installations, resetAt: resetAt.formatted(.iso8601))
+        case .expired(let login, let reason): .expired(login: login, reason: reason)
+        case .failed(let reason, let message, let retryable): .error(reason: reason, message: message, retryable: retryable)
+        }
+    }
+
+    var profile: (GitHubAccount, [GitHubInstallation])? {
+        switch self {
+        case .connected(let account, let installations), .rateLimited(let account, let installations, _): (account, installations)
+        default: nil
+        }
     }
 }
 
-/// Talks to GitHub's OAuth endpoints. Implementations throw AuraError:
-/// `.permissionDenied` when the user declines, `.timeout` when the code
-/// expires, `.notAuthenticated` for a token GitHub rejects.
-public protocol GitHubAuthenticator: Sendable {
-    func startDeviceAuthorization(scopes: [String]) async throws -> DeviceAuthorizationGrant
-    /// Polls until the user approves, declines or the code expires. Honours task cancellation.
-    func pollForToken(_ grant: DeviceAuthorizationGrant) async throws -> GitHubToken
-    /// Validates a token and reports the account and the scopes it actually has.
-    func account(for token: GitHubToken) async throws -> GitHubAccount
-}
-
-/// Until an OAuth client is configured, every attempt reports `unavailable`.
-public struct UnconfiguredGitHubAuthenticator: GitHubAuthenticator {
-    public init() {}
-    private static let reason = "GitHub sign-in is not configured yet (Phase 3B)"
-    public func startDeviceAuthorization(scopes: [String]) async throws -> DeviceAuthorizationGrant { throw AuraError.unavailable(Self.reason) }
-    public func pollForToken(_ grant: DeviceAuthorizationGrant) async throws -> GitHubToken { throw AuraError.unavailable(Self.reason) }
-    public func account(for token: GitHubToken) async throws -> GitHubAccount { throw AuraError.unavailable(Self.reason) }
-}
-
-/// Keychain-backed token storage (generic password, this device only).
-public struct GitHubCredentialStore: Sendable {
-    private let secrets: any SecretStore
-    public init(secrets: any SecretStore) { self.secrets = secrets }
-
-    public func token() throws -> GitHubToken? { try secrets.read(.githubToken).map(GitHubToken.init) }
-    public func save(_ token: GitHubToken) throws { try secrets.write(token.value, for: .githubToken) }
-    public func delete() throws { try secrets.delete(.githubToken) }
-}
-
-/// Owns the connection lifecycle: restore at launch, connect, disconnect.
-/// Reports every state change through `onChange` (wired to github.authChanged in 3B).
 @MainActor
 public final class GitHubConnectionManager {
     public private(set) var state: GitHubConnectionState = .disconnected {
@@ -112,87 +42,216 @@ public final class GitHubConnectionManager {
     }
     public var onChange: (@MainActor (GitHubConnectionState) -> Void)?
 
-    private let authenticator: any GitHubAuthenticator
-    private let credentials: GitHubCredentialStore
-    private let requiredScopes: [String]
+    /// nil when this build has no GitHub App client id.
+    private let oauth: GitHubDeviceFlowClient?
+    let client: GitHubAPIClient?
+    private let now: @Sendable () -> Date
     private var connectTask: Task<Void, Never>?
+    private var rateLimitTask: Task<Void, Never>?
+    /// Bumped by connect/disconnect so a superseded attempt cannot write state or credentials.
+    private var generation = 0
 
-    public init(authenticator: any GitHubAuthenticator, credentials: GitHubCredentialStore, requiredScopes: [String]) {
-        self.authenticator = authenticator
-        self.credentials = credentials
-        self.requiredScopes = requiredScopes
+    public init(oauth: GitHubDeviceFlowClient?, client: GitHubAPIClient?, now: @escaping @Sendable () -> Date = { .now }) {
+        self.oauth = oauth
+        self.client = client
+        self.now = now
+        if oauth == nil || client == nil { state = Self.notConfigured }
     }
 
-    /// At launch: validate a stored token, if any. A rejected token is deleted.
+    static let notConfigured = GitHubConnectionState.failed(.configuration, message: "GitHub sign-in is not configured in this build (no GitHub App client ID)", retryable: false)
+
+    /// At launch: validate a stored session, if any. Keeps the session when
+    /// GitHub is unreachable; deletes it when GitHub rejects it.
     public func restore() async {
-        guard let token = try? credentials.token() else { state = .disconnected; return }
-        do {
-            state = try evaluate(try await authenticator.account(for: token))
-        } catch AuraError.notAuthenticated {
-            try? credentials.delete()
-            state = .failed(.revoked)
-        } catch {
-            // Offline at launch: keep the token, report why GitHub is not usable right now.
-            state = .failed(.unavailable(BridgeError(error).message))
+        guard let client else { return }
+        let stored: GitHubCredentials?
+        do { stored = try await client.storedCredentials() } catch {
+            state = .failed(.internal, message: "could not read the Keychain", retryable: true)
+            return
         }
+        guard stored != nil else { state = .disconnected; return }
+        await validate()
     }
 
-    /// Starts device authorization; state moves to `.authorizing`, then
-    /// `.connected` or `.failed`. Calling it again restarts the attempt.
-    public func connect() {
+    /// Starts device authorization, returning once GitHub has issued a user
+    /// code (state `.authorizing`) or failed. The outcome follows via onChange.
+    public func connect() async -> GitHubConnectionState {
+        guard let oauth, let client else { state = Self.notConfigured; return state }
         connectTask?.cancel()
-        connectTask = Task { [weak self] in await self?.runConnect() }
+        generation += 1
+        let attempt = generation
+        let grant: DeviceAuthorizationGrant
+        do {
+            grant = try await oauth.startDeviceAuthorization()
+        } catch {
+            if attempt == generation { state = Self.failure(error) }
+            return state
+        }
+        guard attempt == generation else { return state }
+        state = .authorizing(grant.display)
+        connectTask = Task { [weak self] in
+            do {
+                let credentials = try await oauth.pollForToken(grant)
+                guard let self, attempt == self.generation else { return }
+                try await client.install(credentials)
+                // A disconnect that ran while installing must win.
+                guard attempt == self.generation else { await client.clear(); return }
+                Log.github.notice("GitHub authorization approved")
+                await self.validate()
+            } catch is CancellationError {
+            } catch {
+                guard let self, attempt == self.generation else { return }
+                self.state = Self.failure(error)
+            }
+        }
+        return state
     }
 
-    /// Cancels any attempt in progress and forgets the stored token.
-    public func disconnect() {
+    /// Cancels any authorization in progress and deletes the stored session.
+    /// GitHub keeps the app authorization until the owner revokes it at
+    /// github.com/settings/apps/authorizations: revoking from here needs the
+    /// client secret, which AURA deliberately does not have.
+    public func disconnect() async {
+        generation += 1
         connectTask?.cancel()
         connectTask = nil
-        try? credentials.delete()
-        state = .disconnected
+        rateLimitTask?.cancel()
+        await client?.clear()
+        state = oauth == nil ? Self.notConfigured : .disconnected
+        Log.github.notice("disconnected from GitHub")
     }
 
-    /// Waits for the current connect attempt (tests, and callers that need the outcome).
+    /// Re-validates the stored session with fresh data (Refresh / Retry).
+    public func refresh() async {
+        guard let client else { return }
+        if case .authorizing = state { return }
+        await client.clearCache()
+        guard (try? await client.storedCredentials()) != nil else {
+            if case .failed = state { state = .disconnected }
+            return
+        }
+        await validate()
+    }
+
+    /// Waits for the current authorization attempt (tests).
     public func waitForConnect() async { await connectTask?.value }
 
-    private func runConnect() async {
-        var outcome: GitHubConnectionState
-        do {
-            let grant = try await authenticator.startDeviceAuthorization(scopes: requiredScopes)
-            guard !Task.isCancelled else { return }
-            state = .authorizing(grant.display)
-            let token = try await authenticator.pollForToken(grant)
-            outcome = try evaluate(try await authenticator.account(for: token))
-            // disconnect() or a newer connect() owns the state (and the Keychain) once cancelled.
-            guard !Task.isCancelled else { return }
-            if case .connected = outcome { try credentials.save(token) }
-        } catch AuraError.permissionDenied {
-            outcome = .failed(.denied)
-        } catch AuraError.timeout {
-            outcome = .failed(.expired)
-        } catch {
-            outcome = .failed(.unavailable(BridgeError(error).message))
-        }
-        if !Task.isCancelled { state = outcome }
+    // MARK: reports from API calls
+
+    /// An API call found the session gone; the client already deleted it.
+    func sessionEnded(_ ended: GitHubSessionEnded) {
+        rateLimitTask?.cancel()
+        state = .expired(login: ended.login ?? state.profile?.0.login, reason: ended.reason)
     }
 
-    private func evaluate(_ account: GitHubAccount) throws -> GitHubConnectionState {
-        let missing = requiredScopes.filter { !account.scopes.contains($0) }
-        return missing.isEmpty ? .connected(account) : .failed(.insufficientScopes(missing: missing))
+    /// An API call hit the rate limit. Returns to connected when it resets.
+    func rateLimited(retryAfterSeconds: Int?) {
+        guard let (account, installations) = state.profile else { return }
+        let resetAt = now().addingTimeInterval(TimeInterval(retryAfterSeconds ?? 60))
+        state = .rateLimited(account, installations, resetAt: resetAt)
+        Log.github.notice("GitHub rate limit reached; resuming in \(retryAfterSeconds ?? 60, privacy: .public)s")
+        rateLimitTask?.cancel()
+        rateLimitTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(max(1, retryAfterSeconds ?? 60)))
+            guard !Task.isCancelled else { return }
+            self?.rateLimitCleared()
+        }
+    }
+
+    func rateLimitCleared() {
+        if case .rateLimited(let account, let installations, _) = state { state = .connected(account, installations) }
+    }
+
+    // MARK: private
+
+    /// Loads the account and installations with the stored session.
+    private func validate() async {
+        guard let client else { return }
+        let attempt = generation
+        do {
+            let account = try await Self.account(client)
+            let installations = try await Self.installations(client)
+            guard attempt == generation else { return }
+            if var credentials = try await client.storedCredentials(), credentials.account != account {
+                credentials.account = account
+                try await client.install(credentials)
+            }
+            state = .connected(account, installations)
+            Log.github.notice("""
+                GitHub connected: \(installations.count, privacy: .public) installation(s), \
+                permissions \(installations.map { $0.permissions.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",") }.joined(separator: " | "), privacy: .public), \
+                selection \(installations.map(\.repositorySelection.rawValue).joined(separator: ","), privacy: .public)
+                """)
+            for installation in installations where !installation.readOnly {
+                Log.github.error("installation \(installation.id, privacy: .public) grants more than read access")
+            }
+        } catch let ended as GitHubSessionEnded {
+            guard attempt == generation else { return }
+            sessionEnded(ended)
+        } catch AuraError.rateLimited(let after) {
+            guard attempt == generation else { return }
+            let account = (try? await client.storedCredentials())?.account
+            if let account {
+                state = .rateLimited(account, state.profile?.1 ?? [], resetAt: now().addingTimeInterval(TimeInterval(after ?? 60)))
+                rateLimited(retryAfterSeconds: after)
+            } else {
+                state = .failed(.network, message: "GitHub rate limit reached; try again later", retryable: true)
+            }
+        } catch {
+            guard attempt == generation else { return }
+            state = Self.failure(error)
+        }
+    }
+
+    static func account(_ client: GitHubAPIClient) async throws -> GitHubAccount {
+        let user = try GitHubJSON.object(try await client.get("user").body)
+        guard let login = user["login"] as? String else { throw AuraError.network("unexpected /user response") }
+        return GitHubAccount(login: login, name: user["name"] as? String, htmlUrl: user["html_url"] as? String ?? "https://github.com/\(login)")
+    }
+
+    static func installations(_ client: GitHubAPIClient) async throws -> [GitHubInstallation] {
+        var result: [GitHubInstallation] = []
+        var page = try await client.get("user/installations", query: [URLQueryItem(name: "per_page", value: "100")])
+        while true {
+            let object = try GitHubJSON.object(page.body)
+            for item in object["installations"] as? [[String: Any]] ?? [] {
+                guard let id = (item["id"] as? NSNumber)?.intValue else { continue }
+                let account = (item["account"] as? [String: Any])?["login"] as? String ?? "unknown"
+                let selection = GitHubInstallation.RepositorySelection(rawValue: item["repository_selection"] as? String ?? "") ?? .selected
+                let permissions = (item["permissions"] as? [String: Any] ?? [:]).compactMapValues { $0 as? String }
+                let manageUrl = item["html_url"] as? String ?? "https://github.com/settings/installations/\(id)"
+                result.append(GitHubInstallation(id: id, accountLogin: account, repositorySelection: selection, permissions: permissions, manageUrl: manageUrl))
+            }
+            guard let next = page.next else { break }
+            page = try await client.get(next)
+        }
+        return result
+    }
+
+    static func failure(_ error: any Error) -> GitHubConnectionState {
+        switch error {
+        case AuraError.permissionDenied: .failed(.denied, message: "The GitHub authorization was declined.", retryable: true)
+        case AuraError.timeout: .failed(.codeExpired, message: "The code expired before it was approved.", retryable: true)
+        case AuraError.unavailable(let message): .failed(.configuration, message: message, retryable: false)
+        case AuraError.network(let message): .failed(.network, message: message, retryable: true)
+        case AuraError.rateLimited: .failed(.network, message: "GitHub rate limit reached; try again later", retryable: true)
+        default: .failed(.internal, message: BridgeError(error).message, retryable: true)
+        }
     }
 }
 
-/// Maps a GitHub REST response status onto AuraError, for the Phase 3B client.
-/// `rateLimitRemaining`/`retryAfter` come from the x-ratelimit-remaining and
-/// retry-after headers.
-public func gitHubError(status: Int, rateLimitRemaining: Int?, retryAfterSeconds: Int?) -> AuraError? {
-    switch status {
-    case 200..<300: nil
-    case 401: .notAuthenticated("GitHub rejected the token")
-    case 403 where rateLimitRemaining == 0 || retryAfterSeconds != nil, 429: .rateLimited(retryAfterSeconds: retryAfterSeconds)
-    case 403: .permissionDenied("GitHub denied access")
-    case 404: .notFound("not found on GitHub (or no access)")
-    case 500..<600: .network("GitHub is unavailable (\(status))")
-    default: .network("unexpected GitHub response (\(status))")
+enum GitHubJSON {
+    static func object(_ data: Data) throws -> [String: Any] {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw AuraError.network("GitHub returned unreadable JSON")
+        }
+        return object
+    }
+
+    static func array(_ data: Data) throws -> [[String: Any]] {
+        guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw AuraError.network("GitHub returned unreadable JSON")
+        }
+        return array
     }
 }

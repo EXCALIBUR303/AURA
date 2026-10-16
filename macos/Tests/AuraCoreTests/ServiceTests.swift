@@ -19,14 +19,13 @@ import Testing
         services.windowState.update(WindowState(active: true, visible: true))
         #expect(recorder.names().isEmpty)
 
-        // Visible but inactive: the new event, plus the deprecated one because `active` flipped.
+        // Visible but inactive. (app.activeChanged was removed in Phase 3B.)
         services.windowState.update(WindowState(active: false, visible: true))
-        #expect(recorder.names() == ["app.windowStateChanged", "app.activeChanged"])
+        #expect(recorder.names() == ["app.windowStateChanged"])
         #expect(recorder.events[0].payload == .object(["active": .bool(false), "visible": .bool(true)]))
 
-        // Only visibility changes: no deprecated event.
         services.windowState.update(WindowState(active: false, visible: false))
-        #expect(recorder.names() == ["app.windowStateChanged", "app.activeChanged", "app.windowStateChanged"])
+        #expect(recorder.names() == ["app.windowStateChanged", "app.windowStateChanged"])
 
         reply = try await call(services, "app.getWindowState")
         #expect(reply["result"] == .object(["active": .bool(false), "visible": .bool(false)]))
@@ -78,8 +77,51 @@ import Testing
         let services = try await makeServices(recorder: EventRecorder())
         let ok = try await call(services, "github.listRepositories", #"{"perPage":2}"#)
         if case .array(let items)? = ok["result"]?["items"] { #expect(items.count == 2) } else { Issue.record("no items") }
+        #expect(ok["result"]?["nextCursor"] == .string("offset:2"))
         let missing = try await call(services, "github.listCommits", #"{"fullName":"nobody/nothing"}"#)
         #expect(missing["error"]?["code"] == .string("not_found"))
+        let badCursor = try await call(services, "github.listRepositories", #"{"cursor":"nope"}"#)
+        #expect(badCursor["error"]?["code"] == .string("invalid_request"))
+    }
+
+    @Test func githubConnectionLifecycleOverTheBridge() async throws {
+        let recorder = EventRecorder()
+        let configuration = AppConfiguration(environment: .development, devServerURL: nil, webRoot: nil, dataDirectory: URL(fileURLWithPath: "/dev/null"), appVersion: "0.1.0", build: "test")
+        let mock = MockGitHubService(approvalDelay: .milliseconds(5))
+        let services = AppServices(
+            configuration: configuration, store: try await AppStore(database: Database(path: ":memory:")),
+            secrets: InMemorySecretStore(), github: mock, deliverEvent: { recorder.record($0) }
+        )
+        #expect(try await call(services, "github.getAuthStatus")["result"]?["state"] == .string("connected"))
+
+        #expect(try await call(services, "github.disconnect")["result"] == .object(["state": .string("disconnected")]))
+        let denied = try await call(services, "github.listRepositories")
+        #expect(denied["error"]?["code"] == .string("not_authenticated"))
+
+        let authorizing = try await call(services, "github.connect")
+        #expect(authorizing["result"]?["state"] == .string("authorizing"))
+        #expect(authorizing["result"]?["userCode"] == .string("MOCK-0000"))
+        await mock.waitForApproval()
+        #expect(recorder.events.filter { $0.name == "github.authChanged" }.compactMap { $0.payload["state"] } == [.string("disconnected"), .string("authorizing"), .string("connected")])
+
+        let detail = try await call(services, "github.getRepository", #"{"fullName":"mock-user/sample-web-app"}"#)
+        #expect(detail["result"]?["languages"] == .array([.object(["name": .string("TypeScript"), "bytes": .number(1000)])]))
+        #expect(detail["result"]?["topics"] == .array([.string("web")]))
+        let branches = try await call(services, "github.listBranches", #"{"fullName":"mock-user/sample-web-app"}"#)
+        #expect(branches["result"]?["nextCursor"] == .null)
+    }
+
+    @Test func zoneSuggestionsSkipManuallyAssignedProjects() async throws {
+        let services = try await makeServices(recorder: EventRecorder())
+        _ = try await call(services, "projects.update", #"{"id":"mock-user/sample-firmware","zone":"software"}"#)
+        let reply = try await call(services, "projects.suggestZones")
+        guard case .array(let suggestions)? = reply["result"] else { Issue.record("no suggestions: \(reply)"); return }
+        #expect(suggestions.compactMap { $0["id"] } == [.string("mock-user/sample-web-app"), .string("mock-user/sample-llm-eval")])
+        #expect(suggestions.compactMap { $0["zone"] } == [.string("software"), .string("ai-lab")])
+        // Suggesting never writes: the manual assignment is untouched and nothing else was stored.
+        guard case .array(let projects)? = try await call(services, "projects.list")["result"] else { Issue.record("no projects"); return }
+        #expect(projects.count == 1)
+        #expect(projects.first?["zone"] == .string("software"))
     }
 
     @Test func aiChatStreamsEvents() async throws {
@@ -122,6 +164,17 @@ import Testing
         let config = try AppConfiguration.load(environment: ["AURA_DEV_SERVER_URL": "http://127.0.0.1:5173", "AURA_DATA_DIR": "/tmp/aura-test"])
         #expect(config.environment == .development)
         #expect(config.dataDirectory.path == "/tmp/aura-test")
+        #expect(config.gitHubClientID == nil)
+    }
+
+    @Test func gitHubClientIDComesFromEnvironmentOrInfoPlistAndIsValidated() throws {
+        #expect(try AppConfiguration.load(environment: ["AURA_GITHUB_CLIENT_ID": " Iv23liQPMjrFatEpesLu "]).gitHubClientID == "Iv23liQPMjrFatEpesLu")
+        #expect(throws: AppConfiguration.ConfigurationError.invalidGitHubClientID) {
+            try AppConfiguration.load(environment: ["AURA_GITHUB_CLIENT_ID": "bad id"])
+        }
+        // The app bundle's Info.plist carries the real (public) client ID.
+        let plist = try Repo.text("macos/App/Info.plist")
+        #expect(plist.contains("<key>AURAGitHubClientID</key>"))
     }
 
     @Test func migrationsAreIdempotent() async throws {
@@ -133,11 +186,11 @@ import Testing
 
     @Test func secretStoreContract() throws {
         let store = InMemorySecretStore()
-        #expect(try store.read(.githubToken) == nil)
-        try store.write("x", for: .githubToken)
-        #expect(try store.read(.githubToken) == "x")
-        try store.delete(.githubToken)
-        #expect(try store.read(.githubToken) == nil)
+        #expect(try store.read(.githubCredentials) == nil)
+        try store.write("x", for: .githubCredentials)
+        #expect(try store.read(.githubCredentials) == "x")
+        try store.delete(.githubCredentials)
+        #expect(try store.read(.githubCredentials) == nil)
     }
 
     @Test func unexpectedErrorsDoNotLeakDetails() {

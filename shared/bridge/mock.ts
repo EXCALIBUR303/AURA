@@ -9,8 +9,12 @@ import type { BridgeEventName, EventPayload } from "../contracts/events.ts";
 import type { BridgeMethod, MethodParams, MethodResult } from "../contracts/methods.ts";
 import type {
   CommitSummary,
+  GitHubAccount,
+  GitHubAuthStatus,
+  GitHubInstallation,
   Preferences,
   ProjectRecord,
+  ProjectZoneSuggestion,
   RepositorySummary,
   VoiceStatus,
 } from "../contracts/domain.ts";
@@ -24,13 +28,24 @@ export const DEFAULT_PREFERENCES: Preferences = {
   graphics: { quality: "high", maxPixelRatio: 2 },
 };
 
-const MOCK_REPO_SEEDS: [name: string, description: string, language: string][] = [
-  ["sample-firmware", "Mock repository for the Hardware Lab", "C"],
-  ["sample-web-app", "Mock repository for the Software Studio", "TypeScript"],
-  ["sample-llm-eval", "Mock repository for the AI / LLM Lab", "Python"],
+const MOCK_REPO_SEEDS: [name: string, description: string, language: string, topics: string[], zone: ProjectZoneSuggestion["zone"]][] = [
+  ["sample-firmware", "Mock repository for the Hardware Lab", "C", ["firmware", "embedded"], "hardware"],
+  ["sample-web-app", "Mock repository for the Software Studio", "TypeScript", ["web"], "software"],
+  ["sample-llm-eval", "Mock repository for the AI / LLM Lab", "Python", ["llm"], "ai-lab"],
 ];
 
-const MOCK_REPOS: RepositorySummary[] = MOCK_REPO_SEEDS.map(([name, description, language], index) => ({
+const MOCK_ACCOUNT: GitHubAccount = { login: "mock-user", name: "Mock User", htmlUrl: "https://github.invalid/mock-user" };
+const MOCK_INSTALLATIONS: GitHubInstallation[] = [{
+  id: 1,
+  accountLogin: "mock-user",
+  repositorySelection: "selected",
+  permissions: { contents: "read", metadata: "read" },
+  readOnly: true,
+  manageUrl: "https://github.invalid/settings/installations/1",
+}];
+const MOCK_CONNECTED: GitHubAuthStatus = { state: "connected", account: MOCK_ACCOUNT, installations: MOCK_INSTALLATIONS };
+
+const MOCK_REPOS: RepositorySummary[] = MOCK_REPO_SEEDS.map(([name, description, language, topics], index) => ({
   fullName: `mock-user/${name}`,
   owner: "mock-user",
   name,
@@ -41,6 +56,9 @@ const MOCK_REPOS: RepositorySummary[] = MOCK_REPO_SEEDS.map(([name, description,
   stargazerCount: 0,
   pushedAt: "2026-01-01T00:00:00Z",
   htmlUrl: `https://github.invalid/mock-user/${name}`,
+  topics,
+  isFork: false,
+  isArchived: false,
 }));
 
 class MockFailure extends Error {
@@ -65,11 +83,14 @@ export interface MockTransportOptions {
   latencyMs?: number;
   /** Delay between streamed chunks/events, ms. Defaults to 40. */
   streamIntervalMs?: number;
+  /** How long github.connect stays "authorizing" before the mock approves, ms. Defaults to 1500. */
+  githubApprovalMs?: number;
 }
 
 export function createMockTransport(options: MockTransportOptions = {}): MockTransport {
   const latencyMs = options.latencyMs ?? 0;
   const streamIntervalMs = options.streamIntervalMs ?? 40;
+  const githubApprovalMs = options.githubApprovalMs ?? 1500;
   const listeners = new Set<(eventJson: string) => void>();
   const pendingFailures = new Map<BridgeMethod, BridgeError>();
   const activeStreams = new Set<string>();
@@ -83,6 +104,8 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
     speaking: false,
   };
   let streamCounter = 0;
+  let github: GitHubAuthStatus = MOCK_CONNECTED;
+  let githubAttempt = 0;
 
   function emit<E extends BridgeEventName>(event: E, payload: EventPayload<E>): void {
     const message: BridgeEventMessage<E> = { kind: "event", v: BRIDGE_PROTOCOL_VERSION, event, payload };
@@ -91,6 +114,22 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
   }
 
   const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+  function setGitHub(next: GitHubAuthStatus): GitHubAuthStatus {
+    github = next;
+    emit("github.authChanged", github);
+    return github;
+  }
+
+  function mockRepo(fullName: string): RepositorySummary {
+    if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/.test(fullName) || /\/\.{1,2}$/.test(fullName)) {
+      throw new MockFailure({ code: "invalid_request", message: "fullName must be owner/name", retryable: false });
+    }
+    if (github.state !== "connected") throw new MockFailure({ code: "not_authenticated", message: "mock GitHub is disconnected", retryable: false });
+    const repo = MOCK_REPOS.find((r) => r.fullName === fullName);
+    if (!repo) throw new MockFailure({ code: "not_found", message: `no mock repo ${fullName}`, retryable: false });
+    return repo;
+  }
 
   function setVoice(next: Partial<VoiceStatus>): VoiceStatus {
     voice = { ...voice, ...next };
@@ -124,15 +163,55 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
       return prefs;
     },
 
-    "github.getAuthStatus": () => ({ state: "signed_in", login: "mock-user", scopes: ["repo:read"] }),
-    "github.listRepositories": ({ perPage = 30 }) => ({ items: MOCK_REPOS.slice(0, perPage), nextCursor: null }),
+    "github.getAuthStatus": () => github,
+    "github.connect": () => {
+      const attempt = ++githubAttempt;
+      void (async () => {
+        await wait(githubApprovalMs);
+        if (attempt === githubAttempt && github.state === "authorizing") setGitHub(MOCK_CONNECTED);
+      })();
+      return setGitHub({
+        state: "authorizing",
+        userCode: "MOCK-0000",
+        verificationUri: "https://github.invalid/login/device",
+        expiresAt: new Date(Date.now() + 900_000).toISOString(),
+      });
+    },
+    "github.disconnect": () => {
+      githubAttempt += 1;
+      return setGitHub({ state: "disconnected" });
+    },
+    "github.refresh": () => github,
+    "github.listRepositories": ({ cursor, perPage = 30 }) => {
+      if (github.state !== "connected") throw new MockFailure({ code: "not_authenticated", message: "mock GitHub is disconnected", retryable: false });
+      const offset = cursor === undefined ? 0 : Number(/^offset:(\d+)$/.exec(cursor)?.[1] ?? NaN);
+      if (!Number.isInteger(offset)) throw new MockFailure({ code: "invalid_request", message: "invalid cursor", retryable: false });
+      const end = Math.min(offset + perPage, MOCK_REPOS.length);
+      return { items: MOCK_REPOS.slice(offset, end), nextCursor: end < MOCK_REPOS.length ? `offset:${end}` : null };
+    },
+    "github.getRepository": ({ fullName }) => {
+      const repo = mockRepo(fullName);
+      return {
+        ...repo,
+        languages: repo.primaryLanguage ? [{ name: repo.primaryLanguage, bytes: 1000 }] : [],
+        forksCount: 0,
+        openIssuesCount: 0,
+        license: null,
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      };
+    },
+    "github.listBranches": ({ fullName }) => {
+      mockRepo(fullName);
+      return { items: [{ name: "main", sha: "0".repeat(40), isProtected: false, isDefault: true }], nextCursor: null };
+    },
     "github.listCommits": ({ fullName, limit = 10 }) => {
-      const repo = MOCK_REPOS.find((r) => r.fullName === fullName);
-      if (!repo) throw new MockFailure({ code: "not_found", message: `no mock repo ${fullName}`, retryable: false });
+      const repo = mockRepo(fullName);
       return Array.from({ length: Math.min(limit, 3) }, (_, i): CommitSummary => ({
         sha: `000000000000000000000000000000000000000${i}`,
         message: `Mock commit ${i + 1} in ${repo.name}`,
         authorName: "Mock Author",
+        authorLogin: null,
         committedAt: `2026-01-0${i + 1}T00:00:00Z`,
         htmlUrl: `${repo.htmlUrl}/commit/${i}`,
       }));
@@ -150,6 +229,15 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
       };
       projects.set(next.id, next);
       return next;
+    },
+    "projects.suggestZones": () => {
+      if (github.state !== "connected") throw new MockFailure({ code: "not_authenticated", message: "mock GitHub is disconnected", retryable: false });
+      return MOCK_REPO_SEEDS.filter(([name]) => !projects.get(`mock-user/${name}`)?.zone).map(([name, , , topics, zone]): ProjectZoneSuggestion => ({
+        id: `mock-user/${name}`,
+        zone,
+        reasons: topics.map((topic) => `topic: ${topic}`),
+        confidence: "high",
+      }));
     },
 
     "ai.listProviders": () => [

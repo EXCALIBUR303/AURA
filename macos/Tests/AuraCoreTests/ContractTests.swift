@@ -70,6 +70,9 @@ import Testing
                 switch method {
                 case .prefsUpdate: _ = try params.decode(PreferencesPatch.self)
                 case .githubListCommits: _ = try params.decode(ListCommitsParams.self)
+                case .githubListRepositories: _ = try params.decode(ListRepositoriesParams.self)
+                case .githubGetRepository: _ = try params.decode(RepositoryRef.self)
+                case .githubListBranches: _ = try params.decode(ListBranchesParams.self)
                 case .aiChat: _ = try params.decode(ChatParams.self)
                 case .voiceSpeak: _ = try params.decode(SpeakParams.self)
                 default: _ = try params.decode(Empty.self)
@@ -81,6 +84,18 @@ import Testing
                     _ = try #require(fixture.message["result"]).decode(AppInfo.self)
                 } else if fixture.name.hasSuffix("app.getWindowState") {
                     _ = try #require(fixture.message["result"]).decode(WindowState.self)
+                } else if fixture.name.contains("github.authStatus") {
+                    try roundTrips(try #require(fixture.message["result"]), as: GitHubAuthStatus.self, fixture.name)
+                } else if fixture.name.hasSuffix("github.getRepository") {
+                    try roundTrips(try #require(fixture.message["result"]), as: RepositoryDetail.self, fixture.name)
+                } else if fixture.name.hasSuffix("github.listRepositories") {
+                    try roundTrips(try #require(fixture.message["result"]), as: Page<RepositorySummary>.self, fixture.name)
+                } else if fixture.name.hasSuffix("github.listBranches") {
+                    try roundTrips(try #require(fixture.message["result"]), as: Page<BranchSummary>.self, fixture.name)
+                } else if fixture.name.hasSuffix("github.listCommits") {
+                    try roundTrips(try #require(fixture.message["result"]), as: [CommitSummary].self, fixture.name)
+                } else if fixture.name.hasSuffix("projects.suggestZones") {
+                    try roundTrips(try #require(fixture.message["result"]), as: [ProjectZoneSuggestion].self, fixture.name)
                 }
             case .string("event"):
                 let payload = try #require(fixture.message["payload"])
@@ -88,6 +103,7 @@ import Testing
                 case .string("app.command"): _ = try payload.decode(AppCommand.self)
                 case .string("app.windowStateChanged"): _ = try payload.decode(WindowState.self)
                 case .string("ai.chunk"): _ = try payload.decode(AIChunkPayload.self)
+                case .string("github.authChanged"): try roundTrips(payload, as: GitHubAuthStatus.self, fixture.name)
                 case .string("voice.statusChanged"): _ = try payload.decode(VoiceStatus.self)
                 default: Issue.record("unhandled event fixture \(fixture.name)")
                 }
@@ -95,6 +111,13 @@ import Testing
                 Issue.record("unknown kind in \(fixture.name)")
             }
         }
+    }
+
+    /// Decodes into the Swift type and re-encodes to the identical JSON, so
+    /// field names and explicit nulls match the TypeScript shape exactly.
+    func roundTrips<T: Codable>(_ value: JSONValue, as type: T.Type, _ name: String) throws {
+        let decoded = try value.decode(T.self)
+        #expect(try JSONValue(encoding: decoded) == value, "\(name)")
     }
 
     @Test @MainActor func invalidRequestsMapToExpectedCodes() async throws {

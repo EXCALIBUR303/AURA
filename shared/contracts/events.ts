@@ -10,17 +10,13 @@ export interface BridgeEvents {
     | { command: "focusCompanion" }
     | { command: "openCommandPalette" };
   /**
-   * AURA became / stopped being the active app.
-   * @deprecated Use app.windowStateChanged. Still sent when `active` flips, until Phase 3B.
-   */
-  "app.activeChanged": { active: boolean };
-  /**
    * Sent whenever WindowState changes. Render at full rate while active, at a
    * reduced rate while only visible, and not at all while not visible.
    */
   "app.windowStateChanged": WindowState;
 
   "prefs.changed": Preferences;
+  /** Every GitHub connection state change, including authorizing → connected / error. */
   "github.authChanged": GitHubAuthStatus;
 
   "ai.chunk": { streamId: string; delta: string };
