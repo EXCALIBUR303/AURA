@@ -42,15 +42,25 @@ Report: [docs/PHASE3A_NATIVE.md](docs/PHASE3A_NATIVE.md)
 - [x] [O] App icon deferred to the final visual branding stage.
 - [ ] [O] Manual checks still open: VoiceOver pass; Reduce Motion / Reduce Transparency toggled on; R12 end-to-end (leave full screen with fn-F, then press ⌘4 without clicking).
 
-## Phase 3B: GitHub integration ✅ (awaiting owner review)
+## Phase 3B: GitHub integration ✅ (merged to `main`, 2026-10-17)
 
-Report and Codex brief: [docs/PHASE3B_GITHUB.md](docs/PHASE3B_GITHUB.md)
+Reports: [docs/PHASE3B_GITHUB.md](docs/PHASE3B_GITHUB.md) (native and Codex brief), [docs/PHASE3B_VALIDATION.md](docs/PHASE3B_VALIDATION.md) (Mac M5 validation and finalization)
 
 - [x] [CC] GitHub App device flow, Keychain credentials, refresh, revocation, launch restore, `github.authChanged`. Verified live in the sandboxed Release app.
 - [x] [CC] Repositories across installations, repository detail and languages, branches, commits, pagination, ETag cache, rate limits
 - [x] [CC] `projects.suggestZones` (explainable, never auto-applied); manual zones unchanged
-- [ ] [C] GitHub frontend: connect, authorizing, connected, expired, rate-limited and error states; repository explorer with paging, detail, branches and commits; zone suggestions with Accept. See the Codex section of the report.
-- [ ] [O] Optional live check: revoke at github.com/settings/apps/authorizations, relaunch AURA, expect `expired (revoked)`, then reconnect.
+- [x] [C] GitHub frontend: connect, authorizing, connected, expired, rate-limited and error states; repository explorer with paging, detail, branches and commits; zone suggestions with Accept (`0c48338`)
+- [x] [O] Live revoke and reconnect (found and fixed the refresh-refusal defect, `c08f9b8`)
+
+Non-blocking follow-ups:
+
+- [ ] [C] Hide the "WebGL2 is unavailable" canvas fallback from assistive technology unless WebGL actually fails (`Studio.tsx`)
+- [ ] [C] Inspector: show the first line of each commit message, with an expander
+- [ ] [C] Offer Disconnect in the `error(configuration)` state
+- [ ] [C] Explorer at 1100×700 shows about one row of cards
+- [ ] [CC] Hardening: refuse HTTP redirects that leave `api.github.com` in `URLSessionTransport`, so the bearer token cannot follow one (no current endpoint redirects off-host)
+- [ ] [CC] Hardening: treat an installation that grants more than read access as an error state instead of only logging it (the registered app is read-only today)
+- [ ] [O] Manual checks: VoiceOver, Reduce Motion and Reduce Transparency, R12 (full screen then ⌘4)
 
 ## Phase 3: Real services (native-led)
 

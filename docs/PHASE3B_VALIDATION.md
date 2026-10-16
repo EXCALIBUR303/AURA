@@ -23,6 +23,8 @@ Codex's commit changes only `frontend/**`; `macos/**`, `shared/**` and `frontend
 
 ## Live GitHub integration (real `AURA.app`)
 
+Repository names other than AURA are replaced with letters (A–D) to keep the owner's private repository names out of git.
+
 | Check | Result |
 |---|---|
 | Effective permissions | `contents=read, metadata=read`, `readOnly=true`, from GitHub's own installation record |
@@ -30,10 +32,10 @@ Codex's commit changes only `frontend/**`; `macos/**`, `shared/**` and `frontend
 | Cancel authorization | Returns to `disconnected` (logged `disconnected from GitHub`) |
 | Keychain and restore | The `github.credentials` item is present while connected. After ⌘Q and relaunch, AURA was `connected` with no new code. |
 | Repositories | 9 of 9: 6 private, 3 public. For public repositories, names, privacy, languages, push dates and descriptions were cross-checked against `api.github.com` and matched. |
-| Repository detail (`aeris`) | Created 25 Sep 2026, Python 99.9% / Makefile 0.1% (1,192,984 / 978 bytes), 1 branch (`main`, default), 0 issues, 0 stars and 0 forks, no license, and the 3 latest commits (`b55ca2f`, `be2c4db`, `a1514c1`). All identical to the GitHub API. |
-| Search | "robot" gave 1 result (parkscan-swarm, matched by description); "drone" gave 1 (aeris); clearing gave 9 of 9 |
+| Repository detail (repository A) | Creation date, language byte breakdown, branch list with default branch, issue, star and fork counts, license, and the 3 latest commits were all identical to the GitHub API. |
+| Search | A description keyword gave 1 result (repository B, matched by description); "drone" gave 1 (repository A); clearing gave 9 of 9 |
 | Language filter | Python showed 6 of 9 |
-| Sorting | Name: alphabetical. Recent push: newest first. Last updated: fetched real `updatedAt` values; `rul-predictive-maintenance` (04:23:37Z) is correctly placed before `aeris` (04:23:03Z), matching GitHub. |
+| Sorting | Name: alphabetical. Recent push: newest first. Last updated: fetched real `updatedAt` values; repository C (updated 34 s after repository A) is correctly placed before it, matching GitHub. |
 | Pagination | Native: 5 per page across 2 pages and branches at 1 per page (Phase 3B probe). UI "Load more" was **not reachable live**, because the account has 9 repositories and the page size is 30; it is covered by Codex's suite. |
 | Disconnect | The dialog opens with focus on **Keep connected**, Escape cancels it, and **Disconnect** deletes the Keychain item. Local project records are kept, and the UI links to GitHub app authorizations. |
 | Revoked token | The owner revoked AURA on github.com. **Found a defect** (fixed in `c08f9b8`, details below). After the fix: "GitHub access was revoked · Reconnect as EXCALIBUR303", with the Keychain item deleted. Reconnect, then approval, then connected. |
@@ -46,10 +48,10 @@ The input was posted at the HID level only while AURA was frontmost and only ins
 
 | Check | Result |
 |---|---|
-| Accepting a suggestion | aeris "Hardware Lab · medium confidence · keyword: drone": Accept wrote `aeris → hardware` to SQLite and moved the studio to Hardware Lab |
-| Manual assignment | private-local-ai set to AI / LLM Lab, with a note and a pin, then Save. SQLite: `ai-lab \| pinned=1 \| note`. "Saved to the project store." |
+| Accepting a suggestion | Repository A "Hardware Lab · medium confidence · keyword: drone": Accept wrote `repository A → hardware` to SQLite and moved the studio to Hardware Lab |
+| Manual assignment | Repository D set to AI / LLM Lab, with a note and a pin, then Save. SQLite: `ai-lab \| pinned=1 \| note`. "Saved to the project store." |
 | Assigning from a workstation | In Software Studio, "Assign to Software Studio" on AURA, then Save: `AURA → software` |
-| Selection follows the workstation | ⌘4 selected private-local-ai, ⌘2 aeris, ⌘3 AURA ("This workstation 1" in each). Main Studio's **Pinned** filter showed private-local-ai. |
+| Selection follows the workstation | ⌘4 selected repository D, ⌘2 repository A, ⌘3 AURA ("This workstation 1" in each). Main Studio's **Pinned** filter showed repository D. |
 | Persistence | After relaunch, the cards showed Software Studio, Hardware Lab and AI / LLM Lab. No GitHub write requests: AURA's client only issues `GET`. |
 | GitHub Project Explorer | Real cards: privacy badges, descriptions, languages, push dates, assigned workspace and GitHub links |
 
@@ -156,8 +158,32 @@ Stored in `~/Developer/AURA-phase3b-artifacts/` (outside git, because they show 
 
 ## Recommendation
 
-**Ready to merge after your review**, as `review/phase3b-validation`: Codex's `0c48338`, plus the two native fixes and this report. It contains Phase 3A and the native Phase 3B, and `main` (`79b8181`) is its ancestor, so a fast-forward is possible.
+**Merged** (see Finalization). Original recommendation: ready to merge after your review, as `review/phase3b-validation`: Codex's `0c48338`, plus the two native fixes and this report. It contains Phase 3A and the native Phase 3B, and `main` (`79b8181`) is its ancestor, so a fast-forward is possible.
 
 Frontend items 1–4 are non-blocking follow-ups for Codex. The manual accessibility checks (item 8) remain with the owner.
 
 Phase 3C was not started.
+
+## Finalization (2026-10-17)
+
+- `main` was fast-forwarded from `79b8181` to `3464905` (`review/phase3b-validation`): no merge commit, no conflicts, no history rewritten. Every earlier agent and review branch is an ancestor.
+- A docs commit followed: it replaces private repository names in this report with letters, and updates `TASKS.md`. Earlier commits on `review/phase3b-validation` (pushed to the private repository) still contain the names; removing them would need a force-push, which was not done.
+- **Regression on `main` (`3464905`):**
+
+  | Check | Result |
+  |---|---|
+  | Swift tests | 66/66 in 11 suites |
+  | Frontend | typecheck pass, bridge 10/10, build pass, `npm audit` 0 vulnerabilities |
+  | Xcode | Debug and Release succeeded with 0 errors. The only warning was the toolchain's AppIntents metadata notice, not from AURA code |
+  | `test:browser` with axe | 27/27, 0 console errors, 0 external requests, 0 WCAG A/AA violations |
+  | `test:github` with axe | 23/23, 0 errors, 0 external requests, 0 violations in all 6 scanned states |
+
+- **Security review:**
+  - The client only sends `GET` to `api.github.com` (host pinned) and `POST` to the device-flow endpoints on `github.com`. There is no client secret, and the verification URI must be `https://github.com`.
+  - Credentials are one Keychain item (`AfterFirstUnlockThisDeviceOnly`, not synchronizable), with redacted descriptions. Bridge payloads and logs carry no tokens or device codes.
+  - `URLSession` is ephemeral, with no cache, cookies or credential store.
+  - A scan of all refs found no secrets, keys, `.env` files or binaries in git history.
+  - Astra Lumen II is unchanged since Phase 1, and its CC BY 4.0 credit is visible (browser check).
+  - Two hardening items are listed in `TASKS.md`.
+- Phase 3C was not started.
+
