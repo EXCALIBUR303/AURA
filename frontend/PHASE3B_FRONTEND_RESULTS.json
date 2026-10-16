@@ -1,0 +1,374 @@
+{
+  "phase": "3B frontend",
+  "date": "2026-10-17",
+  "branch": "codex/phase3b-github-explorer",
+  "baseBranch": "claude/phase3b-github",
+  "baseCommit": "5a8cb56b95248af73fcb08e32bd87b65e3da2939",
+  "environment": {
+    "platform": "Linux cloud",
+    "node": "24.19.0",
+    "npm": "11.9.0",
+    "browser": "Chromium 154",
+    "renderer": "SwiftShader software GPU"
+  },
+  "checks": {
+    "typecheck": "passed (both TypeScript projects)",
+    "bridgeTests": {
+      "tests": 10,
+      "passed": 10,
+      "failed": 0
+    },
+    "productionBuild": "passed; Safari 18 target"
+  },
+  "studioBrowser": {
+    "outcomes": [
+      {
+        "name": "Scene loading is visible and excluded from per-zone performance samples",
+        "status": "passed"
+      },
+      {
+        "name": "Licensed avatar loads at human scale with the documented idle and rig",
+        "status": "passed"
+      },
+      {
+        "name": "Model author, source and CC BY 4.0 attribution stay visible",
+        "status": "passed"
+      },
+      {
+        "name": "Automated WCAG A/AA scan has no violations",
+        "status": "passed"
+      },
+      {
+        "name": "All six zone buttons reach settled camera poses",
+        "status": "passed"
+      },
+      {
+        "name": "GPU renderer strings stay cached across diagnostic samples",
+        "status": "passed"
+      },
+      {
+        "name": "Detail views hide the active card and limit nearby destinations",
+        "status": "passed"
+      },
+      {
+        "name": "Actual 3D workstation and Astra clicks navigate and focus the prompt",
+        "status": "passed"
+      },
+      {
+        "name": "Idle animation advances and procedural look-at follows the camera",
+        "status": "passed"
+      },
+      {
+        "name": "All six projected hotspots navigate from overview",
+        "status": "passed"
+      },
+      {
+        "name": "Mouse orbit, wheel zoom and reset change and restore the actual camera",
+        "status": "passed"
+      },
+      {
+        "name": "Browser shortcuts navigate; typing retains ordinary editing behavior",
+        "status": "passed"
+      },
+      {
+        "name": "Last zone survives a browser reload",
+        "status": "passed"
+      },
+      {
+        "name": "Mock streaming completes and can be cancelled",
+        "status": "passed"
+      },
+      {
+        "name": "Speech levels move the jaw and listening surfaces the mock transcript",
+        "status": "passed"
+      },
+      {
+        "name": "Project notes, pinning, and zone assignment round-trip through the bridge",
+        "status": "passed"
+      },
+      {
+        "name": "Workstation scope uses saved assignments and selection preserves unsaved drafts",
+        "status": "passed"
+      },
+      {
+        "name": "Keyboard focus is visible and layout fits the minimum target window",
+        "status": "passed"
+      },
+      {
+        "name": "Minimum-window workstation heading has an opaque backing and accessible controls",
+        "status": "passed"
+      },
+      {
+        "name": "All six hotspots remain reachable without dock overlap at 1100×700",
+        "status": "passed"
+      },
+      {
+        "name": "Keyboard-only tab navigation reaches all six zones with visible focus",
+        "status": "passed"
+      },
+      {
+        "name": "WebGL context loss shows recovery and restoration reloads the scene",
+        "status": "passed"
+      },
+      {
+        "name": "Missing GLB shows recovery UI and retry succeeds",
+        "status": "passed"
+      },
+      {
+        "name": "Unavailable WebGL shows a useful error with the workstation still usable",
+        "status": "passed"
+      },
+      {
+        "name": "Simulated native commands navigate and unavailable voice degrades gracefully",
+        "status": "passed"
+      },
+      {
+        "name": "AI start failures and streamed errors show recoverable companion state",
+        "status": "passed"
+      },
+      {
+        "name": "No uncaught browser errors or external runtime requests",
+        "status": "passed"
+      }
+    ],
+    "errors": [],
+    "external": [],
+    "nativeValidation": "Simulated transport only; AuraApp not run on Linux."
+  },
+  "githubBrowser": {
+    "outcomes": [
+      {
+        "name": "Disconnected native status never fetches GitHub data or fakes sign-in",
+        "status": "passed"
+      },
+      {
+        "name": "Device flow shows copyable code, safe authorization link, countdown, and waiting state",
+        "status": "passed"
+      },
+      {
+        "name": "Connected account, read-only installation and real bridge repository metadata render",
+        "status": "passed"
+      },
+      {
+        "name": "Repository search, language filter, activity/name/update sorts use source data",
+        "status": "passed"
+      },
+      {
+        "name": "Suggestions require acceptance, persist through projects.update, and select the matching workstation",
+        "status": "passed"
+      },
+      {
+        "name": "Connection rate limit keeps loaded repositories and suppresses new data calls",
+        "status": "passed"
+      },
+      {
+        "name": "API errors preserve useful UI and refresh retries through github.refresh",
+        "status": "passed"
+      },
+      {
+        "name": "Expired and revoked sessions clear repository data and offer reconnection",
+        "status": "passed"
+      },
+      {
+        "name": "Denied, code-expired, offline and configuration states show appropriate recovery",
+        "status": "passed"
+      },
+      {
+        "name": "Repository pagination appends distinct existing mock records; selection and branch requests are typed",
+        "status": "passed"
+      },
+      {
+        "name": "Refresh loading state, keyboard focus, and minimum-window layout remain usable",
+        "status": "passed"
+      },
+      {
+        "name": "Disconnect confirmation can be cancelled and confirmed with keyboard; late data cannot return",
+        "status": "passed"
+      },
+      {
+        "name": "Empty repositories explain repository access",
+        "status": "passed"
+      },
+      {
+        "name": "Empty repositories explain missing installation",
+        "status": "passed"
+      },
+      {
+        "name": "Repository not_found stays local to access feedback and can be retried",
+        "status": "passed"
+      },
+      {
+        "name": "Repository permission_denied stays local to access feedback and can be retried",
+        "status": "passed"
+      },
+      {
+        "name": "Bridge rate_limited pauses requests until explicit recovery",
+        "status": "passed"
+      },
+      {
+        "name": "Bridge not_authenticated pauses requests until explicit recovery",
+        "status": "passed"
+      },
+      {
+        "name": "Branch pagination follows the canonical cursor only on demand; empty history stays useful",
+        "status": "passed"
+      },
+      {
+        "name": "Delayed commits never overwrite the newly selected repository",
+        "status": "passed"
+      },
+      {
+        "name": "Pending device authorization can be cancelled without a connected state",
+        "status": "passed"
+      },
+      {
+        "name": "Newer native auth events win over delayed launch-restore replies",
+        "status": "passed"
+      },
+      {
+        "name": "No uncaught errors or external runtime requests",
+        "status": "passed"
+      }
+    ],
+    "errors": [],
+    "external": [],
+    "nativeValidation": "Simulated typed native transport using shared mock records only; real AURA.app not run in Linux."
+  },
+  "accessibility": {
+    "github-final/accessibility-1100.json": {
+      "violations": 0,
+      "passes": 32,
+      "incomplete": 1
+    },
+    "github-final/accessibility-authorizing.json": {
+      "violations": 0,
+      "passes": 25,
+      "incomplete": 2
+    },
+    "github-final/accessibility-connected.json": {
+      "violations": 0,
+      "passes": 32,
+      "incomplete": 1
+    },
+    "github-final/accessibility-disconnect-dialog.json": {
+      "violations": 0,
+      "passes": 13,
+      "incomplete": 1
+    },
+    "github-final/accessibility-disconnected.json": {
+      "violations": 0,
+      "passes": 25,
+      "incomplete": 1
+    },
+    "github-final/accessibility-rate-limited.json": {
+      "violations": 0,
+      "passes": 32,
+      "incomplete": 1
+    },
+    "regression-final/accessibility-1100.json": {
+      "violations": 0,
+      "passes": 32,
+      "incomplete": 1
+    },
+    "regression-final/accessibility.json": {
+      "violations": 0,
+      "passes": 32,
+      "incomplete": 1
+    }
+  },
+  "productionSmoke": {
+    "baseURL": "http://127.0.0.1:4173",
+    "errors": [],
+    "external": [],
+    "zones": [
+      "studio",
+      "hardware",
+      "software",
+      "ai-lab",
+      "github",
+      "companion"
+    ],
+    "repositories": 3,
+    "avatar": {
+      "status": "loaded",
+      "bones": 72,
+      "heightMeters": 1.75,
+      "triangles": 36508,
+      "playingClip": "Idle02_F"
+    }
+  },
+  "productionSmokeScope": "Production web bundle and existing mock repositories; not a real native application or live GitHub test.",
+  "dockBounds": {
+    "viewport": {
+      "width": 1100,
+      "height": 700
+    },
+    "expanded": {
+      "x": 20,
+      "y": 88,
+      "width": 752,
+      "height": 301.703125
+    },
+    "collapsed": {
+      "x": 20,
+      "y": 88,
+      "width": 752,
+      "height": 408.5
+    },
+    "gapAtLeast16": true
+  },
+  "asset": {
+    "bytes": 18054896,
+    "sha256": "e9984ddc7e04a1b39d72f5ab5e1ba9fe459fc42e773f851bf52068b357eb76c1",
+    "sourceAndBuildMatch": true,
+    "modified": false,
+    "creditFileUnchanged": true,
+    "visibleCredit": "XRProfXR; CC BY 4.0; original Sketchfab source"
+  },
+  "preservation": {
+    "pathsUnchanged": [
+      "macos",
+      "shared",
+      "frontend/src/platform",
+      "frontend/src/studio",
+      "frontend/src/validation",
+      "assets",
+      "frontend/package-lock.json",
+      "designs",
+      "AGENTS.md",
+      "ARCHITECTURE.md"
+    ],
+    "gpuStringCachePreserved": true,
+    "phase3aBackgroundLoopPreserved": true,
+    "newDependencies": false,
+    "nativeOrContractChanges": false
+  },
+  "nativeValidation": {
+    "performedHere": false,
+    "historicalNativeBaseReport": "../docs/PHASE3B_GITHUB.md",
+    "liveGitHubWithNewUI": "pending on Mac M5",
+    "wkWebViewDevAndProduction": "pending",
+    "macM5Performance": "not revalidated; target ≥55 FPS at actual DPR 2",
+    "voiceOverAndSystemPreferences": "pending"
+  },
+  "knownLimits": [
+    "Search, filters and sort include loaded repository pages only.",
+    "Last-updated sort fetches metadata on demand.",
+    "Saved project data is native SQLite; drafts are memory-only and cleared on session invalidation.",
+    "R3F THREE.Clock deprecation remains upstream."
+  ],
+  "artifactRoot": "/workspace/aura-phase3b",
+  "sourceSha256": {
+    "frontend/src/App.tsx": "87747731748605935d79346d9dee000142862e4d9cc9951f2527fc5cae95eab5",
+    "frontend/src/components/Inspector.tsx": "e520e1a600e5b1a2843b2bab15e0416996185976684cabd4979065324fa09b3c",
+    "frontend/src/components/CommandDock.tsx": "791d71e792e56e56660124094e279103ead06e944d1704ac16756a140ceedc47",
+    "frontend/package.json": "e921620bcc7be8bc0a68511bce2980881426082b5565018b6e4425a2353cbd79",
+    "frontend/test/github.browser.mjs": "af0d7f3a3f39af09b4da0c7d152f198387bd297ed663f28504fb20f36f742270",
+    "frontend/src/github/GitHubConnection.tsx": "02208e2b45ee9c896710457924436c6b6f09b8ce6c0b4d849d2d96daedecb0a4",
+    "frontend/src/github/RepositoryDetails.tsx": "c5478f8f1711f1b679118643a56c63cd376d5ce8ef8455a00411f0f29357b388",
+    "frontend/src/github/RepositoryExplorer.tsx": "3c072a7a2359515433fb89503e025c57ab7c53eeb3dd03c2131384d2b0cc7236",
+    "frontend/src/github/github.css": "5270dbb2f1855512ea8ec7e0a4e92f0c5cc1151647f24f9ed993010ccceeba84",
+    "frontend/src/github/model.ts": "298a8b3561cb31a88a7c02dba7ea684f0eebf3f74b3da9fe2e57cb914712f5af",
+    "frontend/src/github/useGitHubWorkspace.ts": "af576457e10cfed7680662b420df2f3478d13062989f99ed02fd2f2c13da3ce9"
+  }
+}

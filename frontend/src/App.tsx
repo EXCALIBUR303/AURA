@@ -14,11 +14,15 @@ import { CommandDock } from "./components/CommandDock.tsx";
 import { useCompanion } from "./components/useCompanion.ts";
 import { ArrowIcon } from "./components/Icon.tsx";
 import { ZoneIcon } from "./components/ZoneIcon.tsx";
+import { useGitHubWorkspace } from "./github/useGitHubWorkspace.ts";
+import { RepositoryExplorer } from "./github/RepositoryExplorer.tsx";
 import "./studio.css";
+import "./github/github.css";
 
 export function App() {
   const studio = useStudio();
   const companion = useCompanion();
+  const github = useGitHubWorkspace(studio.zone, studio.navigate);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [diagnostics, setDiagnostics] = useState<StudioDiagnostics>({ ...EMPTY_DIAGNOSTICS,
     zone: "studio", cameraSettled: false, context: "ready", perZone: {} });
@@ -66,17 +70,18 @@ export function App() {
       <span className="connection-chip"><i />{bridge.transportKind === "mock" ? "Mock connected" : "Native connected"}</span>
     </header>
     <main className="workspace">
-      <section className="viewport" aria-label="Interactive 3D studio">
+      <section className={`viewport ${studio.zone === "github" ? "exploring" : ""}`} aria-label="Interactive 3D studio">
         {probe ? <AvatarProbe report={report} maxPixelRatio={studio.prefs?.graphics.maxPixelRatio ?? 2} /> :
           <Studio key={sceneKey} zone={studio.zone} revision={studio.revision} reducedMotion={studio.reducedMotion}
             maxDpr={studio.prefs?.graphics.maxPixelRatio ?? 2} state={companion.state} speechLevel={companion.speechLevel}
             report={report} navigate={studio.navigate} restart={restart} focusCompanion={focusCompanion} />}
-        <div className="viewport-heading">
+        {studio.zone !== "github" && <div className="viewport-heading">
           <div className="eyebrow"><span className="live-dot" />AURA WORKSPACE <span className="heading-slash">/</span> {String(ZONES.findIndex((item) => item.id === studio.zone) + 1).padStart(2, "0")}</div>
           <h1>{zone.id === "studio" ? <>A considered <em>workspace.</em></> : zone.label}</h1>
           <p>{zone.caption}</p>
           <div className="view-actions"><button onClick={() => studio.navigate("studio")}><ArrowIcon reset /> Reset overview</button><span>Drag to orbit · scroll to explore</span></div>
-        </div>
+        </div>}
+        {studio.zone === "github" && <RepositoryExplorer workspace={github} navigate={studio.navigate} />}
         <div className={`companion-pill ${companion.state}`} aria-live="polite">
           <button className="astra-spark" onClick={focusCompanion} aria-label="Focus Astra companion"><ZoneIcon zone="companion" size={26} /></button><span><strong>ASTRA LUMEN II</strong><small>{companion.state === "idle" ? "Ready when you are" : companion.state}</small></span><i className={`state-dot ${companion.state}`} />
         </div>
@@ -101,7 +106,7 @@ export function App() {
         </aside>}
         {studio.error && <p className="preference-error" role="status">{studio.error}</p>}
       </section>
-      <Inspector zone={studio.zone} navigate={studio.navigate} />
+      <Inspector zone={studio.zone} navigate={studio.navigate} workspace={github} />
     </main>
     <footer className="app-footer">
       <span>AURA{appInfo ? ` / ${appInfo.appVersion}` : ""}<span className="footer-divider">/</span>WebGL studio</span>

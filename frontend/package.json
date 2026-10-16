@@ -14,7 +14,8 @@
     "test": "node --test ../shared/test/*.test.ts",
     "inspect:avatar": "node ../tools/inspect-glb.mjs ../assets/avatar/community/astra-lumen/astra_lumen_ii_a_rigged_companion_android.glb",
     "test:browser": "node test/studio.browser.mjs",
-    "audit:performance": "node test/performance.browser.mjs"
+    "audit:performance": "node test/performance.browser.mjs",
+    "test:github": "node test/github.browser.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

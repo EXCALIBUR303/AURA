@@ -10,7 +10,7 @@ export function CommandDock({ companion, reducedMotion }: { companion: ReturnTyp
   const [expanded, setExpanded] = useState(false);
   const c = companion;
   const quickPrompts = ["Explore this workspace", "Review my projects", "Plan the next step"];
-  return <motion.section className="command-dock glass" data-companion-state={c.state} aria-label="Astra command dock"
+  return <motion.section className="command-dock glass" data-companion-state={c.state} data-expanded={expanded} aria-label="Astra command dock"
     initial={reducedMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : 0.3 }}>
     <div className="dock-header">
       <button className={`talk-button ${c.voice?.listening ? "listening" : ""}`} disabled={c.voiceBusy || c.voiceUnavailable}
