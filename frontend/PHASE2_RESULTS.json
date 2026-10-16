@@ -1,0 +1,279 @@
+{
+  "recordedAtUTC": "2026-10-16T09:10:23.322368+00:00",
+  "reviewBranch": "codex/phase2-studio",
+  "scope": "Phase 2 frontend completion; no Phase 3 or main merge",
+  "environment": {
+    "os": "Linux x86_64",
+    "node": "24.19.0",
+    "npm": "11.9.0",
+    "browser": "Chromium 154.0.8037.57",
+    "gpu": "SwiftShader software rendering"
+  },
+  "requiredChecks": {
+    "typecheck": {
+      "exitCode": 0
+    },
+    "bridgeTests": {
+      "exitCode": 0,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0
+    },
+    "build": {
+      "exitCode": 0,
+      "modules": 999
+    },
+    "inspectAvatar": {
+      "exitCode": 0,
+      "clip": "Idle02_F",
+      "joints": 72,
+      "triangles": 36508
+    }
+  },
+  "browser": {
+    "passed": 22,
+    "failed": 0,
+    "outcomes": [
+      {
+        "name": "Scene loading is visible and excluded from per-zone performance samples",
+        "status": "passed"
+      },
+      {
+        "name": "Licensed avatar loads at human scale with the documented idle and rig",
+        "status": "passed"
+      },
+      {
+        "name": "Model author, source and CC BY 4.0 attribution stay visible",
+        "status": "passed"
+      },
+      {
+        "name": "Automated WCAG A/AA scan has no violations",
+        "status": "passed"
+      },
+      {
+        "name": "All six zone buttons reach settled camera poses",
+        "status": "passed"
+      },
+      {
+        "name": "Idle animation advances and procedural look-at follows the camera",
+        "status": "passed"
+      },
+      {
+        "name": "All six projected hotspots navigate from overview",
+        "status": "passed"
+      },
+      {
+        "name": "Mouse orbit, wheel zoom and reset change and restore the actual camera",
+        "status": "passed"
+      },
+      {
+        "name": "Browser shortcuts navigate; typing retains ordinary editing behavior",
+        "status": "passed"
+      },
+      {
+        "name": "Last zone survives a browser reload",
+        "status": "passed"
+      },
+      {
+        "name": "Mock streaming completes and can be cancelled",
+        "status": "passed"
+      },
+      {
+        "name": "Speech levels move the jaw and listening surfaces the mock transcript",
+        "status": "passed"
+      },
+      {
+        "name": "Project notes, pinning, and zone assignment round-trip through the bridge",
+        "status": "passed"
+      },
+      {
+        "name": "Keyboard focus is visible and layout fits the minimum target window",
+        "status": "passed"
+      },
+      {
+        "name": "All six hotspots remain reachable without dock overlap at 1100\u00d7700",
+        "status": "passed"
+      },
+      {
+        "name": "Keyboard-only tab navigation reaches all six zones with visible focus",
+        "status": "passed"
+      },
+      {
+        "name": "WebGL context loss shows recovery and restoration reloads the scene",
+        "status": "passed"
+      },
+      {
+        "name": "Missing GLB shows recovery UI and retry succeeds",
+        "status": "passed"
+      },
+      {
+        "name": "Unavailable WebGL shows a useful error with the workstation still usable",
+        "status": "passed"
+      },
+      {
+        "name": "Simulated native commands navigate and unavailable voice degrades gracefully",
+        "status": "passed"
+      },
+      {
+        "name": "AI start failures and streamed errors show recoverable companion state",
+        "status": "passed"
+      },
+      {
+        "name": "No uncaught browser errors or external runtime requests",
+        "status": "passed"
+      }
+    ],
+    "unexpectedErrors": [],
+    "externalRuntimeRequests": [],
+    "nativeTransport": "simulated only"
+  },
+  "accessibility": {
+    "violations": [],
+    "manualReviewRules": [
+      "color-contrast"
+    ]
+  },
+  "asset": {
+    "bytes": 18054896,
+    "sha256": "e9984ddc7e04a1b39d72f5ab5e1ba9fe459fc42e773f851bf52068b357eb76c1",
+    "fileModified": false,
+    "license": "CC BY 4.0",
+    "creditFileChanged": false,
+    "gitignored": true,
+    "committed": false
+  },
+  "cloudPerformance": {
+    "viewport": {
+      "width": 1100,
+      "height": 700
+    },
+    "deviceScaleFactor": 2,
+    "renderer": {
+      "webgl2": true,
+      "pixelRatio": 2,
+      "maxTextureSize": 8192,
+      "vendor": "Google Inc. (Google)",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+    },
+    "records": {
+      "studio": [
+        {
+          "fps": 3,
+          "drawCalls": 62,
+          "triangles": 79514,
+          "pixelRatio": 2,
+          "sampledAt": 1792141709330
+        },
+        {
+          "fps": 2,
+          "drawCalls": 62,
+          "triangles": 79514,
+          "pixelRatio": 2,
+          "sampledAt": 1792141710429
+        }
+      ],
+      "hardware": [
+        {
+          "fps": 2,
+          "drawCalls": 40,
+          "triangles": 78098,
+          "pixelRatio": 2,
+          "sampledAt": 1792141720567
+        },
+        {
+          "fps": 1,
+          "drawCalls": 40,
+          "triangles": 78098,
+          "pixelRatio": 2,
+          "sampledAt": 1792141721575
+        }
+      ],
+      "software": [
+        {
+          "fps": 3,
+          "drawCalls": 47,
+          "triangles": 78570,
+          "pixelRatio": 2,
+          "sampledAt": 1792141730262
+        },
+        {
+          "fps": 3,
+          "drawCalls": 47,
+          "triangles": 78570,
+          "pixelRatio": 2,
+          "sampledAt": 1792141731332
+        }
+      ],
+      "ai-lab": [
+        {
+          "fps": 4,
+          "drawCalls": 48,
+          "triangles": 78570,
+          "pixelRatio": 2,
+          "sampledAt": 1792141739974
+        },
+        {
+          "fps": 2,
+          "drawCalls": 48,
+          "triangles": 78570,
+          "pixelRatio": 2,
+          "sampledAt": 1792141741014
+        }
+      ],
+      "github": [
+        {
+          "fps": 3,
+          "drawCalls": 55,
+          "triangles": 79042,
+          "pixelRatio": 2,
+          "sampledAt": 1792141749322
+        },
+        {
+          "fps": 2,
+          "drawCalls": 55,
+          "triangles": 79042,
+          "pixelRatio": 2,
+          "sampledAt": 1792141750612
+        }
+      ],
+      "companion": [
+        {
+          "fps": 3,
+          "drawCalls": 40,
+          "triangles": 78098,
+          "pixelRatio": 2,
+          "sampledAt": 1792141759913
+        },
+        {
+          "fps": 3,
+          "drawCalls": 40,
+          "triangles": 78098,
+          "pixelRatio": 2,
+          "sampledAt": 1792141761084
+        }
+      ]
+    },
+    "allSamplesAtDpr2": true,
+    "meets55Fps": false,
+    "notes": "Adaptive DPR remains enabled; each sample records actual DPR. Compare on the target Apple Silicon Mac and in WKWebView before claiming performance acceptance."
+  },
+  "nativeMacOS": {
+    "status": "pending",
+    "criteria": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "checks": [
+      "Swift build and native tests",
+      "AuraApp dev-server and built aura:// rendering",
+      "Real menus, shortcuts, focus, persistence and window dragging",
+      "Safari Network/console and GLB/decoder paths",
+      "M5 browser and WKWebView per-zone >=55 FPS at actual DPR 2",
+      "Visual rig, keyboard, VoiceOver, reduced-motion/transparency and contrast review"
+    ]
+  }
+}
