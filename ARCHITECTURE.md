@@ -30,7 +30,7 @@ AURA is a native macOS app (SwiftUI shell plus Swift services) that hosts a Reac
 | Secrets | Keychain generic passwords | — | `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, not synced. |
 | Speech | `Speech` (SFSpeechRecognizer) and `AVSpeechSynthesizer` | Phase 3 | Requires the signed .app bundle (see Native build). |
 | GitHub | REST via ephemeral `URLSession` | Phase 3B | GitHub App "AURA Developer Companion", device flow, Metadata + Contents read-only. No client secret. See docs/PHASE3B_GITHUB.md. |
-| LLMs | `AIProvider` protocol: local (e.g. Ollama on localhost) and cloud providers | Phase 4 | Mocked. No paid service without approval. |
+| LLMs | `AIProvider` protocol; one adapter, OpenAI-compatible chat completions with SSE (hosted APIs and local runtimes such as Ollama), plus an offline mock | Phase 3C-A | Local first. No paid service without approval. See docs/PHASE3C_AI_FOUNDATION.md. |
 
 Everything else is deliberately absent: no state library, no CSS framework, no runtime validation library, no native package dependencies. Add one only when a concrete need appears, and record it here.
 
@@ -63,8 +63,8 @@ All messages are JSON **strings**, which avoids `NSNumber`/`Bool` ambiguity in W
 | native → web reply | the reply handler resolves that Promise | `{kind:"response", v:1, id, ok:true, result}` or `{…, ok:false, error:{code, message, retryable}}` |
 | native → web event | `callAsyncJavaScript("window.__AURA_BRIDGE__?.dispatch(message)", arguments:)` | `{kind:"event", v:1, event, payload}` |
 
-- **Methods** (see `shared/contracts/methods.ts`): `app.getInfo|getWindowState`, `prefs.get|update`, `github.getAuthStatus|connect|disconnect|refresh|listRepositories|getRepository|listBranches|listCommits`, `projects.list|update|suggestZones`, `ai.listProviders|chat|cancel`, `voice.getStatus|requestPermissions|startListening|stopListening|speak|stopSpeaking`, `log.write`.
-- **Events** (`events.ts`): `app.command` (menu and shortcut actions), `app.windowStateChanged` (`app.activeChanged` was removed in Phase 3B), `prefs.changed`, `github.authChanged` (every connection state change), `ai.chunk|done|error`, `voice.statusChanged|transcript|speechLevel`.
+- **Methods** (see `shared/contracts/methods.ts`): `app.getInfo|getWindowState`, `prefs.get|update`, `github.getAuthStatus|connect|disconnect|refresh|listRepositories|getRepository|listBranches|listCommits`, `projects.list|update|suggestZones`, `ai.listProviders|saveProvider|removeProvider|requestCredential|deleteCredential|validateProvider|previewContext|chat|cancel`, `voice.getStatus|requestPermissions|startListening|stopListening|speak|stopSpeaking`, `log.write`.
+- **Events** (`events.ts`): `app.command` (menu and shortcut actions), `app.windowStateChanged` (`app.activeChanged` was removed in Phase 3B), `prefs.changed`, `github.authChanged` (every connection state change), `ai.chunk|done|error` (numbered by `seq`), `ai.providersChanged`, `voice.statusChanged|transcript|speechLevel`.
 - Streaming (LLM output, transcripts) is always a request that returns a `streamId` immediately, followed by events. No request stays open longer than the client timeout (15 s).
 - Versioning: `v` must equal `BRIDGE_PROTOCOL_VERSION` (1), or the host replies `unsupported_version`. Additive changes (new optional fields, new methods or events) keep v1. Renames and removals bump the version.
 - Drift protection: `ContractParityTests` parses the TS files and fails if method, event, error-code or zone names differ from the Swift enums. Both test suites decode `shared/fixtures/bridge-messages.json`.
@@ -102,12 +102,14 @@ All messages are JSON **strings**, which avoids `NSNumber`/`Bool` ambiguity in W
 **GitHub (Phase 3B).** `LiveGitHubService` serves the bridge in the app:
 - `GitHubConnectionManager` owns the state machine (`disconnected`, `authorizing`, `connected`, `rate_limited`, `expired`, `error`), the launch restore, connect and disconnect.
 - `GitHubDeviceFlowClient` handles the device flow and token refresh against github.com.
-- `GitHubAPIClient` is an actor holding the Keychain credentials. It refreshes tokens, retries once after a 401, honours the rate limit, keeps an in-memory ETag cache and only accepts the `api.github.com` host.
+- `GitHubAPIClient` is an actor holding the Keychain credentials. It refreshes tokens, retries once after a 401, honours the rate limit, keeps an in-memory ETag cache and only accepts the `api.github.com` host. Redirects are followed only within the exact origin, and `GitHubPermissionPolicy` refuses (and signs out of) any installation granting more than read access (Phase 3C-A).
 - `ProjectZoneClassifier` produces `projects.suggestZones`. Suggestions are never applied automatically.
 
 Tests use `MockGitHubService`. Details and the security boundaries are in docs/PHASE3B_GITHUB.md.
 
-**Services (Phase 3A foundations).** AI: `AIProviderConfiguration` (loopback-only local or https remote), `AICredentialStore`, `AIProviderCatalog`. Voice: `VoicePermissions`, `SpeechInput`/`SpeechOutput`, `VoiceSession` (barge-in, interruptions). Neither is wired to the bridge yet: the bridge still serves the mock AI provider and `UnavailableVoiceService`.
+**AI (Phase 3C-A).** `AIService` runs streams (validation, limits, retries before first output, ~30/s coalescing, `seq`, exactly one terminal event). `AIProviderRegistry` holds provider settings (SQLite `kv ai.providers`) and Keychain key state; keys are entered only in the native `CredentialPrompt` and never cross the bridge. `AIContextBuilder` fetches workspace context natively under the user's sharing preferences and fences untrusted text; `AIToolPolicy` defines the (not yet executed) tool allowlist and approval rules. All AI HTTP uses an ephemeral session with same-origin redirects only (`Networking/RedirectPolicy`, shared with GitHub). Details and the Codex handoff: docs/PHASE3C_AI_FOUNDATION.md.
+
+**Voice (Phase 3A foundation, 3C-A contracts).** `VoicePermissions`, `SpeechInput`/`SpeechOutput`, `AudioRouteMonitor`, `VoiceSession` (barge-in, route changes and inactivity stop everything, never auto-restart). Not wired to the bridge yet: it still serves `UnavailableVoiceService`.
 
 **Persistence.** `~/Library/Application Support/AURA/aura.sqlite` (WAL); inside the sandboxed `AURA.app` that is `~/Library/Containers/com.aura.app/Data/Library/Application Support/AURA/`. Schema v1: `kv` (preferences JSON) and `projects` (app-local repo metadata). Migrations run through `PRAGMA user_version`. Nothing fetched from GitHub is persisted yet; caching is a Phase 3 decision.
 

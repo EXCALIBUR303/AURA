@@ -58,9 +58,22 @@ Non-blocking follow-ups:
 - [ ] [C] Inspector: show the first line of each commit message, with an expander
 - [ ] [C] Offer Disconnect in the `error(configuration)` state
 - [ ] [C] Explorer at 1100×700 shows about one row of cards
-- [ ] [CC] Hardening: refuse HTTP redirects that leave `api.github.com` in `URLSessionTransport`, so the bearer token cannot follow one (no current endpoint redirects off-host)
-- [ ] [CC] Hardening: treat an installation that grants more than read access as an error state instead of only logging it (the registered app is read-only today)
+- [x] [CC] Hardening: same-origin redirects only (Phase 3C-A)
+- [x] [CC] Hardening: installations above read access are refused and the token deleted (Phase 3C-A)
 - [ ] [O] Manual checks: VoiceOver, Reduce Motion and Reduce Transparency, R12 (full screen then ⌘4)
+
+## Phase 3C-A: AI security and provider foundation ✅ (branch `claude/phase3c-ai-foundation`, awaiting owner review)
+
+Report and Codex handoff: [docs/PHASE3C_AI_FOUNDATION.md](docs/PHASE3C_AI_FOUNDATION.md)
+
+- [x] [CC] GitHub redirect protection and permission allowlist
+- [x] [CC] Provider-neutral `AIProvider`, OpenAI-compatible adapter, offline mock, provider registry, Keychain keys via a native prompt
+- [x] [CC] Streaming with `seq`, coalescing, cancellation, retries, limits, page-lifecycle cleanup
+- [x] [CC] Context builder with sharing and private-repository preferences, `ai.previewContext`, injection fencing
+- [x] [CC] Tool allowlist and approval policy (decisions only), voice route/interruption contracts
+- [ ] [O] Manual: open the native key sheet in AURA.app; decide which cloud provider (if any) to try, and approve any cost
+- [ ] [C] Phase 3C-C: conversation UI, provider settings, context preview and privacy controls (see the handoff in the document)
+- [ ] [CC] Phase 3C-B: project-aware conversations and tool execution; 3C-D: real voice (`SFSpeechRecognizer`, `AVSpeechSynthesizer`, CoreAudio route monitor)
 
 ## Phase 3: Real services (native-led)
 
