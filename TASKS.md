@@ -73,7 +73,20 @@ Report and Codex handoff: [docs/PHASE3C_AI_FOUNDATION.md](docs/PHASE3C_AI_FOUNDA
 - [x] [CC] Tool allowlist and approval policy (decisions only), voice route/interruption contracts
 - [ ] [O] Manual: open the native key sheet in AURA.app; decide which cloud provider (if any) to try, and approve any cost
 - [ ] [C] Phase 3C-C: conversation UI, provider settings, context preview and privacy controls (see the handoff in the document)
-- [ ] [CC] Phase 3C-B: project-aware conversations and tool execution; 3C-D: real voice (`SFSpeechRecognizer`, `AVSpeechSynthesizer`, CoreAudio route monitor)
+- [x] [CC] Phase 3C-B: project-aware conversations and tool execution (see below)
+- [ ] [CC] Phase 3C-D: real voice (`SFSpeechRecognizer`, `AVSpeechSynthesizer`, CoreAudio route monitor)
+
+## Phase 3C-B: Astra conversations, project context, read-only tools (branch `claude/phase3c-b-astra-intelligence`, awaiting owner review)
+
+Report and Codex handoff: [docs/PHASE3C_B_ASTRA_INTELLIGENCE.md](docs/PHASE3C_B_ASTRA_INTELLIGENCE.md)
+
+- [x] [CC] Host-owned conversations: provider/repository binding, explicit turn states, one `seq` per reply, cancel, bounded in-memory history
+- [x] [CC] OpenAI-compatible tool calling; read-only GitHub tools with scope, privacy gate, approvals, timeouts and budgets
+- [x] [CC] Context: README and selected files (line ranges), boundary fences, `consent_required`; `github.listFiles`
+- [x] [CC] Contracts, Swift mirror, mock, fixtures, tests; `useReply` hook in `platform/`
+- [ ] [CC] Checkpoint G (QA): Xcode Debug/Release, browser suites with axe, live check in AURA.app (recommended: Sonnet 5.5)
+- [ ] [O] Approve (or not) a hosted-provider test that may cost money; until then hosted inference is unverified
+- [ ] [C] Phase 3C-C: conversation panel, tool activity, approval dialog, context picker, provider settings (handoff §11)
 
 ## Phase 3: Real services (native-led)
 
