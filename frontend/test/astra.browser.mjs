@@ -16,7 +16,7 @@ async function open(options = {}) {
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('request', (request) => { const url = new URL(request.url()); if (['http:', 'https:'].includes(url.protocol) && url.origin !== new URL(baseURL).origin) external.add(url.origin); });
   await page.addInitScript(({ mockModule, options }) => {
-    let ready, counter = 0;
+    let ready, counter = 0, startupBlocked = !!options.failStartup;
     const calls = []; let dropped = false, lostSend = false;
     const request = (host, method, params) => host.send(JSON.stringify({ kind: 'request', v: 1, id: `fixture-${++counter}`, method, params })).then(JSON.parse);
     const hostReady = () => ready ??= import(mockModule).then(async ({ createMockTransport }) => {
@@ -33,12 +33,13 @@ async function open(options = {}) {
         await request(host, 'ai.sendMessage', { conversationId: conversation.conversationId, text: 'Existing host conversation' });
         await new Promise((resolve) => setTimeout(resolve, 300));
       }
-      window.__astraTest = { calls, fail: (method, code) => host.failNext(method, { code, message: 'Test service failure', retryable: true }), emit: (event, payload) => host.emit(event, payload), request: (method, params) => request(host, method, params) };
+      window.__astraTest = { calls, releaseStartup: () => { startupBlocked = false; }, fail: (method, code) => host.failNext(method, { code, message: 'Test service failure', retryable: true }), emit: (event, payload) => host.emit(event, payload), request: (method, params) => request(host, method, params) };
       return host;
     });
     window.webkit = { messageHandlers: { aura: { postMessage: async (json) => {
       const host = await hostReady(), req = JSON.parse(json); calls.push({ method: req.method, params: req.params });
       if (req.method === 'app.getWindowState') return JSON.stringify({ kind: 'response', v: 1, id: req.id, ok: true, result: { active: false, visible: false } });
+      if (startupBlocked && req.method === 'ai.listProviders') return JSON.stringify({ kind: 'response', v: 1, id: req.id, ok: false, error: { code: 'network', message: 'Startup service failure', retryable: true } });
       const result = JSON.parse(await host.send(json));
       if (options.noProviders && req.method === 'ai.listProviders') result.result = [];
       if (options.loseSendReply && !lostSend && req.method === 'ai.sendMessage') { lostSend = true; return JSON.stringify({ kind: 'response', v: 1, id: req.id, ok: false, error: { code: 'timeout', message: 'Lost send reply fixture', retryable: true } }); }
@@ -306,6 +307,25 @@ try {
     await empty.getByText('Add a provider to start a conversation.', { exact: true }).waitFor();
     await empty.locator('.composer-help').getByRole('button', { name: 'Provider settings', exact: true }).click(); await empty.getByRole('heading', { name: 'AI providers', exact: true }).waitFor();
   }); await empty.context().close();
+  const startup = await open({ failStartup: true });
+  await check('Startup failure can be retried without losing the draft or sending automatically', async () => {
+    await startup.getByRole('alert').getByText('The service could not be reached. Check the connection and try again.', { exact: true }).waitFor();
+    await startup.getByLabel('Message Astra', { exact: true }).fill('Preserve this startup draft');
+    await axe(startup, 'startup-error'); await startup.screenshot({ path: path.join(artifacts, 'startup-error.png') });
+    const before = await startup.evaluate(() => window.__astraTest.calls.filter((call) => call.method === 'ai.listProviders').length);
+    await startup.evaluate(() => window.__astraTest.releaseStartup());
+    await startup.getByRole('button', { name: 'Refresh conversation', exact: true }).click();
+    await startup.waitForFunction(() => !document.querySelector('button[aria-label="Send message"]').disabled);
+    assert.ok(await startup.evaluate((before) => window.__astraTest.calls.filter((call) => call.method === 'ai.listProviders').length > before, before));
+    assert.equal(await startup.getByLabel('Message Astra', { exact: true }).inputValue(), 'Preserve this startup draft');
+    assert.equal(await startup.evaluate(() => window.__astraTest.calls.filter((call) => call.method === 'ai.sendMessage').length), 0);
+    await startup.getByRole('button', { name: 'Add context', exact: true }).click();
+    await startup.locator('.privacy-settings summary').click();
+    assert.ok(await startup.getByLabel('Allow workspace context sharing', { exact: true }).isEnabled());
+    await startup.keyboard.press('Escape');
+    await startup.getByRole('button', { name: 'Send message', exact: true }).click(); await idle(startup);
+    assert.equal(await startup.locator('.assistant-markdown').innerText(), '[mock] You said: Preserve this startup draft');
+  }); await startup.context().close();
   const restored = await open({ seed: true, interval: 10 });
   await check('Launch restores existing host-owned conversation history', async () => {
     await restored.getByText('Existing host conversation', { exact: true }).waitFor();

@@ -74,20 +74,31 @@ export function useConversation(zone: ZoneId) {
     finally { if (alive.current && generation === epoch.current) setLoading(false); }
   }, [discardReply, install]);
 
-  useEffect(() => {
-    alive.current = true;
+  const initialize = useCallback(async () => {
     const generation = ++epoch.current;
-    void Promise.all([bridge.call("ai.listProviders", {}), bridge.call("prefs.get", {}), bridge.call("ai.listConversations", {})]).then(async ([list, preferences, history]) => {
+    setLoading(true);
+    try {
+      const [list, preferences, history] = await Promise.all([bridge.call("ai.listProviders", {}), bridge.call("prefs.get", {}), bridge.call("ai.listConversations", {})]);
       if (!alive.current || generation !== epoch.current) return;
       setProviders(list); setPrefs(preferences); setSessions(history);
       const provider = list.find((item) => item.id === preferences.ai.defaultProviderId) ?? list.find((item) => item.available) ?? list[0];
       setProviderId(provider?.id ?? ""); setModel(provider?.defaultModel ?? provider?.models[0] ?? "");
       const last = history.at(-1);
       if (last) await restore(last.conversationId);
-    }).catch((error) => { if (alive.current && generation === epoch.current) setIssue(errorText(error)); })
-      .finally(() => { if (alive.current) setLoading(false); });
-    return () => { alive.current = false; epoch.current++; };
+    } catch (error) { if (alive.current && generation === epoch.current) setIssue(errorText(error)); }
+    finally { if (alive.current && generation === epoch.current) setLoading(false); }
   }, [restore]);
+  useEffect(() => {
+    alive.current = true;
+    void initialize();
+    return () => { alive.current = false; epoch.current++; };
+  }, [initialize]);
+  async function retry() {
+    if (loading || locked.current) return;
+    setIssue(null);
+    if (current.current) await refresh();
+    else await initialize();
+  }
   useBridgeEvent("prefs.changed", setPrefs);
   useBridgeEvent("ai.providersChanged", (list) => {
     const id = current.current?.providerId;
@@ -223,7 +234,7 @@ export function useConversation(zone: ZoneId) {
   const active = !!conversation?.activeStreamId && !activeView?.ended;
   const state = active ? activeView?.state === "idle" || restoring ? conversation?.state ?? "preparing_context" : activeView?.state ?? conversation?.state ?? "idle" : issue ? "error" : visibleTurns.at(-1)?.state ?? "idle";
   return { providers, providerId, model, setProviderId, setModel, sessions, conversation, turns: visibleTurns, view: activeView, context, setContext, prefs, loading, working, stopping, restoring,
-    active, state, issue, setIssue, notice, setNotice, invalidProvider, newConversation, send, cancel, bindRepository, reset, approve, restore, refresh, list };
+    active, state, issue, setIssue, notice, setNotice, invalidProvider, newConversation, send, cancel, bindRepository, reset, approve, restore, refresh, retry, list };
 }
 
 export type ConversationController = ReturnType<typeof useConversation>;
