@@ -15,14 +15,19 @@
     "inspect:avatar": "node ../tools/inspect-glb.mjs ../assets/avatar/community/astra-lumen/astra_lumen_ii_a_rigged_companion_android.glb",
     "test:browser": "node test/studio.browser.mjs",
     "audit:performance": "node test/performance.browser.mjs",
-    "test:github": "node test/github.browser.mjs"
+    "test:github": "node test/github.browser.mjs",
+    "test:astra": "node test/astra.browser.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
+    "highlight.js": "^11.12.0",
+    "lowlight": "^3.3.0",
     "motion": "^14.3.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "three": "^0.186.1"
   },
   "devDependencies": {

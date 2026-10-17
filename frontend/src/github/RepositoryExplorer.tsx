@@ -1,5 +1,5 @@
 import { ArrowIcon } from "../components/Icon.tsx";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ZoneId } from "@aura/contracts";
 import type { GitHubWorkspace } from "./useGitHubWorkspace.ts";
 import { dateLabel, filterRepositories, issueFor } from "./model.ts";
@@ -10,14 +10,6 @@ import { ZoneIcon } from "../components/ZoneIcon.tsx";
 
 export function RepositoryExplorer({ workspace, navigate }: { workspace: GitHubWorkspace; navigate: (zone: ZoneId) => void }) {
   const g = workspace;
-  const sheet = useRef<HTMLElement>(null);
-  useLayoutEffect(() => {
-    const panel = sheet.current, viewport = panel?.closest(".viewport"), dock = viewport?.querySelector(".command-dock");
-    if (!panel || !viewport || !dock) return;
-    const measure = () => { panel.style.bottom = `${Math.max(62, viewport.getBoundingClientRect().bottom - dock.getBoundingClientRect().top + 18)}px`; };
-    const observer = new ResizeObserver(measure); observer.observe(dock); observer.observe(viewport); measure();
-    return () => observer.disconnect();
-  }, []);
   const [query, setQuery] = useState("");
   const [language, setLanguage] = useState("");
   const [sort, setSort] = useState<RepositorySort>("activity");
@@ -41,7 +33,7 @@ export function RepositoryExplorer({ workspace, navigate }: { workspace: GitHubW
   const languages = useMemo(() => [...new Set(g.repos.flatMap((r) => r.primaryLanguage ? [r.primaryLanguage] : []))].sort(), [g.repos]);
   const visible = filterRepositories(g.repos, query, language, sort, g.metadata);
   const connected = g.auth?.state === "connected" || g.auth?.state === "rate_limited" || (g.auth?.state === "error" && g.auth.reason === "network" && g.repos.length > 0);
-  return <section ref={sheet} className="github-explorer glass" aria-labelledby="explorer-heading">
+  return <section className="github-explorer glass" aria-labelledby="explorer-heading">
     <header className="explorer-heading"><div><span className="eyebrow">GITHUB / PROJECT COLLECTION</span><h1 id="explorer-heading">Your code, <em>in context.</em></h1></div><button aria-label="Return to 3D overview" onClick={() => navigate("studio")}><ZoneIcon zone="studio" size={16} />3D overview</button></header>
     <div className="explorer-scroll">
       <GitHubConnection workspace={g} />

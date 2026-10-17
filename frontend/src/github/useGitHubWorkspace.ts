@@ -27,6 +27,7 @@ export function useGitHubWorkspace(zone: ZoneId, navigate: (zone: ZoneId) => voi
   const [suggestions, setSuggestions] = useState<ProjectZoneSuggestion[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState("");
+  const [selectedBranches, setSelectedBranches] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, ProjectDraft>>({});
   const [metadata, setMetadata] = useState<Record<string, RepositoryDetail>>({});
   const metadataRef = useRef(metadata);
@@ -43,7 +44,7 @@ export function useGitHubWorkspace(zone: ZoneId, navigate: (zone: ZoneId) => voi
 
   const clear = useCallback(() => {
     epoch.current++; pageRequest.current++; pageBusy.current = false;
-    syncSelection.current = true; setProjectsReady(false); setRepos([]); setProjects([]); setSuggestions([]); setSelected(""); setDrafts({}); setDismissed(new Set());
+    syncSelection.current = true; setProjectsReady(false); setRepos([]); setProjects([]); setSuggestions([]); setSelected(""); setSelectedBranches({}); setDrafts({}); setDismissed(new Set());
     setMetadata({}); metadataRef.current = {}; pendingMetadata.current.clear();
     setNextCursor(null); setIssue(null); setProjectIssue(null); setLoading(false); setLoadingMore(false);
   }, []);
@@ -168,6 +169,8 @@ export function useGitHubWorkspace(zone: ZoneId, navigate: (zone: ZoneId) => voi
     pendingMetadata.current.set(id, request); return request;
   }, []);
   return { auth, authIssue, issue, projectIssue, busy: busy || projectBusy, canRead, loading, loadingMore, repos, projects, projectsReady, selected, select,
+    selectedBranches, selectedBranch: selectedBranches[selected] ?? repos.find((repo) => repo.fullName === selected)?.defaultBranch ?? "",
+    setBranch: (id: string, branch: string) => setSelectedBranches((current) => ({ ...current, [id]: branch })),
     drafts, setDrafts, metadata, loadRepository, revision, epoch: epoch.current, nextCursor, failure, sessionFailure,
     suggestions: suggestions.filter((s) => !dismissed.has(s.id) && !projects.some((p) => p.id === s.id && p.zone)),
     dismiss: (id: string) => setDismissed((current) => new Set([...current, id])), updateProject,

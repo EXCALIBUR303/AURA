@@ -8,7 +8,7 @@ import type { GitHubWorkspace, ProjectDraft } from "../github/useGitHubWorkspace
 import { RepositoryDetails } from "../github/RepositoryDetails.tsx";
 import { issueFor } from "../github/model.ts";
 
-export function Inspector({ zone, navigate, workspace: g }: { zone: ZoneId; navigate: (zone: ZoneId) => void; workspace: GitHubWorkspace }) {
+export function Inspector({ zone, navigate, workspace: g, useInConversation, close }: { zone: ZoneId; navigate: (zone: ZoneId) => void; workspace: GitHubWorkspace; useInConversation?: () => void; close?: () => void }) {
   const [scope, setScope] = useState<"all" | "zone" | "pinned">("all");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export function Inspector({ zone, navigate, workspace: g }: { zone: ZoneId; navi
   }
   return <aside className="inspector glass" aria-labelledby="inspector-heading">
     <div className="rail-heading"><span className="eyebrow">{zone === "studio" ? "WORKSPACE" : station.label}</span><span className="rail-symbol"><ZoneIcon zone={zone} size={22} /></span></div>
-    <h2 id="inspector-heading">Workstation inspector</h2><p className="muted compact">Your projects, close at hand.</p>
+    <div className="section-heading"><h2 id="inspector-heading">Workstation inspector</h2>{close && <button onClick={close} aria-label="Close project inspector">×</button>}</div><p className="muted compact">Your projects, close at hand.</p>
     <div className="data-label">{bridge.transportKind === "mock" ? "Mock bridge · sample data" : "Native GitHub bridge"}</div>
     <div className="inspector-connection"><span>{g.auth && "account" in g.auth ? `@${g.auth.account.login} · ${g.auth.state === "rate_limited" ? "Rate limited" : "GitHub connected"}` : g.auth?.state === "authorizing" ? "Waiting for GitHub authorization" : "GitHub not connected"}</span><button onClick={() => navigate("github")}>Manage GitHub</button></div>
     {g.projectIssue && <p role="alert" className="inline-error">Project assignments or suggestions are unavailable. {g.projectIssue.text}<button disabled={g.busy || !g.canRead} onClick={() => void g.refresh()}>Retry projects</button></p>}
@@ -63,6 +63,7 @@ export function Inspector({ zone, navigate, workspace: g }: { zone: ZoneId; navi
         <button className="browse-projects" onClick={() => navigate("github")}>Browse and search repositories <ArrowIcon /></button>
       </section>
       {repo && <>
+        {useInConversation && <button className="ui-button use-project-context" disabled={!g.canRead} onClick={useInConversation}>Use project in conversation <ArrowIcon /></button>}
         {record?.zone && record.zone !== zone && !["studio", "github", "companion"].includes(zone) && <p className="compact muted selected-project-context">Selected project: {getZone(record.zone).label}. Assign it here or visit its saved workstation below.</p>}
         <RepositoryDetails key={`${g.epoch}:${repo.fullName}`} workspace={g} repo={repo} />
         <form className="project-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
