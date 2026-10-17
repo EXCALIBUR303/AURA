@@ -1,8 +1,9 @@
 # Phase 3C-C — Astra experience
 
-Current checkpoint: **Phases 3–6 are complete locally. Next: Phase 7 final
-integration and handoff, GPT-6.1 Sol HIGH.** Keep this branch and completed work.
-Native acceptance remains pending. Nothing is pushed or merged.
+Current checkpoint: **Phases 0–7 frontend work is complete locally and ready for
+review and native Mac validation.** Native acceptance remains pending. Nothing is
+pushed or merged. The Phase 7 section below is the current release handoff; earlier
+sections retain the design and verification history.
 
 ## Design checkpoint: Phases 1–2
 
@@ -427,3 +428,284 @@ Native Mac acceptance listed above remains pending. Cloud screenshots and mock-h
 tests do not establish live inference, Keychain behaviour, VoiceOver/WebKit behaviour
 or the Mac M5 ≥55 fps target. The outstanding-approval snapshot limitation still
 requires the documented Stop/send-again recovery until the native contract changes.
+
+## Phase 7 — final integration and Claude Code handoff
+
+**Readiness:** frontend implementation and cloud verification complete; native
+acceptance and release approval pending. Stop after this handoff. No voice phase,
+push or merge is authorized.
+
+- Repository: <https://github.com/EXCALIBUR303/AURA>
+- Feature branch: `codex/phase3c-c-astra-experience` (local; awaiting push approval).
+- Native base: `8519fdefac1da9ff9b4987503ac66a228e157136`, verified ancestor.
+- Design: `8e4087bfcf6cc3e977269f72b6a981a233ccf8c8`.
+- Production implementation: `24b6a0b3cf4663baee9a1ca93ad86cd144b4ca81`.
+- Narrow focus correction: `2639512a5da6d1226c6c041030a2b7a842a57617`.
+- Final design audit: `e4b534e6718b17ceffd22ccfd1c1fb4c6c4a570e`.
+- Final functional code: `6beade13b305600823355d702beeb585ef89573f`.
+- The subsequent documentation-only checkpoint completes this handoff. Obtain its
+  exact branch-tip hash with `git rev-parse HEAD`; it is also in the owner's report.
+
+### Final integration correction and verification
+
+A failed initial provider read left no conversation id. The previous Refresh action
+only refreshed an existing conversation, so it cleared the error without retrying
+initialization. The final correction reuses the same provider/preferences/history
+initializer for an explicit retry when no conversation exists. It preserves the
+draft, guards stale completion and does not create a conversation or send a message
+automatically. Existing conversations continue to refresh their native snapshots.
+Only `companion/useConversation.ts`, `CompanionWorkspace.tsx` and the Astra browser
+test changed in this correction. Native/shared/platform code is untouched.
+
+| Verification | Evidence and result |
+| --- | --- |
+| TypeScript | Passed: `tsc -p tsconfig.json && tsc -p tsconfig.node.json`, rerun in Phase 7 build |
+| Bridge integration | Rerun Phase 7: 16 tests, 16 pass, 0 fail/cancelled/skipped/todo |
+| Production build | Rerun Phase 7: 1,059 modules; passed with no chunk warning |
+| Astra browser integration | Rerun Phase 7: **28/28 passed, zero skipped**, including startup recovery; `phase7-astra/results.json` |
+| GitHub regression | Phase 6: **23/23 passed, zero skipped**; `phase6-github/github-results.json` |
+| Studio regression | Phase 6 unfiltered: **28/28 passed, zero skipped**; `phase6-studio/results.json` |
+| Accessibility | Current evidence: 7 Phase 7 Astra + 7 Phase 6 GitHub + 2 Phase 6 studio scans = **16 scans, zero violations** |
+| Session lifecycle | Phase 7 targeted check: Keep preserves history, Reset clears it, End removes the session; exactly one start/send/reset/end native-shaped call each; `phase7-lifecycle/results.json` |
+| Production CSP/asset smoke | Phase 7 Chromium with the exact `AppSchemeHandler` CSP applied over HTTP: all three lazy UI chunks loaded; original GLB/72-joint rig/`Idle02_F` loaded; one canvas; zero page/HTTP/CSP errors or external requests; `phase7-production/results.json` |
+| Ownership and asset | Native base retained; no shared/native/platform/original-asset diff; source and built GLB both match the original SHA-256 |
+| Introduced credentials/binaries | No tracked GLBs or newly added credential files. Targeted scans of added lines found no private-key, GitHub-token or provider-key patterns. This is not a whole-history security audit. |
+
+The full GitHub/studio runs were not repeated after the isolated startup-retry fix.
+Their components/rendering code are unchanged; the rerun Astra suite covers normal
+initialization, existing session restore, layout preservation, streams, source
+consent and the new recovery path. The additional lifecycle and production checks
+cover the final code. No unexplained cloud test failures remain.
+
+Final initial JS: **1,357.99 kB / 377.24 kB gzip**. CSS: **55.72 / 12.06**; lazy
+Markdown: **214.36 / 66.18**; context: **11.02 / 3.72**; providers: **8.55 / 2.87**.
+Across this entire frontend phase, the four justified Markdown/syntax dependencies
+added 104 lock entries, removed none and changed no existing locked versions.
+
+The fresh production sample was **5 fps, 14 draw calls, 79,802 triangles, DPR 1**
+on Chromium/ANGLE/SwiftShader software rendering. This is diagnostic evidence only.
+It does not revalidate the earlier native 60 fps results or the M5 ≥55 fps target.
+The native `aura://` scheme, native key sheet and real inference were not exercised
+by the HTTP CSP check.
+
+### Acceptance accounting
+
+| Owner's criterion | Frontend evidence / remaining native acceptance |
+| --- | --- |
+| Distinctive premium interface | Completed design system and production visual audit; warm light surfaces, evergreen text, restrained teal actions and cobalt focus. Final appearance in WKWebView remains pending. |
+| Astra integrated visually | Original model visible beside conversation, one canvas, real focus camera and exact previous-pose restoration. Browser passed; native pending. |
+| Interactive conversation | Compact/expanded/focus, resizing, drafts, session history, bounded code and controls verified. Native UI walkthrough pending. |
+| Actual native AI integration | Existing typed native methods/events are used; native implementation and contracts preserved. Native-shaped mock tests passed; actual new UI with native services **pending**. |
+| Streaming, cancellation and errors | Early events, missing events, lost send reply, Stop, partial output and startup recovery passed browser checks. Actual provider/native timing pending. |
+| Visible, controllable project context | Explicit repository/branch confirmation, file/range selection, exact preview, notes and privacy controls passed. Actual GitHub/private source integration pending. |
+| Native security/tool policy preserved | Host remains authoritative; no credentials in frontend inputs or shared contract changes. Consent paths passed mock checks; human native approval and live provider checks pending. |
+| Core visible controls work | Browser suites plus Keep/Reset/End smoke cover core workflows and recovery. Native menus, key-sheet cancellation, external links and VoiceOver still need Mac validation. |
+| Studio usable and performant | All six zones, picking, orbit/zoom/reset, lifecycle/recovery and original rig passed browser regression. Comparable Apple GPU performance **pending**. |
+| Accessibility and reduced motion | 16 zero-violation axe scans, keyboard/focus checks and existing motion overrides preserved. System settings, VoiceOver and WebKit verification pending. |
+| Typical Mac laptop windows | Browser layouts exercised at 1100×700, 1280×800, 1440×900 and 1728×1117. Actual Mac window sizing/traffic lights/title-bar interaction pending. |
+| Required build/automated tests | Frontend checks passed as recorded above. Swift/Xcode tests not run in Linux. |
+| Missing live/native evidence disclosed | Explicitly pending here; prior native results are historical baseline evidence only. |
+
+This is a completed frontend handoff, not full native acceptance or approval to ship.
+
+### Implementation, motion and files
+
+The final component/interaction inventory is in the production checkpoint above and
+`frontend/design/ASTRA_EXPERIENCE.md`. Model output uses React AST Markdown, local
+grammars, explicit Wrap/Copy and no raw HTML or automatically fetched images.
+Provider checks request model lists only; keys are entered through the native sheet.
+Text streaming does not fabricate speech, lip sync, facial morphs or extra clips.
+
+Motion remains restrained: existing camera transitions, workstation instance-colour
+hover feedback, control colour changes, a 160ms dialog entry and a 140ms tool
+chevron rotation. System/native Reduce Motion disables optional UI transitions and
+camera easing; Reduce Transparency removes applicable translucent effects. No new
+lights, geometry, shadows, postprocessing or duplicated avatar/canvas were added.
+
+All paths changed since the native base:
+
+```text
+TASKS.md
+designs/design-system/tokens.css
+docs/PHASE3C_C_ASTRA_EXPERIENCE.md
+frontend/astra-design.html
+frontend/design/ASTRA_EXPERIENCE.md
+frontend/package.json
+frontend/package-lock.json
+frontend/src/App.tsx
+frontend/src/experience.css
+frontend/src/companion/ApprovalDialog.tsx
+frontend/src/companion/CompanionWorkspace.tsx
+frontend/src/companion/ContextDialog.tsx
+frontend/src/companion/Markdown.tsx
+frontend/src/companion/ProviderSettings.tsx
+frontend/src/companion/useConversation.ts
+frontend/src/components/Inspector.tsx
+frontend/src/components/ui.tsx
+frontend/src/design-preview/AstraDesignPreview.tsx
+frontend/src/design-preview/main.tsx
+frontend/src/design-preview/preview.css
+frontend/src/github/RepositoryDetails.tsx
+frontend/src/github/RepositoryExplorer.tsx
+frontend/src/github/useGitHubWorkspace.ts
+frontend/src/studio/Studio.tsx
+frontend/src/studio/World.tsx
+frontend/src/studio/diagnostics.ts
+frontend/src/studio/useStudio.ts
+frontend/test/astra.browser.mjs
+frontend/test/design.browser.mjs
+frontend/test/github.browser.mjs
+frontend/test/studio.browser.mjs
+```
+
+### Screenshot review
+
+Cloud-only artifacts are outside Git; no binary screenshots are committed. These
+links work in the current Codex workspace and will not appear in a Git checkout:
+
+- Overall studio: [baseline](/workspace/aura-phase3c-c/phase0/studio-1440.png) →
+  [refined studio](/workspace/aura-phase3c-c/phase6-production/studio-1440.png).
+- Conversation: [baseline](/workspace/aura-phase3c-c/phase0/companion-1440.png) →
+  [expanded](/workspace/aura-phase3c-c/phase6-production/expanded-1440.png) and
+  [final production focus](/workspace/aura-phase3c-c/phase7-production/focus-1440.png).
+- Minimum-window inspector: [before audit](/workspace/aura-phase3c-c/production-review/project-details-1100.png) →
+  [after audit](/workspace/aura-phase3c-c/phase6-production/inspector-1100.png).
+- [Context](/workspace/aura-phase3c-c/phase6-production/context-1440.png),
+  [providers](/workspace/aura-phase3c-c/phase6-production/providers-1440.png),
+  [mock native consent](/workspace/aura-phase3c-c/phase7-astra/consent.png), and
+  [startup error](/workspace/aura-phase3c-c/phase7-astra/startup-error.png).
+
+### Exact Mac M5 validation instructions for Claude Code
+
+These are **pending instructions**, not commands executed in this cloud environment.
+First wait for the owner to approve the GitHub push and for the feature branch to
+exist on origin. Preserve the Mac's current working changes. In a clean validation
+checkout, use a new review branch; if that name already exists, choose a new name
+instead of resetting it:
+
+```bash
+cd /Users/sid/Developer/AURA
+git status --short
+git fetch origin codex/phase3c-c-astra-experience
+git switch --create review/phase3c-c-native --track origin/codex/phase3c-c-astra-experience
+git rev-parse HEAD
+git merge-base --is-ancestor 6beade13b305600823355d702beeb585ef89573f HEAD
+git merge-base --is-ancestor 8519fdefac1da9ff9b4987503ac66a228e157136 HEAD
+```
+
+Use Node ≥23.6 and full Xcode. The ignored original GLB must be present before the
+production build; for a separate checkout copy it from the existing Mac asset path
+as described in `docs/ASSETS.md`. Preserve `CREDITS.txt` and the existing public
+symlink. Expected SHA-256:
+`e9984ddc7e04a1b39d72f5ab5e1ba9fe459fc42e773f851bf52068b357eb76c1`.
+
+```bash
+node --version
+xcode-select -p
+shasum -a 256 assets/avatar/community/astra-lumen/astra_lumen_ii_a_rigged_companion_android.glb
+npm --prefix frontend ci
+npm --prefix frontend run inspect:avatar
+npm --prefix frontend run typecheck
+npm --prefix frontend test
+tools/swift-test.sh
+```
+
+Development: in terminal 1 run `npm --prefix frontend run dev`. In terminal 2 run:
+
+```bash
+AURA_DEV_SERVER_URL=http://127.0.0.1:5173 swift run --package-path macos AuraApp
+```
+
+Confirm the native bridge, not the browser mock. Check New, draft preservation,
+Enter/Shift+Enter/IME entry, Send, Stop, partial cancellation, history restore,
+Keep/Reset/End, focus and exact previous camera restoration. Test all four desktop
+sizes and the six zones. Verify context controls, explicit binding and source preview,
+provider settings, the real secure sheet including cancellation, and model-list
+checks. Confirm loading/disconnected/empty/error/rate-limit recovery without treating
+a saved configuration or model-list success as successful inference.
+
+Quit the dev app before opening the Release build. Build and open the packaged app:
+
+```bash
+tools/build-app.sh
+open macos/.build/xcode/Build/Products/Release/AURA.app
+```
+
+Repeat the key workflows under `aura://app/`, including opening all three lazy
+chunks (Markdown reply, context and provider settings). Verify bundled GLB loading,
+visible full attribution, CSP/network errors, native menus/shortcuts, external links,
+title-bar dragging, focus return, VoiceOver and system Reduce Motion/Transparency.
+The unbundled executable and sandboxed app have separate data/Keychain containers;
+configure the appropriate test account/provider rather than expecting shared state.
+
+Use the built-in mock through the **real native bridge** first; that verifies UI
+transport, not live AI or tool execution. Then use an already available local
+OpenAI-compatible runtime and accessible test repository. Exercise real source
+tools, provider failure/cancellation and human consent. A hosted private-source
+consent run needs an approved provider, key and cost authorization. If unavailable,
+leave it pending. Never put a key in commands, files, logs or the web form.
+
+For native performance, quit the existing app and launch the Release executable
+with the existing six-zone probe; keep its window visible and frontmost:
+
+```bash
+AURA_DEV_PROBE=1 AURA_DEV_PROBE_SAMPLE_MS=5000 \
+  macos/.build/xcode/Build/Products/Release/AURA.app/Contents/MacOS/AURA
+# In another terminal after the probe completes:
+/usr/bin/log show --last 10m --info \
+  --predicate 'subsystem == "com.aura.app" AND category == "probe"'
+```
+
+Record exact branch-tip commit, machine/OS/Xcode, build mode, viewport, renderer,
+actual DPR, per-zone fps/p95/p99/max frame time, draw calls/triangles and long tasks.
+Repeat a comparable sample while a long reply streams with Markdown/code and while
+switching compact/expanded/focus. Verify ≥55 fps acceptance (target 60), visible
+inactive throttling and hidden suspension. Preserve adaptive DPR and disclose actual
+values; do not relabel reduced DPR as 2. The existing probe also creates/deletes a
+throwaway Keychain self-test item without logging its value.
+
+**Optional soak probe needs a native maintenance update before use.**
+`DevProbe.soak` still calls the `HTMLInputElement` value setter on
+`#companion-prompt`, now a textarea, and counts old `.reply` selectors. Claude should
+use the textarea/native-value setter and current `.conversation-turn` or
+`.assistant-markdown` selectors, then validate the probe. Do not run or report the
+old `AURA_DEV_SOAK_MINUTES` path as a successful conversation soak. The six-zone
+sampler above uses diagnostics/native commands and is unaffected. This request is
+also recorded in `TASKS.md`; Codex did not edit the native probe.
+
+Optional browser regression on the Mac can use external test tools (no project
+dependency edits). With the Vite server running in terminal 1:
+
+```bash
+AURA_BROWSER_TOOLS=$(mktemp -d /tmp/aura-browser.XXXXXX)
+npm install --prefix "$AURA_BROWSER_TOOLS" --no-save playwright@1.64.1 @axe-core/playwright@4.14.0
+"$AURA_BROWSER_TOOLS/node_modules/.bin/playwright" install chromium
+export AURA_PLAYWRIGHT_MODULE="$AURA_BROWSER_TOOLS/node_modules/playwright/index.mjs"
+export AURA_AXE_MODULE="$AURA_BROWSER_TOOLS/node_modules/@axe-core/playwright/dist/index.mjs"
+# Leave AURA_SOFTWARE_GPU and AURA_CHROMIUM_PATH unset on this Mac.
+AURA_ARTIFACTS=/tmp/aura-phase3c-c-astra npm --prefix frontend run test:astra
+AURA_ARTIFACTS=/tmp/aura-phase3c-c-github npm --prefix frontend run test:github
+AURA_ARTIFACTS=/tmp/aura-phase3c-c-studio npm --prefix frontend run test:browser
+```
+
+Do not treat Chromium results as WKWebView results. Attach a Mac validation report
+with pass/fail/pending entries, sanitized screenshots and actual performance samples
+to the review branch. Keep hosted inference, private-source approval and any other
+unavailable prerequisites pending rather than claiming acceptance.
+
+### Remaining limitations and next action
+
+1. Reloading a pending approval cannot reconstruct its payload/sequence from the
+   current native snapshot. Stop/send again remains the safe recovery; the atomic
+   snapshot extension is requested in `TASKS.md`.
+2. Session history is intentionally in memory. No durable history or content search.
+3. Only the OpenAI-compatible adapter and built-in mock are implemented. Small local
+   model tool reliability and all hosted inference remain unverified by this phase.
+4. The native soak helper needs the selector maintenance above. The architecture
+   stack-table update for the four frontend dependencies remains Claude-owned.
+5. Native UI/security/Keychain/VoiceOver/CSP/packaging and M5 performance acceptance
+   remain pending on the final frontend branch. Voice remains unavailable.
+
+Next action: owner reviews this completed frontend branch, then explicitly approves
+push if desired. Claude Code validates the same committed code on the Mac and records
+the native outcomes. No further redesign or Phase 3C-D work is included.
