@@ -68,6 +68,16 @@ try {
     await page.getByText('Start with the work', { exact: false }).waitFor();
     assert.ok(await page.getByText('Text conversation · Voice unavailable', { exact: true }).isVisible());
     assert.equal(await page.getByRole('button', { name: /start listening|talk with astra|microphone/i }).count(), 0);
+    await page.setViewportSize({ width: 1100, height: 700 });
+    const transcript = page.locator('.conversation-transcript');
+    assert.equal(await transcript.evaluate((node) => node.scrollTop), 0, 'the welcome view must start at its heading');
+    assert.ok((await page.locator('.large-astra').boundingBox()).y >= (await transcript.boundingBox()).y);
+    await page.getByRole('button', { name: 'Think through the next step', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await page.getByLabel('Message Astra', { exact: true }).inputValue(), 'Think through the next step');
+    assert.ok(await page.locator('.conversation-composer form').evaluate((node) => getComputedStyle(node).outlineStyle !== 'none'));
+    await page.getByLabel('Message Astra', { exact: true }).fill('');
+    await page.setViewportSize({ width: 1440, height: 900 });
     await axe(page, 'empty'); await page.screenshot({ path: path.join(artifacts, 'empty.png') });
   });
   await check('Events preceding the send reply are retained through the existing reply folder', async () => {
@@ -115,10 +125,18 @@ try {
     await page.screenshot({ path: path.join(artifacts, 'tool-activity.png') });
   });
   await check('Markdown renders safe code, supports wrap/copy, and makes no remote asset request', async () => {
-    const text = 'Markdown safety\n\n```ts\nexport const value: string = "mock";\n```\n\n![Remote image](https://image.invalid/probe.png)\n<script>window.__unsafe = true</script>\n[Unsafe](javascript:alert(1))';
+    const code = Array.from({ length: 32 }, (_, index) => `export const value${index}: string = "mock";`).join('\n');
+    const text = `Markdown safety\n\n\`\`\`ts\n${code}\n\`\`\`\n\n![Remote image](https://image.invalid/probe.png)\n<script>window.__unsafe = true</script>\n[Unsafe](javascript:alert(1))`;
     await send(page, text); await idle(page);
     const block = page.locator('.code-block').last(); assert.ok((await block.locator('code').innerText()).includes('export const value'));
     await block.getByRole('button', { name: 'Wrap', exact: true }).click(); assert.equal(await block.locator('pre').evaluate((node) => getComputedStyle(node).whiteSpace), 'pre-wrap');
+    const pre = block.locator('pre');
+    assert.ok(await pre.evaluate((node) => node.scrollHeight > node.clientHeight && node.clientHeight < innerHeight / 2), 'long code must have a bounded reading area');
+    await pre.focus(); await page.keyboard.press('ArrowDown');
+    await page.waitForFunction(() => [...document.querySelectorAll('.code-block pre')].at(-1).scrollTop > 0);
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await block.getByRole('button', { name: 'Copy code', exact: true }).click();
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), code);
     assert.equal(await page.locator('.assistant-markdown img').count(), 0); assert.equal(await page.locator('.assistant-markdown a[href^="javascript:"]').count(), 0);
     assert.equal(await page.evaluate(() => window.__unsafe), undefined);
     await axe(page, 'conversation'); await page.screenshot({ path: path.join(artifacts, 'markdown.png') });

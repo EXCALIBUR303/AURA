@@ -1,9 +1,8 @@
 # Phase 3C-C — Astra experience
 
-Current checkpoint: **Phases 3–4 implementation and Phase 5 functional/accessibility
-QA are complete locally. Phase 6 design audit is next: GPT-6 Astra EXTRA HIGH.** Keep
-this branch and completed work. Phases 6–7 and native acceptance remain pending.
-Nothing is pushed or merged.
+Current checkpoint: **Phases 3–6 are complete locally. Next: Phase 7 final
+integration and handoff, GPT-6.1 Sol HIGH.** Keep this branch and completed work.
+Native acceptance remains pending. Nothing is pushed or merged.
 
 ## Design checkpoint: Phases 1–2
 
@@ -321,11 +320,10 @@ npm --prefix frontend run test:github
 npm --prefix frontend run test:browser
 ```
 
-Phase 5 QA is complete on this branch. Switch manually to **GPT-6 Astra, EXTRA HIGH**
-for Phase 6: inspect the corrected 1100×700 focus framing, long transcripts and
-dialog transitions, then make visual refinements without replacing native services.
-After that, follow the owner's Sol High Phase 7 integration checkpoint. No push or
-merge is approved.
+At the Phase 5 checkpoint, the next scheduled step was the **GPT-6 Astra, EXTRA HIGH**
+design audit of narrow focus framing, long transcripts and dialog transitions.
+That audit is recorded in the Phase 6 section below. The owner's Sol High Phase 7
+integration checkpoint follows it. No push or merge is approved.
 
 Native Mac validation remains pending for:
 
@@ -345,3 +343,87 @@ Native Mac validation remains pending for:
 The current native snapshot limitation, local-model tool reliability, session-only
 history, unsupported content search and unavailable voice are disclosed limitations,
 not implemented capabilities. Phase 3C-D voice work has not started.
+
+## Phase 6 — final design audit
+
+This pass starts from Phase 5 commit
+`2639512a5da6d1226c6c041030a2b7a842a57617` on the same feature branch. It refines
+production components, preserving the existing spatial composition and native
+integration. No scene, native service, bridge contract, dependency or asset changed.
+
+### Findings and corrections
+
+| Observed issue | Completed refinement |
+| --- | --- |
+| Opening an empty conversation followed a nonexistent message tail, clipping the welcome mark. The mark and eyebrow also competed on one line. | Empty conversations now start at the top, including after host restoration. The mark, eyebrow and heading have separate rows and reduced vertical spacing. Suggestions remain keyboard reachable at 1100×700. |
+| Long generated code occupied an unbounded transcript area. | Code has a bounded, independently scrollable reading area with an inset keyboard focus ring. Wrap, full-text Copy and streaming controls are preserved. |
+| At 1100px the full-width inspector stacked a duplicate project list above the selected repository. | The inspector uses a fixed summary, a 260px project list and a separate scrolling detail column. Repository details open above the fold; notes survive closing/reopening the inspector. The close action uses the shared icon button. |
+| Composer focus drew nested outlines; the compact status label disappeared at smaller window widths. | Focus surrounds the composer as one control group. Readable status remains visible at the minimum size. Approval and tool states retain text and use distinct restrained indicator colours. |
+| Expanded tool details had the same disclosure direction as collapsed details. | The chevron follows open state with a short rotation, covered by the existing Reduce Motion override. |
+
+The review retained the warm light surfaces, evergreen typography, original room,
+visible Astra, and compact/expanded/focus relationships. Fresh context and provider
+dialogs, long transcripts, source disclosures and consent were inspected. No
+additional decorative effects or scene complexity were justified.
+
+### Changed files and evidence
+
+- `frontend/src/companion/CompanionWorkspace.tsx`: empty-view scroll handling only.
+- `frontend/src/components/Inspector.tsx`: layout containers and shared close button.
+- `frontend/src/experience.css`: the visual changes above.
+- `frontend/test/astra.browser.mjs`: welcome positioning, keyboard suggestions and
+  composer focus, bounded code scrolling and complete clipboard output.
+- `frontend/test/github.browser.mjs`: minimum-window detail placement, keyboard
+  close, preserved notes and an additional inspector accessibility scan.
+- This document and an append-only `TASKS.md` checkpoint.
+
+Evidence is stored outside Git under `/workspace/aura-phase3c-c/`. Before/after
+comparisons use the following artifacts; they contain only labelled mock data.
+
+| View | Before this audit | After this audit |
+| --- | --- | --- |
+| Expanded welcome, 1440×900 | `production-review/expanded-empty-1440.png` | `phase6-production/expanded-1440.png` |
+| Project inspector, 1100×700 | `production-review/project-details-1100.png` | `phase6-production/inspector-1100.png` |
+| Focus conversation | `production-final/focus-code-1440.png` | `phase6-production/focus-code-1440.png` (longer code sample) |
+
+Additional captures in `phase6-production` show the 1100px welcome and focus views,
+1440px studio/inspector, and fresh context/provider dialogs. The Astra/GitHub test
+screenshots use a simulated native transport with the window deliberately hidden
+to suspend software rendering; those blank canvases are not studio-render evidence.
+Use the production captures and studio suite for actual room/GLB rendering.
+
+### Phase 6 verification results — 2026-10-17
+
+| Check | Result |
+| --- | --- |
+| `npm --prefix frontend run typecheck` (also invoked by build) | Passed, app and Node configurations |
+| `npm --prefix frontend test` | 16 passed; 0 failed, cancelled, skipped or todo |
+| `npm --prefix frontend run build` | Passed, 1,059 modules, no chunk warning |
+| Astra browser suite | 27 passed, 0 skipped; `phase6-astra/results.json` |
+| GitHub browser suite | 23 passed, 0 skipped; `phase6-github/github-results.json` |
+| Studio browser suite, unfiltered | 28 passed, 0 skipped; `phase6-studio/results.json` |
+| axe WCAG A/AA scans | 15 scans (6 Astra, 7 GitHub, 2 studio), 0 violations |
+| Production capture/smoke | Original GLB and `Idle02_F` loaded, one canvas, 0 page errors and 0 failed HTTP responses; `phase6-production/results.json` |
+| Asset/ownership | Original GLB SHA-256 unchanged; no diff from native base in `shared/**`, `macos/**`, `frontend/src/platform/**` or `assets/**` |
+
+The final build contains initial JS **1,357.84 kB / 377.21 kB gzip**, CSS **55.72 /
+12.06**, Markdown **214.36 / 66.18**, context **11.02 / 3.72**, and providers **8.55 /
+2.87**. This pass added no dependencies. The refreshed full studio run includes
+avatar rig/idle, navigation, camera restoration, keyboard interaction, project
+persistence, context loss and missing-model/WebGL recovery.
+
+The production diagnostic sample was **2 fps, 14 draw calls, 79,802 scene triangles,
+DPR 1**, on ANGLE/SwiftShader software rendering. The studio suite was running
+concurrently; this is rendering evidence, not a comparative performance benchmark.
+No 3D rendering code changed in Phase 6. Mac M5 performance was **not revalidated**.
+
+Phase 6 is complete. Stop here for the manual switch to **GPT-6.1 Sol HIGH**.
+Phase 7 should use this branch and current evidence for final integrated review,
+remaining acceptance accounting and the Claude Code native validation handoff.
+Repeat checks only when changes, failures or unresolved concerns require it. Do not
+restart implementation, push/merge without approval, or begin Phase 3C-D voice.
+
+Native Mac acceptance listed above remains pending. Cloud screenshots and mock-host
+tests do not establish live inference, Keychain behaviour, VoiceOver/WebKit behaviour
+or the Mac M5 ≥55 fps target. The outstanding-approval snapshot limitation still
+requires the documented Stop/send-again recovery until the native contract changes.

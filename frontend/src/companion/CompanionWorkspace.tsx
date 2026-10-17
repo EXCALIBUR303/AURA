@@ -43,9 +43,11 @@ export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayo
   const activeText = c.turns.at(-1)?.replyText;
   useLayoutEffect(() => {
     if (!scroll.current || layout === "compact" || !visible) return;
+    // The welcome view starts at its heading; only message history follows a tail.
+    if (!c.turns.length) { scroll.current.scrollTop = 0; follow.current = true; setUnseen(false); return; }
     if (follow.current) { scroll.current.scrollTop = scroll.current.scrollHeight; setUnseen(false); }
     else setUnseen(true);
-  }, [activeText, c.turns.length, layout, visible]);
+  }, [activeText, c.turns.length, c.loading, layout, visible]);
   useLayoutEffect(() => {
     if (scroll.current && layout !== "compact" && !follow.current) scroll.current.scrollTop = savedScroll.current;
   }, [layout]);
