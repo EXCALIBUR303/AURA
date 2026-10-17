@@ -2,7 +2,7 @@
 
 Claude Code's native validation of Codex's Astra experience in the real `AURA.app` on the owner's Mac. Codex's frontend handoff is [PHASE3C_C_ASTRA_EXPERIENCE.md](PHASE3C_C_ASTRA_EXPERIENCE.md). This report covers what ran on the Mac. Codex's cloud evidence is not repeated here.
 
-**Status: checkpoint 1 of 2 (Opus 5.5 High: native integration, security, debugging).** Defects found are fixed and committed on the review branch. The final regression pass, report completion and GitHub handoff are the next checkpoint (Sonnet 5.5 Medium).
+**Status: complete, awaiting the owner's review.** Checkpoint 1 (Opus 5.5 High) did the native integration, security review and fixes. Checkpoint 2 (Sonnet 5.5 Medium) did the final regression, scans, screenshots and this report. Nothing is pushed or merged.
 
 ## 1. What was validated
 
@@ -126,9 +126,30 @@ D2–D4 are in Codex-owned files. The changes are minimal and recorded here for 
 - **Small local models remain inconsistent with tools.** `qwen3:8b` once declined to call navigation again after a denial until asked explicitly. This is model behaviour, not a host defect.
 - Pending approval restoration after reload (Codex's open `TASKS.md` request; unchanged).
 
-## 9. Next checkpoint (Sonnet 5.5 Medium)
+## 9. Final regression and scans (checkpoint 2)
 
-1. Final regression: Swift, TS, bridge, three browser suites with axe, Debug/Release builds (only if anything changes).
-2. Secret/private-data scan of unified logs, `/private/tmp/claude-501/p3c*` artifacts and the branch diff.
-3. Complete this report: final results, screenshots list (kept outside Git), merge recommendation.
-4. GitHub handoff only with the owner's approval. No push or merge without it.
+Code did not change after the checks in §2, which already ran on the fixed code, so they were not repeated. Added in this checkpoint:
+
+| Check | Result |
+|---|---|
+| Xcode Debug build of the final commit | Succeeded |
+| Secret patterns (GitHub tokens, `sk-` keys, Bearer, private keys, the fake test key) in the branch diff against `main`, tracked files, 2 hours of `com.aura.app` unified log, all test artifacts | 0 matches |
+| Binaries or key files in the diff (`.glb`, images, `.pem`, `.env`) | 0 |
+| Keychain items left by the test providers (`ai.cloud-test.apiKey` and others) | none |
+| Test processes | Vite and Ollama stopped; `AURA` quit |
+
+Screenshots (1440×900, Release app, outside Git, not committed): Studio, Software and Companion zones, delivered with this report. The conversation, consent, provider and key-sheet states were observed live; the browser suites hold Codex's captures of those.
+
+## 10. Merge recommendation
+
+**Recommend merging `review/phase3c-c-validation` into `main` after the owner's review**, with these conditions:
+
+1. Ask Codex to glance at D2–D4 (three small edits in its files, §7).
+2. Accept the unverified items in §8, or do the system accessibility pass (VoiceOver, Reduce Motion, Reduce Transparency) with Claude first. Those settings need the owner at the keyboard.
+3. Hosted inference remains unverified. Nothing in this phase makes it worse, but a billable run with an approved provider is the first thing to do before relying on cloud models.
+
+Reasons: no security or architecture defect was found; the two real defects (D1 native, D2 frontend) were found by live use, fixed, covered by tests, and re-verified in the app; performance holds 60 fps on the Apple GPU under streaming and layout changes; memory is steady.
+
+## 11. Commits on the review branch
+
+`db5bb30` (Codex, 3C-C) → `f8da96d` (fixes: D1–D5) → `fd26b6c` (docs, stack table, tasks) → this report. Phase 3C-D (voice) has not started.
