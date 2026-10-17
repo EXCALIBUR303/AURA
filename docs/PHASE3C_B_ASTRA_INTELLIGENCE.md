@@ -151,7 +151,26 @@ page ── ai.startConversation / ai.sendMessage / ai.respondToApproval / ai.ca
 | Live local streaming and cancel (3C-A test) | Pass: first chunk after 1.2 s, one `done(cancelled)` |
 | Hosted inference | Not run (no approval for cost) |
 
-Xcode Debug and Release builds, the browser regression suites with axe, and the 3D performance check are **Checkpoint G** (recommended on Sonnet 5.5) and were not run in this checkpoint. `swift build` (which also builds the app's sources) passes with no warnings. The Ollama server was started for the live tests and stopped afterwards. Run the live test with:
+### Checkpoint G (QA), Sonnet 5.5
+
+| Check | Result |
+|---|---|
+| Xcode builds (`AURA` scheme) | Debug: succeeded. Release (`tools/build-app.sh`): succeeded. `swift build`: 0 warnings |
+| `test:browser` (studio) with axe | 27/27 passed, including the automated WCAG A/AA scan (axe enabled via `AURA_AXE_MODULE`, Playwright against the dev server and the mock bridge) |
+| `test:github` with axe | 23/23 passed |
+| Native 3D, Release `AURA.app`, Apple GPU, 1100x732 @2x, window in front, 4 s sample per zone | All six zones 60 fps, p95 17-18 ms, max 18-19 ms, 0 missed frames, no long tasks; 14 draw calls (12 in Software), 79,802 triangles (79,610 in Software). No regression found. Native bridge connected, live GitHub account and 9 repositories shown, repository details load |
+| Conversation probe inside `AURA.app` (`AURA_DEV_AI_PROBE=conversation`, built-in mock provider, real bridge) | Streaming: 11 events in `seq` order, 6 chunks, exactly one `done(stop)`. Cancel after the first chunk: exactly one `done(cancelled)`, 0 events after it. Isolation: a second conversation holds 0 turns and none of the first one's text; reset empties history; a send to an ended conversation returns `not_found`; a send naming its own repository in `context` returns `invalid_request` |
+| Secret scan | No GitHub token, API key or Bearer pattern in the app's unified log (40 min), the browser artifacts, the app container or tracked files. The bridge contracts carry only credential *state* (`none`/`stored`/...), never a value; the conversation probe found none in page-side data |
+
+Notes on what was and was not verified:
+
+- A first native FPS run was invalid: another app's window covered AURA, so WebKit throttled it (ai-lab sampled 61 frames; github and companion never settled). It was repeated with AURA in front and those numbers are the ones above. Keep AURA frontmost when measuring.
+- Tool execution is verified by the 37 `AIConversationTests` (scripted mock provider) and the live Ollama runs above, **not** inside `AURA.app`: the built-in mock provider only echoes, so it never proposes a tool call. Approvals through the real page were not exercised by a person.
+- The browser suites run against the mock bridge, not the native host.
+- Voice, hosted inference and the Codex UI for conversations are not part of this phase.
+- `AIProbe` gained the `conversation` mode (dev-only, opt-in, logs counts and codes, never message text).
+
+The Ollama server was started for the live tests and stopped afterwards. Run the live test with:
 
 ```bash
 AURA_LIVE_LOCAL_AI=llama3.2:3b tools/swift-test.sh --filter LiveLocalAI
@@ -209,10 +228,6 @@ AURA_LIVE_LOCAL_AI=llama3.2:3b tools/swift-test.sh --filter LiveLocalAI
 
 ## 13. Next
 
-Checkpoint G (QA) is recommended on **Claude Sonnet 5.5, Medium effort**:
-- Xcode Debug and Release builds.
-- `test:browser` and `test:github` with axe.
-- The live app check that the GitHub explorer and the 3D studio are unchanged.
-- A probe run of a conversation inside AURA.app.
+Checkpoint G is done (§9). Review, then Phase 3C-C (Codex: conversation UI, approvals dialog) can start once the owner approves merging this branch.
 
 Use Opus 5.5 at High effort again for any security escalation or the voice work.
