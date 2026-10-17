@@ -1,0 +1,134 @@
+import Foundation
+import Testing
+@testable import AuraCore
+
+// Phase 3C-A contracts for later phases: the AI tool permission boundary
+// (3C-B executes tools) and voice route/interruption handling (3C-D wires
+// real audio). Decisions only; nothing executes or records here.
+
+@Suite struct AIToolPolicyTests {
+    let policy = AIToolPolicy()
+
+    func call(_ name: String, _ arguments: [String: JSONValue], id: String = "t1") -> AIToolCall {
+        AIToolCall(id: id, name: name, arguments: arguments)
+    }
+
+    @Test func readOnlyToolsWithValidArgumentsAreAllowed() {
+        guard case .allowed(let tool, let args) = policy.evaluate(call("list_recent_commits", ["fullName": .string("octo/aura"), "limit": .number(5)]), index: 0) else {
+            Issue.record("expected allowed"); return
+        }
+        #expect(tool.effect == .readOnly)
+        #expect(args == ["fullName": .string("octo/aura"), "limit": .number(5)])
+    }
+
+    @Test func toolsOffTheAllowlistAreDenied() {
+        for name in ["run_shell", "write_file", "github_create_issue", "delete_repository", "rm -rf /"] {
+            guard case .denied(let reason) = policy.evaluate(call(name, [:]), index: 0) else { Issue.record("\(name) not denied"); continue }
+            #expect(!reason.contains("rm -rf"))
+        }
+    }
+
+    @Test func malformedArgumentsAreDenied() {
+        let cases: [(String, [String: JSONValue])] = [
+            ("get_repository", [:]),                                                   // missing
+            ("get_repository", ["fullName": .string("../../etc/passwd")]),             // traversal
+            ("get_repository", ["fullName": .string("octo/aura"), "token": .string("x")]), // unknown argument
+            ("get_repository", ["fullName": .number(1)]),                              // wrong type
+            ("list_recent_commits", ["fullName": .string("octo/aura"), "limit": .number(500)]), // out of range
+            ("list_recent_commits", ["fullName": .string("octo/aura"), "limit": .number(2.5)]),
+            ("list_recent_commits", ["fullName": .string("octo/aura"), "branch": .string("main\nrm")]),
+            ("search_projects", ["query": .string(String(repeating: "q", count: 101))]),
+            ("navigate_to_zone", ["zone": .string("settings")]),
+        ]
+        for (name, args) in cases {
+            guard case .denied = policy.evaluate(call(name, args), index: 0) else { Issue.record("\(name) \(args) not denied"); continue }
+        }
+    }
+
+    @Test func appActionsNeedTheUsersApprovalForThatExactCall() {
+        let proposed = call("navigate_to_zone", ["zone": .string("hardware")])
+        guard case .needsApproval = policy.evaluate(proposed, index: 0) else { Issue.record("expected approval"); return }
+
+        var approvals = AIToolApprovals()
+        approvals.approve(proposed)
+        guard case .allowed = policy.evaluate(proposed, index: 0, approvals: approvals) else { Issue.record("expected allowed"); return }
+
+        // The approval does not carry over to other arguments or another call id.
+        guard case .needsApproval = policy.evaluate(call("navigate_to_zone", ["zone": .string("software")]), index: 0, approvals: approvals),
+              case .needsApproval = policy.evaluate(call("navigate_to_zone", ["zone": .string("hardware")], id: "t2"), index: 0, approvals: approvals)
+        else { Issue.record("approval leaked"); return }
+    }
+
+    @Test func sensitiveEffectsAreNeverGranted() {
+        let custom = AIToolPolicy(tools: [AIToolDefinition(name: "push_branch", summary: "x", parameters: [], effect: .sensitive)])
+        var approvals = AIToolApprovals()
+        let proposed = call("push_branch", [:])
+        approvals.approve(proposed)
+        guard case .denied = custom.evaluate(proposed, index: 0, approvals: approvals) else { Issue.record("sensitive allowed"); return }
+    }
+
+    @Test func callsPerReplyAreCapped() {
+        let query = call("search_projects", ["query": .string("drone")])
+        guard case .allowed = policy.evaluate(query, index: 4), case .denied = policy.evaluate(query, index: 5) else {
+            Issue.record("cap not applied"); return
+        }
+    }
+
+    @Test func theAllowlistHasNoWriteCapability() {
+        #expect(AIToolPolicy.phase3CAllowlist.allSatisfy { $0.effect != .sensitive })
+        #expect(Set(AIToolPolicy.phase3CAllowlist.map(\.name)) == ["search_projects", "get_repository", "list_recent_commits", "navigate_to_zone"])
+    }
+}
+
+struct FakeRouteMonitor: AudioRouteMonitor {
+    let stream: AsyncStream<AudioRouteChange>
+    let continuation: AsyncStream<AudioRouteChange>.Continuation
+    init() { (stream, continuation) = AsyncStream<AudioRouteChange>.makeStream() }
+    func changes() -> AsyncStream<AudioRouteChange> { stream }
+}
+
+@Suite @MainActor struct VoiceRouteTests {
+    func make() -> (VoiceSession, FakeSpeech) {
+        let permissions = FakeVoicePermissions()
+        permissions.current = (.granted, .granted)
+        let speech = FakeSpeech()
+        return (VoiceSession(permissions: permissions, input: speech, output: speech, locale: "en-US"), speech)
+    }
+
+    @Test func aRouteChangeStopsListeningAndReportsIt() async throws {
+        let (session, _) = make()
+        var interruptions: [VoiceInterruption] = []
+        session.onInterruption = { interruptions.append($0) }
+        let monitor = FakeRouteMonitor()
+        session.observeRoutes(monitor)
+
+        try session.startListening()
+        monitor.continuation.yield(AudioRouteChange(direction: .input, deviceName: "AirPods"))
+        for _ in 0..<100 where session.status.listening { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(!session.status.listening)
+        #expect(interruptions == [.audioRouteChanged])
+
+        // Idle sessions ignore route changes, and nothing restarts by itself.
+        monitor.continuation.yield(AudioRouteChange(direction: .output, deviceName: nil))
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(interruptions == [.audioRouteChanged])
+        #expect(!session.status.listening && !session.status.speaking)
+        session.stopObservingRoutes()
+    }
+
+    @Test func goingInactiveStopsSpeechAndListening() throws {
+        let (session, _) = make()
+        try session.speak("hello")
+        session.handle(.appInactive)
+        #expect(!session.status.speaking)
+        try session.startListening()
+        session.handle(.appInactive)
+        #expect(!session.status.listening)
+    }
+
+    @Test func nothingListensUntilAsked() {
+        let (session, _) = make()
+        #expect(!session.status.listening)
+        #expect(!session.status.speaking)
+    }
+}

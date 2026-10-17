@@ -87,11 +87,30 @@ public protocol SpeechOutput: Sendable {
 }
 
 /// Why a session stopped without being asked to.
-public enum VoiceInterruption: Sendable {
+public enum VoiceInterruption: String, Sendable {
     /// AURA lost focus or its window was hidden: stop listening (privacy) and speaking.
-    case appInactive
+    case appInactive = "app_inactive"
     /// The audio device changed or another app took the audio session.
-    case audioRouteChanged
+    case audioRouteChanged = "audio_route_changed"
+}
+
+/// A change of the default input or output device (Phase 3C-D implements
+/// this with CoreAudio property listeners on the default devices).
+public struct AudioRouteChange: Equatable, Sendable {
+    public enum Direction: String, Sendable { case input, output }
+    public var direction: Direction
+    /// Device name for display; nil when there is no device (unplugged).
+    public var deviceName: String?
+
+    public init(direction: Direction, deviceName: String?) {
+        self.direction = direction
+        self.deviceName = deviceName
+    }
+}
+
+public protocol AudioRouteMonitor: Sendable {
+    /// Yields each change until the consuming task is cancelled.
+    func changes() -> AsyncStream<AudioRouteChange>
 }
 
 /// One voice session: at most one of listening / speaking at a time.
@@ -106,6 +125,9 @@ public final class VoiceSession {
     public var onTranscript: (@MainActor (Transcript) -> Void)?
     public var onSpeechLevel: (@MainActor (Double) -> Void)?
     public var onError: (@MainActor (BridgeError) -> Void)?
+    /// Every unrequested stop (route change, app inactive), for the page to show.
+    public var onInterruption: (@MainActor (VoiceInterruption) -> Void)?
+    private var routeObserver: Task<Void, Never>?
 
     private let permissions: any VoicePermissions
     private let input: any SpeechInput
@@ -200,11 +222,32 @@ public final class VoiceSession {
         onSpeechLevel?(0)
     }
 
-    /// Stops everything after a system interruption.
+    /// Stops everything after a system interruption. Nothing restarts on its
+    /// own afterwards: listening resumes only when the user asks again.
     public func handle(_ interruption: VoiceInterruption) {
-        Log.voice.notice("voice interrupted (\(String(describing: interruption), privacy: .public))")
+        guard status.listening || status.speaking else { return }
+        Log.voice.notice("voice interrupted (\(interruption.rawValue, privacy: .public))")
         stopListening()
         stopSpeaking()
+        onInterruption?(interruption)
+    }
+
+    /// Stops listening and speaking whenever the audio route changes, so AURA
+    /// never keeps recording from (or playing to) a device the user did not pick.
+    public func observeRoutes(_ monitor: any AudioRouteMonitor) {
+        routeObserver?.cancel()
+        let changes = monitor.changes()
+        routeObserver = Task { [weak self] in
+            for await change in changes {
+                Log.voice.notice("audio \(change.direction.rawValue, privacy: .public) device changed")
+                self?.handle(.audioRouteChanged)
+            }
+        }
+    }
+
+    public func stopObservingRoutes() {
+        routeObserver?.cancel()
+        routeObserver = nil
     }
 
     /// Waits for in-flight listening/speaking tasks (tests).
