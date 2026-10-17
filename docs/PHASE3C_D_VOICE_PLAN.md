@@ -326,3 +326,56 @@ Nothing in D0–D6 is pushed or merged without the owner's permission.
 3. Whether a "Allow Apple server recognition" opt-in should exist at all, or whether voice should be strictly on-device.
 4. Push-to-talk shortcut: ⌥Space while the window is key (recommended), or another.
 5. Approve D0 to start on Opus 5.5 High.
+
+---
+
+## 14. D0 spike findings (in progress)
+
+Spike branch: `claude/phase3c-d-d0-spike`, `macos/Sources/AuraApp/VoiceSpike.swift`. It's opt-in (`AURA_DEV_VOICE_SPIKE`) and will never be merged.
+Run on 2026-10-17: Release AURA.app (sandboxed, ad-hoc signed) on the M5 MacBook, macOS 27.2, launched with `open --env`.
+Status: the no-microphone pass and two microphone passes on a Bluetooth headset are done. The built-in speaker/microphone run and the device-switch run are **still owed** (the owner will do them later).
+
+### Verified
+
+| Question | Result |
+|---|---|
+| Does `SpeechAnalyzer` need speech-recognition authorization? | **No.** File transcription succeeded with Speech = `notDetermined`. Live microphone transcription also succeeded with only the microphone granted and Speech still `notDetermined`. On macOS 26+ AURA asks for the microphone only. The Speech prompt is reserved for the `SFSpeechRecognizer` fallback on macOS 15–25. |
+| On-device STT available for en-US? | Yes. `SpeechTranscriber.isAvailable` is true, and en-US plus 8 other English locales are already in `installedLocales`. `AssetInventory.status` reported `supported`, not `installed`, for the progressive preset, yet transcription ran without a download. D1 decides availability by attempting `prepareToAnalyze`, not by that status alone. A download (`assetInstallationRequest`) was not needed and not exercised. |
+| File STT accuracy and speed | The synthetic sentence transcribed at 100% in 128–237 ms (3.2 s of audio). |
+| `SFSpeechRecognizer` fallback | Available, with `supportsOnDeviceRecognition` true. Not exercised because Speech authorization is intentionally not granted. |
+| TTS into buffers in the sandbox | `AVSpeechSynthesizer.write` works: 22.05 kHz mono Float32. Each utterance is rendered whole (first buffer ≈ total). Cold first utterance in a process: 750–880 ms. Warm short sentences: 290–310 ms. |
+| Installed voices | 28 en-US voices, **all default quality**, with no enhanced or premium voices installed. The voice picker must handle this and point to System Settings to add better voices. |
+| Playback through `AVAudioEngine` + player node | Works. Engine start 32 ms on built-in output and 149 ms on Bluetooth. First audible audio 138 ms (built-in) and 250 ms (Bluetooth). |
+| Output metering rate | A mixer tap fires about 10 times a second whatever buffer size is requested. **Change:** compute the level envelope from the synthesized buffers (33 ms windows) and send it in step with player time, instead of tapping the mixer. |
+| Audio callbacks under Swift 6 | **Crash found.** A tap closure written inside `@MainActor` code inherits main-actor isolation, and the realtime thread trips `dispatch_assert_queue` (`EXC_BREAKPOINT`). **D1 rule:** every audio, synthesizer, converter and CoreAudio callback is `@Sendable` or built in a `nonisolated` function, and a test covers it. The crash also left the spike's temp audio file behind (removed afterwards), which confirms that production must never write audio to disk. |
+| Live STT cold start (Bluetooth headset) | `prepareToAnalyze` 714 ms; listening at 733 ms; first input buffer at 828 ms. **Change:** prepare the analyzer as soon as Talk is pressed (in parallel with engine start), keep `modelRetention: .lingering`, and warm the synthesizer on first Talk. The 300 ms time-to-listen target applies to warm starts only. |
+
+### Bluetooth headset results (non-Apple ANC earbuds, hands-free profile)
+
+Both microphone passes ran on third-party Bluetooth earbuds, which were the system default input and output. **These are not AirPods.** The earlier AirPods label was a mistake, corrected after checking `system_profiler SPAudioDataType`.
+
+| Test | Result |
+|---|---|
+| Input format | 16 kHz, 2 channels (headset profile) |
+| Spoken phrase, with voice processing | 44% of words ("The quick, something jumps over"). The first volatile result arrived late (5.6 s). `SpeechDetector` reported no speech ranges. |
+| Echo test, voice processing **off** | Analyzer error `SFSpeechErrorDomain 1 "RecogRejected"` |
+| Echo test, voice processing **on** with a player node | Engine failed: `-10875` (output unit initialize) |
+
+| Second pass, same headset (spoken phrase) | **No input buffers at all** (input format reported as 16 kHz, 3 channels). Empty transcript, analyzer prepare 1,098 ms. The echo results repeated exactly (`RecogRejected` without voice processing; `-10875` with voice processing and a player). |
+
+The second pass shows Bluetooth capture with voice processing is not even reliable from run to run on this headset. D1 must detect "engine running but no buffers within 500 ms", stop, and tell the user instead of listening silently.
+
+These are Bluetooth-specific until the built-in run confirms or contradicts them. In the meantime the plan assumes:
+- Hands-free barge-in stays **off on Bluetooth**.
+- Voice-processing capture runs without a player node in the same engine on Bluetooth (playback uses a separate engine while not listening, which half-duplex allows).
+- `SpeechDetector` is not relied on until it is shown to report speech. Endpointing uses transcriber finalization plus an energy threshold.
+
+### Owed (owner present)
+
+1. Built-in speakers and microphone (the Bluetooth headset disconnected, or MacBook Air Microphone/Speakers chosen in Control Center › Sound): echo test with voice processing off and on (decides `handsFreeBargeIn`), plus the spoken phrase (accuracy, volatile-result latency, `SpeechDetector`).
+2. Device switch: connect, then disconnect a Bluetooth headset during the 90 s route run (CoreAudio listener timing and `AVAudioEngineConfigurationChange` behaviour while capturing).
+
+### Practical notes
+
+- Every rebuild of the ad-hoc-signed app changes its signature. macOS then asks again about Keychain items, and Deny is safe: the code only marks GitHub unavailable and deletes nothing. The microphone grant is also tied to the signature, so the owed runs should reuse the current spike build. A rebuild means another microphone prompt.
+- The `/Applications/AURA.app` install is untouched by the spike.
