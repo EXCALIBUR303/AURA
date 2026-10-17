@@ -106,6 +106,11 @@ export function useConversation(zone: ZoneId) {
     if (id && (!after || before && (before.baseUrl !== after.baseUrl || before.kind !== after.kind || before.api !== after.api))) {
       setInvalidProvider(true); setIssue({ code: "permission_denied", text: "The provider configuration changed. Start a new conversation to continue." });
     }
+    // A removed provider must not stay selected: "Start a new conversation" would ask the host for it.
+    if (!list.some((item) => item.id === providerId)) {
+      const fallback = list.find((item) => item.id === prefs?.ai.defaultProviderId) ?? list.find((item) => item.available) ?? list[0];
+      setProviderId(fallback?.id ?? ""); setModel(fallback?.defaultModel ?? fallback?.models[0] ?? "");
+    }
     setProviders(list);
   });
   useBridgeEvent("github.authChanged", (status) => {

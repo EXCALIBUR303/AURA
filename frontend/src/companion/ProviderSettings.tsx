@@ -60,7 +60,7 @@ export function ProviderSettings({ controller: c, close }: { controller: Convers
         {!c.providers.length && <p className="help">No providers are configured. Add a supported endpoint to begin.</p>}
         <button className="add-provider" onClick={() => edit()}><UiIcon name="plus" /><span>Add an OpenAI-compatible provider<small>Local runtime or compatible HTTPS service</small></span></button>
       </>}
-      <p className="policy-note">Live hosted inference has not been verified in this cloud environment. Connection checks request the model list only.</p>
+      <p className="policy-note">Connection checks request the model list only. A passing check does not confirm that the provider can answer.</p>
     </div><footer className="ui-dialog-actions">{editing && <button form="provider-form" className="ui-button primary" disabled={pending}>{pending ? "Saving…" : "Save provider"}</button>}<button className="ui-button" onClick={close}>Done</button></footer>
   </Modal>;
 }

@@ -255,14 +255,18 @@ public struct AIToolPolicy: Sendable {
         }
         var result: [String: JSONValue] = [:]
         for parameter in tool.parameters {
+            var argument = arguments[parameter.name]
+            // Models write repository paths as "docs/", "./docs" or "/README.md": strip
+            // those slashes, so "/" and "." mean the root.
+            if parameter.name == "path", case .string(let text)? = argument { argument = .string(Self.repositoryPath(text)) }
             // Models often send "" for an optional argument they mean to leave out,
             // and 0 for an optional count or line number that starts at 1.
-            let leftOut: Bool = switch (parameter.kind, arguments[parameter.name]) {
+            let leftOut: Bool = switch (parameter.kind, argument) {
             case (_, .string("")?): true
             case (.integer(let range), .number(0)?): range.lowerBound >= 1
             default: false
             }
-            guard let given = arguments[parameter.name], given != .null, parameter.required || !leftOut else {
+            guard let given = argument, given != .null, parameter.required || !leftOut else {
                 if parameter.required { throw AuraError.invalidRequest("\(tool.name): missing \(parameter.name)") }
                 continue
             }
@@ -299,5 +303,14 @@ public struct AIToolPolicy: Sendable {
     /// Names from a model are echoed only when they look like identifiers.
     static func printable(_ name: String) -> String {
         name.wholeMatch(of: /[A-Za-z0-9_.\-]{1,64}/) != nil ? name : "(unnamed)"
+    }
+
+    /// "./docs/", "/docs" and "docs/" → "docs"; "/" and "." → "" (the root).
+    static func repositoryPath(_ text: String) -> String {
+        var path = Substring(text)
+        while path.hasPrefix("./") { path = path.dropFirst(2) }
+        while path.hasPrefix("/") { path = path.dropFirst() }
+        while path.hasSuffix("/") { path = path.dropLast() }
+        return path == "." ? "" : String(path)
     }
 }

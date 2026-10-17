@@ -65,6 +65,9 @@ enum DevProbe {
             let sample = await evaluate(webView, sampler(ms: sampleMs)) ?? "nil"
             log.notice("probe zone=\(zone.rawValue, privacy: .public) \(sample, privacy: .public)")
         }
+        if ProcessInfo.processInfo.environment["AURA_DEV_PROBE_CONVERSATION"] == "1" {
+            await conversationPass(webView: webView, sampleMs: sampleMs)
+        }
         log.notice("probe done")
         if let minutes = Int(ProcessInfo.processInfo.environment["AURA_DEV_SOAK_MINUTES"] ?? ""), minutes > 0 {
             await soak(webView: webView, model: model, minutes: minutes)
@@ -90,9 +93,10 @@ enum DevProbe {
                 _ = await waitFor(webView, "d?.zone === '\(zone.rawValue)' && d.cameraSettled", timeout: .seconds(10))
                 try? await Task.sleep(for: .milliseconds(1200))
             }
-            _ = await evaluate(webView, """
+            let sent = await evaluate(webView, """
                 const input = document.getElementById('companion-prompt');
-                Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'soak message \(cycle)');
+                if (!(input instanceof HTMLTextAreaElement) || !input.form) return 'no-composer';
+                Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, 'soak message \(cycle)');
                 input.dispatchEvent(new Event('input', { bubbles: true }));
                 input.form.requestSubmit();
                 return 'sent';
@@ -109,13 +113,68 @@ enum DevProbe {
             let counters = await evaluate(webView, """
                 const d = window.__AURA_DIAGNOSTICS__;
                 return JSON.stringify({ dom: document.getElementsByTagName('*').length,
-                  replies: document.querySelectorAll('.reply, [data-reply], .companion-reply').length,
+                  turns: document.querySelectorAll('.conversation-turn').length, rendered: document.querySelectorAll('.assistant-markdown').length,
+                  state: document.querySelector('.companion-workspace')?.dataset.state,
                   fps: d?.fps, drawCalls: d?.drawCalls, triangles: d?.sceneTriangles, status: d?.status });
                 """) ?? "nil"
             let elapsed = Int((ContinuousClock.now - started).components.seconds)
-            log.notice("soak cycle=\(cycle, privacy: .public) elapsedS=\(elapsed, privacy: .public) \(counters, privacy: .public)")
+            log.notice("soak cycle=\(cycle, privacy: .public) elapsedS=\(elapsed, privacy: .public) send=\(sent ?? "nil", privacy: .public) \(counters, privacy: .public)")
         }
         log.notice("soak done cycles=\(cycle, privacy: .public)")
+    }
+
+    /// `AURA_DEV_PROBE_CONVERSATION=1`: after the zone pass, samples frames on the
+    /// built-in mock provider (selected through the page, as a person would) while
+    /// a long Markdown and code reply streams, then while the conversation moves
+    /// between compact, expanded and focus layouts. Logs measurements only.
+    static func conversationPass(webView: WKWebView, sampleMs: Int) async {
+        let setUp = await evaluate(webView, #"""
+            const click = (label) => document.querySelector(`[aria-label="${label}"]`)?.click();
+            click('Expand conversation');
+            await new Promise((r) => setTimeout(r, 600));
+            const select = document.querySelector('select[aria-label="Conversation provider"]');
+            if (!select) return 'no-provider-select';
+            if (select.value !== 'mock') {
+              Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, 'mock');
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              await new Promise((r) => setTimeout(r, 800));
+            }
+            const fence = '`'.repeat(3);
+            const code = Array.from({ length: 60 }, (_, i) => `    let value${i} = items.filter { $0.count > ${i} }.map { $0.name } // line ${i}`).join('\n');
+            const body = Array.from({ length: 6 }, (_, i) => `## Section ${i + 1}\n\nSome **bold** text, a [link](https://example.invalid) and \`inline code\`.\n\n- first point\n- second point\n- third point\n`).join('\n');
+            const text = `${body}\n${fence}swift\nstruct Probe {\n${code}\n}\n${fence}\n`;
+            const input = document.getElementById('companion-prompt');
+            if (!(input instanceof HTMLTextAreaElement) || !input.form) return 'no-composer';
+            Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, text);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.form.requestSubmit();
+            return 'sent ' + text.length + ' chars, layout=' + document.querySelector('.companion-workspace')?.dataset.layout;
+            """#) ?? "nil"
+        log.notice("probe conversation setup \(setUp, privacy: .public)")
+        try? await Task.sleep(for: .milliseconds(800))
+        let streaming = await evaluate(webView, sampler(ms: sampleMs)) ?? "nil"
+        let during = await evaluate(webView, "return document.querySelector('.companion-workspace')?.dataset.state ?? 'none'") ?? "nil"
+        log.notice("probe streaming state=\(during, privacy: .public) \(streaming, privacy: .public)")
+        _ = await waitFor(webView, "document.querySelector('.companion-workspace')?.dataset.state === 'completed'", timeout: .seconds(120))
+        let rendered = await evaluate(webView, #"""
+            return JSON.stringify({ state: document.querySelector('.companion-workspace')?.dataset.state,
+              markdown: document.querySelectorAll('.assistant-markdown').length, codeBlocks: document.querySelectorAll('.assistant-markdown pre').length,
+              remoteImages: document.querySelectorAll('.assistant-markdown img').length });
+            """#) ?? "nil"
+        log.notice("probe streamed \(rendered, privacy: .public)")
+        // Cycles focus → expanded → compact → expanded every 700 ms while sampling.
+        let cycle = #"""
+            const order = ['Enter focus mode', 'Leave focus mode', 'Collapse conversation', 'Expand conversation'];
+            let switches = 0;
+            const timer = setInterval(() => { document.querySelector(`[aria-label="${order[switches % order.length]}"]`)?.click(); switches++; }, 700);
+            const sample = async () => {
+            """# + sampler(ms: sampleMs) + #"""
+            };
+            try { const result = await sample(); return result.replace('{', `{"switches":${switches},`); }
+            finally { clearInterval(timer); }
+            """#
+        let switching = await evaluate(webView, cycle) ?? "nil"
+        log.notice("probe layout-switching \(switching, privacy: .public)")
     }
 
     private static func sampler(ms: Int) -> String {

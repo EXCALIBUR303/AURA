@@ -24,7 +24,8 @@
 .experience[data-layout="expanded"] .workspace { grid-template-columns: minmax(0, 1fr) var(--conversation-width); }
 .experience[data-layout="focus"] .workspace { grid-template-columns: clamp(320px, 32vw, 480px) minmax(0, 1fr); }
 .experience .viewport { grid-column: 1; grid-row: 1; }
-.experience .viewport-heading { background: none; border: 0; box-shadow: none; padding: 0; top: 26px; left: 26px; max-width: calc(100% - 310px); }
+/* Opaque backing at every width: the caption and hint otherwise sit on 3D surfaces whose contrast varies by zone. */
+.experience .viewport-heading { background: var(--aura-paper); border: 1px solid var(--aura-rule); border-radius: 12px; box-shadow: none; padding: 14px 18px; top: 22px; left: 22px; max-width: calc(100% - 310px); }
 .experience .viewport-heading h1 { font: var(--aura-experience-title); letter-spacing: -.035em; }
 .experience .viewport-heading h1 em { color: var(--aura-action); }
 .experience .view-actions { margin-top: 8px; }

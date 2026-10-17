@@ -75,6 +75,25 @@ import Testing
         }
     }
 
+    @Test func repositoryPathsLoseSurroundingSlashes() {
+        for (given, expected) in [("docs/", "docs"), ("./docs", "docs"), ("/README.md", "README.md"), ("./a/b/", "a/b")] {
+            guard case .allowed(_, let args) = policy.evaluate(call("list_repository_files", ["fullName": .string("octo/aura"), "path": .string(given)]), index: 0) else {
+                Issue.record("expected \(given) to be allowed"); continue
+            }
+            #expect(args["path"] == .string(expected))
+        }
+        for root in ["/", ".", "./"] {
+            guard case .allowed(_, let args) = policy.evaluate(call("list_repository_files", ["fullName": .string("octo/aura"), "path": .string(root)]), index: 0) else {
+                Issue.record("expected \(root) to mean the root"); continue
+            }
+            #expect(args["path"] == nil)
+        }
+        // Normalising never makes a traversal acceptable, and a required path stays required.
+        guard case .denied = policy.evaluate(call("read_repository_file", ["fullName": .string("octo/aura"), "path": .string("/../secret")]), index: 0),
+              case .denied = policy.evaluate(call("read_repository_file", ["fullName": .string("octo/aura"), "path": .string("/")]), index: 0)
+        else { Issue.record("expected denial"); return }
+    }
+
     @Test func sensitiveEffectsAreNeverGranted() {
         let custom = AIToolPolicy(tools: [AIToolDefinition(name: "push_branch", summary: "x", parameters: [], effect: .sensitive)])
         var approvals = AIToolApprovals()

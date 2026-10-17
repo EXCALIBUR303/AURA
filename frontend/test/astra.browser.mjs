@@ -307,6 +307,17 @@ try {
     await empty.getByText('Add a provider to start a conversation.', { exact: true }).waitFor();
     await empty.locator('.composer-help').getByRole('button', { name: 'Provider settings', exact: true }).click(); await empty.getByRole('heading', { name: 'AI providers', exact: true }).waitFor();
   }); await empty.context().close();
+  const removed = await open({ cloud: true });
+  await check('Removing the conversation provider falls back to an existing one and a new conversation starts', async () => {
+    await send(removed, 'Bound to the cloud provider'); await idle(removed);
+    await removed.evaluate(() => window.__astraTest.request('ai.removeProvider', { providerId: 'mock-cloud' }));
+    await removed.getByText('The provider configuration changed. Start a new conversation to continue.', { exact: true }).waitFor();
+    assert.equal(await removed.getByLabel('Conversation provider', { exact: true }).inputValue(), 'mock');
+    await removed.locator('.inline-error').getByRole('button', { name: 'Start a new conversation', exact: true }).click();
+    await removed.waitForFunction(() => window.__astraTest.calls.filter((call) => call.method === 'ai.startConversation').at(-1)?.params.providerId === 'mock');
+    await removed.locator('.inline-error').waitFor({ state: 'detached' });
+    await removed.getByRole('button', { name: 'Send message', exact: true }).waitFor();
+  }); await removed.context().close();
   const startup = await open({ failStartup: true });
   await check('Startup failure can be retried without losing the draft or sending automatically', async () => {
     await startup.getByRole('alert').getByText('The service could not be reached. Check the connection and try again.', { exact: true }).waitFor();
