@@ -78,7 +78,7 @@ No paid inference was sent. The Ollama server was started for the live test and 
 ## 9. Known limitations
 
 - Only the OpenAI-compatible adapter exists; nothing was tested against a hosted API (needs a key and your approval for any cost).
-- The native key sheet and the permission-refusal path were not exercised in the running AURA.app (unit-tested; the sheet needs a manual check). The app does not yet show a provider-settings UI.
+- The app does not yet show a provider-settings UI (Codex, 3C-C). The key sheet and provider calls were validated live through a probe (§12); a real hosted provider was not tried.
 - `ai.chat` takes no tools yet; `conversationId` private-context tracking is in memory and resets at launch.
 - Context is metadata, commit subjects and notes only. Injection fencing is a mitigation, not a guarantee.
 - Voice is contracts only; `UnavailableVoiceService` is still wired.
@@ -95,6 +95,29 @@ Build against `shared/contracts` (mock supports everything below in a browser):
 5. **GitHub.** Show `error(excess_permissions)` with its message and a link to the install settings; show `unneededPermissions`/`missingPermissions` on the installation (informational).
 6. **Errors** by `error.code`: `unavailable` (no key/runtime), `not_authenticated` (bad key), `rate_limited` (with `retryable`), `network`, `timeout`, `permission_denied` (private conversation rule).
 7. Keep the companion animation off the token path: update the transcript at the coalesced chunk rate and avoid React state updates per chunk in the 3D tree.
+
+## 12. Live validation in AURA.app (Release build, M5) and fixes
+
+`AURA_DEV_AI_PROBE=run|recheck|verify|sheet|cleanup` (env-gated, like `AURA_DEV_GITHUB_PROBE`) calls the bridge from the page world exactly as the frontend does and logs only outcomes (category `ai-probe`). The native sheet was driven with real key events and a fake test value; Keychain items were checked with `security find-generic-password` metadata only (never `-w`). No key value appeared in any log (searched), and all test providers and keys were removed afterwards.
+
+| Check | Result |
+|---|---|
+| Save, then add key in the native sheet | Keychain item `ai.<id>.apiKey` created; page saw `credential: stored` via `ai.providersChanged` |
+| Update key | Item modified (mdat changed), still `stored` |
+| Cancel the sheet | Key untouched; the page was still notified |
+| Malformed key | **Defect, fixed:** was rejected silently after the sheet closed. Now the sheet stays open and explains; verified |
+| Delete key | Item gone, state `missing`, old check cleared |
+| Remove provider | Item deleted with it |
+| Endpoint moved to another host | Item deleted (no key follows a changed endpoint) |
+| Restart | Providers and a stored key persisted; GitHub restored (`@…`, 9 repositories) |
+| Validate | Unreachable host and stopped local runtime reported as `unavailable` in `lastCheck` (message wording fixed for non-local hosts) |
+| Local provider asked for a key | **Defect, fixed:** returned ok, failed silently. Now `invalid_request` before any sheet |
+| Key field | **Defect, fixed:** marked as a password, so macOS offered Passwords autofill inside the sheet. Removed |
+| Keychain access prompt after a rebuild | **Defect, fixed:** provider Keychain reads ran on the main actor, so the prompt froze the window and the page's calls timed out ("AI providers could not be loaded"). Reads now run off the main actor |
+
+Excess GitHub permissions: not tested against the live installation (unchanged on purpose). A bridge-level test (`GitHubExcessPermissionBridgeTests`) runs the production `AppServices` stack against a scripted GitHub whose installation grants `contents: write`: the page gets `error(excess_permissions)` with the settings link and no token, the stored token is deleted, all four data methods fail with `not_authenticated`, no repository endpoint is requested, and every request AURA sent was a GET. The live installation (read-only) was re-checked by the GitHub probe: connected, `contents=read, metadata=read`, 9 repositories, branches, commits, outside repository refused.
+
+3D studio, Release build, 1100×732 at pixel ratio 2: all six zones 60 fps, p99 18–19 ms, 12–14 draw calls, ≈79.8k triangles (unchanged from Phase 3B).
 
 ## 11. Files
 
