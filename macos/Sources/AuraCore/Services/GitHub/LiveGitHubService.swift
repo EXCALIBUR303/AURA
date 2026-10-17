@@ -195,6 +195,9 @@ public final class LiveGitHubService: GitHubService {
             let result = try await work(client)
             connection.rateLimitCleared()
             return result
+        } catch let violation as GitHubPermissionViolation {
+            await connection.permissionViolation(violation)
+            throw AuraError.permissionDenied(violation.userMessage)
         } catch let ended as GitHubSessionEnded {
             connection.sessionEnded(ended)
             throw AuraError.notAuthenticated(ended.reason == .expired ? "the GitHub session expired; reconnect" : "GitHub rejected the session; reconnect")

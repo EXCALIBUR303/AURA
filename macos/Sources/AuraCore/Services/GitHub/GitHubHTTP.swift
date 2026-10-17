@@ -21,12 +21,54 @@ public protocol HTTPTransport: Sendable {
     func send(_ request: URLRequest) async throws -> HTTPResponse
 }
 
+/// scheme + host + port, compared exactly (host case-insensitively). Used to
+/// decide whether a redirect may carry the request's credentials onward.
+public struct HTTPOrigin: Equatable, Sendable {
+    public let scheme: String
+    public let host: String
+    public let port: Int
+
+    public init?(_ url: URL?) {
+        guard let url, let scheme = url.scheme?.lowercased(), let host = url.host?.lowercased(), !host.isEmpty else { return nil }
+        let defaultPort: Int? = switch scheme { case "https": 443; case "http": 80; default: nil }
+        guard let port = url.port ?? defaultPort else { return nil }
+        self.scheme = scheme
+        self.host = host
+        self.port = port
+    }
+}
+
+/// Redirect policy for credentialed requests: follow a redirect only within
+/// the origin the request was sent to. URLSession re-sends the original
+/// headers on a redirect, Authorization included, so a cross-origin hop (or an
+/// https→http downgrade) is refused and the 3xx comes back to the caller.
+public enum RedirectPolicy {
+    public static func allows(from original: URL?, to destination: URL?) -> Bool {
+        guard let from = HTTPOrigin(original), let to = HTTPOrigin(destination) else { return false }
+        return from == to
+    }
+}
+
+final class SameOriginRedirectGuard: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest? {
+        if RedirectPolicy.allows(from: task.originalRequest?.url, to: request.url) { return request }
+        Log.github.error("refused a cross-origin redirect (HTTP \(response.statusCode, privacy: .public))")
+        return nil
+    }
+}
+
 /// URLSession with nothing persisted: no disk cache (responses can contain
-/// private repository data), no cookies, no credential storage.
+/// private repository data), no cookies, no credential storage. Redirects are
+/// followed only within the original origin (see RedirectPolicy).
 public struct URLSessionTransport: HTTPTransport {
     private let session: URLSession
+    private let redirectGuard = SameOriginRedirectGuard()
 
-    public init() {
+    public init() { self.init(protocolClasses: nil) }
+
+    /// `protocolClasses` lets tests stub the network below URLSession, so the
+    /// real redirect machinery runs.
+    init(protocolClasses: [AnyClass]?) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
@@ -34,12 +76,13 @@ public struct URLSessionTransport: HTTPTransport {
         configuration.httpShouldSetCookies = false
         configuration.urlCredentialStorage = nil
         configuration.timeoutIntervalForRequest = 30
+        if let protocolClasses { configuration.protocolClasses = protocolClasses }
         session = URLSession(configuration: configuration)
     }
 
     public func send(_ request: URLRequest) async throws -> HTTPResponse {
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: request, delegate: redirectGuard)
             guard let http = response as? HTTPURLResponse else { throw AuraError.network("not an HTTP response") }
             var headers: [String: String] = [:]
             for (key, value) in http.allHeaderFields {
@@ -107,6 +150,7 @@ public func gitHubError(status: Int, rateLimit: GitHubRateLimit, now: Date = .no
         .rateLimited(retryAfterSeconds: rateLimit.waitSeconds(now: now))
     case 403: .permissionDenied("AURA's GitHub App has no access to this (check the installation's repositories and permissions)")
     case 404: .notFound("not found on GitHub, or AURA's GitHub App cannot access it")
+    case 300..<400: .network("GitHub redirected the request to another origin; AURA did not follow it")
     case 500..<600: .network("GitHub is unavailable (\(status))")
     default: .network("unexpected GitHub response (\(status))")
     }

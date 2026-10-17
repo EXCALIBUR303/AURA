@@ -41,6 +41,8 @@ const MOCK_INSTALLATIONS: GitHubInstallation[] = [{
   repositorySelection: "selected",
   permissions: { contents: "read", metadata: "read" },
   readOnly: true,
+  missingPermissions: [],
+  unneededPermissions: [],
   manageUrl: "https://github.invalid/settings/installations/1",
 }];
 const MOCK_CONNECTED: GitHubAuthStatus = { state: "connected", account: MOCK_ACCOUNT, installations: MOCK_INSTALLATIONS };

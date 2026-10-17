@@ -183,6 +183,10 @@ public struct GitHubInstallation: Codable, Equatable, Sendable {
     public var repositorySelection: RepositorySelection
     public var permissions: [String: String]
     public var readOnly: Bool
+    /// Required permissions (GitHubPermissionPolicy.required) that are absent.
+    public var missingPermissions: [String]
+    /// Read permissions AURA does not use; harmless but removable.
+    public var unneededPermissions: [String]
     public var manageUrl: String
 
     public init(id: Int, accountLogin: String, repositorySelection: RepositorySelection, permissions: [String: String], manageUrl: String) {
@@ -191,6 +195,9 @@ public struct GitHubInstallation: Codable, Equatable, Sendable {
         self.repositorySelection = repositorySelection
         self.permissions = permissions
         self.readOnly = permissions.values.allSatisfy { $0 == "read" }
+        let review = GitHubPermissionPolicy.review(permissions)
+        self.missingPermissions = review.missing
+        self.unneededPermissions = review.unneeded
         self.manageUrl = manageUrl
     }
 }
@@ -200,6 +207,8 @@ public enum GitHubConnectionErrorReason: String, Codable, Sendable {
     case codeExpired = "code_expired"
     case network
     case configuration
+    /// An installation grants more than read access; AURA signed out (GitHubPermissionPolicy).
+    case excessPermissions = "excess_permissions"
     case `internal`
 }
 

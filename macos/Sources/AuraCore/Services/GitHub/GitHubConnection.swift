@@ -144,6 +144,18 @@ public final class GitHubConnectionManager {
         state = .expired(login: ended.login ?? state.profile?.0.login, reason: ended.reason)
     }
 
+    /// An installation grants more than read access: refuse the session and
+    /// delete the token, which could write. Reconnecting starts a new device
+    /// flow, which validates the permissions again.
+    func permissionViolation(_ violation: GitHubPermissionViolation) async {
+        generation += 1
+        connectTask?.cancel()
+        rateLimitTask?.cancel()
+        await client?.clear()
+        Log.github.error("GitHub App permissions exceed read-only (\(violation.excessive.joined(separator: ","), privacy: .public)) on installation(s) \(violation.installationIds.map(String.init).joined(separator: ","), privacy: .public); session refused, credentials deleted")
+        state = .failed(.excessPermissions, message: violation.userMessage, retryable: true)
+    }
+
     /// An API call hit the rate limit. Returns to connected when it resets.
     func rateLimited(retryAfterSeconds: Int?) {
         guard let (account, installations) = state.profile else { return }
@@ -182,9 +194,15 @@ public final class GitHubConnectionManager {
                 permissions \(installations.map { $0.permissions.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",") }.joined(separator: " | "), privacy: .public), \
                 selection \(installations.map(\.repositorySelection.rawValue).joined(separator: ","), privacy: .public)
                 """)
-            for installation in installations where !installation.readOnly {
-                Log.github.error("installation \(installation.id, privacy: .public) grants more than read access")
+            for installation in installations {
+                let review = GitHubPermissionPolicy.review(installation.permissions)
+                if !review.missing.isEmpty || !review.unneeded.isEmpty {
+                    Log.github.notice("installation \(installation.id, privacy: .public): missing \(review.missing.joined(separator: ","), privacy: .public); unneeded \(review.unneeded.joined(separator: ","), privacy: .public)")
+                }
             }
+        } catch let violation as GitHubPermissionViolation {
+            guard attempt == generation else { return }
+            await permissionViolation(violation)
         } catch let ended as GitHubSessionEnded {
             guard attempt == generation else { return }
             sessionEnded(ended)
@@ -225,6 +243,7 @@ public final class GitHubConnectionManager {
             guard let next = page.next else { break }
             page = try await client.get(next)
         }
+        try GitHubPermissionPolicy.enforce(result)
         return result
     }
 

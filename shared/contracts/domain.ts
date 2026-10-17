@@ -99,6 +99,8 @@ export type GitHubConnectionErrorReason =
   | "network"
   /** The GitHub App is misconfigured (device flow disabled, wrong client id) or not configured in this build. */
   | "configuration"
+  /** An installation grants more than read access. The host deleted the token; the message says where to fix it. Reconnect afterwards. */
+  | "excess_permissions"
   | "internal";
 
 export interface GitHubAccount {
@@ -116,8 +118,12 @@ export interface GitHubInstallation {
   repositorySelection: "all" | "selected";
   /** Permission name → level as granted by GitHub, e.g. { contents: "read", metadata: "read" }. */
   permissions: Record<string, string>;
-  /** False if any permission is above "read". AURA never writes, but surfaces this. */
+  /** False if any permission is above "read". The host refuses such a session (error reason "excess_permissions"). */
   readOnly: boolean;
+  /** Required permissions (metadata, contents) that are absent. Without contents, branches and commits fail. */
+  missingPermissions: string[];
+  /** Read permissions AURA does not use. Harmless, but the owner can remove them on github.com. */
+  unneededPermissions: string[];
   /** Where the owner changes repository access for this installation. */
   manageUrl: string;
 }
