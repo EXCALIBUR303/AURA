@@ -26,8 +26,11 @@ struct Fixtures: Decodable {
 @MainActor
 final class EventRecorder {
     private(set) var events: [(name: String, payload: JSONValue)] = []
+    /// Every event exactly as delivered to the page.
+    private(set) var raw: [String] = []
 
     func record(_ json: String) {
+        raw.append(json)
         guard case .object(let object)? = try? JSONDecoder().decode(JSONValue.self, from: Data(json.utf8)),
               case .string(let name)? = object["event"], let payload = object["payload"] else { return }
         events.append((name, payload))
@@ -46,7 +49,7 @@ func makeServices(recorder: EventRecorder, aiInterval: Duration = .milliseconds(
         configuration: configuration,
         store: try await AppStore(database: Database(path: ":memory:")),
         secrets: InMemorySecretStore(),
-        aiProviders: [MockAIProvider(interval: aiInterval)],
+        aiMock: MockAIProvider(interval: aiInterval),
         deliverEvent: { recorder.record($0) }
     )
 }

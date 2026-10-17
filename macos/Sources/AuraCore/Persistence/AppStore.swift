@@ -58,6 +58,27 @@ public struct AppStore: Sendable {
         )
     }
 
+    // MARK: other settings
+
+    /// A JSON value stored under `key` in `kv`, or nil when missing or unreadable.
+    public func loadValue<T: Decodable>(_ type: T.Type, key: String) async throws -> T? {
+        guard let json = try await database.query("SELECT value FROM kv WHERE key = ?", [.text(key)]).first?["value"]?.stringValue else { return nil }
+        do {
+            return try BridgeCoding.decoder.decode(T.self, from: Data(json.utf8))
+        } catch {
+            Log.persistence.error("stored value \(key, privacy: .public) unreadable; ignoring it")
+            return nil
+        }
+    }
+
+    public func saveValue<T: Encodable>(_ value: T, key: String) async throws {
+        let json = String(decoding: try BridgeCoding.encoder.encode(value), as: UTF8.self)
+        try await database.execute(
+            "INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            [.text(key), .text(json), .text(Self.now())]
+        )
+    }
+
     // MARK: projects
 
     public func listProjects() async throws -> [ProjectRecord] {

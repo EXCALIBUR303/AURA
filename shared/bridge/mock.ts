@@ -8,6 +8,10 @@ import type { BridgeError } from "../contracts/errors.ts";
 import type { BridgeEventName, EventPayload } from "../contracts/events.ts";
 import type { BridgeMethod, MethodParams, MethodResult } from "../contracts/methods.ts";
 import type {
+  AIContextRequest,
+  AIContextSection,
+  AIContextSnapshot,
+  AIProviderInfo,
   CommitSummary,
   GitHubAccount,
   GitHubAuthStatus,
@@ -24,7 +28,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   lastZone: "studio",
   reduceMotion: false,
   voice: { enabled: true, locale: "en-US", synthesisVoiceId: null },
-  ai: { defaultProviderId: null },
+  ai: { defaultProviderId: null, contextSharing: true, privateRepositoryContext: "never" },
   graphics: { quality: "high", maxPixelRatio: 2 },
 };
 
@@ -96,6 +100,7 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
   const listeners = new Set<(eventJson: string) => void>();
   const pendingFailures = new Map<BridgeMethod, BridgeError>();
   const activeStreams = new Set<string>();
+  const cancelStream = new Map<string, () => void>();
 
   let prefs: Preferences = structuredClone(DEFAULT_PREFERENCES);
   const projects = new Map<string, ProjectRecord>();
@@ -106,6 +111,52 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
     speaking: false,
   };
   let streamCounter = 0;
+  const MOCK_PROVIDER: AIProviderInfo = {
+    id: "mock", displayName: "Mock provider (offline)", kind: "local", available: true, models: ["mock-echo"],
+    api: "mock", defaultModel: "mock-echo", baseUrl: null, credential: "not_required", lastCheck: null, builtIn: true,
+  };
+  const providers = new Map<string, AIProviderInfo>([[MOCK_PROVIDER.id, MOCK_PROVIDER]]);
+  const providerList = () => [...providers.values()].sort((a, b) => a.id.localeCompare(b.id));
+  function provider(id: string): AIProviderInfo {
+    const found = providers.get(id);
+    if (!found) throw new MockFailure({ code: "not_found", message: `provider ${id}`, retryable: false });
+    return found;
+  }
+  function updateProvider(id: string, patch: Partial<AIProviderInfo>): AIProviderInfo {
+    const next = { ...provider(id), ...patch };
+    next.available = next.models.length > 0 && next.credential !== "missing";
+    providers.set(id, next);
+    emit("ai.providersChanged", providerList());
+    return next;
+  }
+  function mockContext(request: AIContextRequest, kind: AIProviderInfo["kind"]): AIContextSnapshot {
+    const sections: AIContextSection[] = [];
+    const omitted: AIContextSnapshot["omitted"] = [];
+    const wanted = request.include ?? {};
+    const repoSections = (["repository", "commits", "notes"] as const).filter((id) => request.repository && wanted[id]);
+    if (!prefs.ai.contextSharing) {
+      if (request.zone) omitted.push({ section: "workspace", reason: "sharing_disabled" });
+      repoSections.forEach((section) => omitted.push({ section, reason: "sharing_disabled" }));
+      return { sections, omitted, totalChars: 0 };
+    }
+    if (request.zone) sections.push({ id: "workspace", title: "Workspace", trust: "app", text: `Active zone: ${request.zone}`, truncated: false });
+    if (request.repository && repoSections.length) {
+      const repo = MOCK_REPOS.find((r) => r.fullName === request.repository?.fullName);
+      const policy = prefs.ai.privateRepositoryContext;
+      const blocked = repo?.isPrivate && (policy === "never" || (policy === "local_only" && kind !== "local"));
+      for (const section of repoSections) {
+        if (!repo) omitted.push({ section, reason: "not_found" });
+        else if (blocked) omitted.push({ section, reason: "private_repository" });
+        else if (section === "repository") sections.push({ id: section, title: "Repository", trust: "untrusted", text: `${repo.fullName}: ${repo.description ?? ""} (${repo.primaryLanguage ?? "unknown"})`, truncated: false });
+        else if (section === "commits") sections.push({ id: section, title: "Recent commits", trust: "untrusted", text: "0000000 Mock commit 1", truncated: false });
+        else {
+          const note = projects.get(repo.fullName)?.notes ?? "";
+          if (note) sections.push({ id: section, title: "Project notes", trust: "untrusted", text: note, truncated: false });
+        }
+      }
+    }
+    return { sections, omitted, totalChars: sections.reduce((sum, section) => sum + section.text.length, 0) };
+  }
   let github: GitHubAuthStatus = MOCK_CONNECTED;
   let githubAttempt = 0;
 
@@ -242,28 +293,81 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
       }));
     },
 
-    "ai.listProviders": () => [
-      { id: "mock", displayName: "Mock provider (offline)", kind: "local", available: true, models: ["mock-echo"] },
-    ],
-    "ai.chat": ({ messages }) => {
+    "ai.listProviders": () => providerList(),
+    "ai.saveProvider": (settings) => {
+      if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(settings.id) || settings.id === "mock") {
+        throw new MockFailure({ code: "invalid_request", message: "provider id must be 1-32 lowercase letters, digits or dashes", retryable: false });
+      }
+      const url = new URL(settings.baseUrl);
+      const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+      if ((!local && url.protocol !== "https:") || settings.models.length === 0) {
+        throw new MockFailure({ code: "invalid_request", message: "a remote provider must use https, with at least one model", retryable: false });
+      }
+      const previous = providers.get(settings.id);
+      const kind = local ? "local" : "cloud";
+      const credential = kind === "local" ? "not_required" : previous?.credential === "stored" ? "stored" : "missing";
+      providers.set(settings.id, {
+        id: settings.id, displayName: settings.displayName, kind, available: credential !== "missing", models: settings.models,
+        api: settings.api, defaultModel: settings.defaultModel ?? settings.models[0] ?? null, baseUrl: settings.baseUrl,
+        credential, lastCheck: null, builtIn: false,
+      });
+      emit("ai.providersChanged", providerList());
+      return provider(settings.id);
+    },
+    "ai.removeProvider": ({ providerId }) => {
+      if (provider(providerId).builtIn) throw new MockFailure({ code: "invalid_request", message: "built-in provider", retryable: false });
+      providers.delete(providerId);
+      emit("ai.providersChanged", providerList());
+      return {};
+    },
+    "ai.requestCredential": ({ providerId }) => {
+      if (provider(providerId).kind !== "cloud") throw new MockFailure({ code: "invalid_request", message: "local providers take no key", retryable: false });
+      // Stands in for the native secure prompt: no key value exists in the mock.
+      void wait(streamIntervalMs).then(() => updateProvider(providerId, { credential: "stored" }));
+      return {};
+    },
+    "ai.deleteCredential": ({ providerId }) => {
+      const current = provider(providerId);
+      return current.kind === "cloud" ? updateProvider(providerId, { credential: "missing", lastCheck: null }) : current;
+    },
+    "ai.validateProvider": ({ providerId }) => {
+      const current = provider(providerId);
+      const ok = current.credential !== "missing";
+      return updateProvider(providerId, {
+        lastCheck: {
+          ok, checkedAt: new Date().toISOString(), code: ok ? null : "not_authenticated",
+          message: ok ? null : "no API key stored", models: ok ? current.models : [],
+        },
+      });
+    },
+    "ai.previewContext": ({ context, providerId }) => mockContext(context, provider(providerId ?? prefs.ai.defaultProviderId ?? "mock").kind),
+    "ai.chat": ({ messages, providerId }) => {
+      const target = provider(providerId ?? prefs.ai.defaultProviderId ?? "mock");
+      if (!target.available) throw new MockFailure({ code: "unavailable", message: `provider ${target.id} is not configured`, retryable: false });
+      if (messages.length === 0 || messages.some((m) => m.role === "system")) {
+        throw new MockFailure({ code: "invalid_request", message: "messages must be user/assistant and not empty", retryable: false });
+      }
       streamCounter += 1;
       const streamId = `mock-stream-${streamCounter}`;
       activeStreams.add(streamId);
+      let seq = 0;
       const last = messages.at(-1)?.content ?? "";
       const words = `[mock] You said: ${last}`.split(/(?<= )/);
       void (async () => {
         for (const delta of words) {
           await wait(streamIntervalMs);
-          if (!activeStreams.has(streamId)) return emit("ai.done", { streamId, finishReason: "cancelled" });
-          emit("ai.chunk", { streamId, delta });
+          if (!activeStreams.has(streamId)) return;
+          emit("ai.chunk", { streamId, seq: ++seq, delta });
         }
-        activeStreams.delete(streamId);
-        emit("ai.done", { streamId, finishReason: "stop" });
+        if (!activeStreams.delete(streamId)) return;
+        emit("ai.done", { streamId, seq: ++seq, finishReason: "stop" });
       })();
+      cancelStream.set(streamId, () => emit("ai.done", { streamId, seq: ++seq, finishReason: "cancelled" }));
       return { streamId };
     },
     "ai.cancel": ({ streamId }) => {
-      activeStreams.delete(streamId);
+      if (activeStreams.delete(streamId)) cancelStream.get(streamId)?.();
+      cancelStream.delete(streamId);
       return {};
     },
 

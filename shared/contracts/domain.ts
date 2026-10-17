@@ -51,6 +51,13 @@ export interface Preferences {
   ai: {
     /** Provider id from ai.listProviders; null until the user picks one. */
     defaultProviderId: string | null;
+    /** Master switch for workspace context in ai.chat. Off: the host sends no context at all. */
+    contextSharing: boolean;
+    /**
+     * Whether context from private repositories may be sent: "never" (default),
+     * "local_only" (only to providers on this Mac), or "all" (cloud providers too).
+     */
+    privateRepositoryContext: "never" | "local_only" | "all";
   };
   graphics: {
     quality: "low" | "medium" | "high";
@@ -217,18 +224,108 @@ export interface ProjectZoneSuggestion {
 
 // ---------------------------------------------------------------- ai
 
-export interface AIProviderInfo {
-  id: string;
-  displayName: string;
-  kind: "local" | "cloud";
-  /** False until credentials / a local runtime are available. */
-  available: boolean;
+/**
+ * Wire protocol a provider speaks. "openai_compatible" is chat completions
+ * with SSE streaming: OpenAI-style APIs and local runtimes (Ollama, LM Studio,
+ * llama.cpp server). "mock" is the built-in offline provider.
+ */
+export type AIProviderApi = "openai_compatible" | "mock";
+
+/** API keys live only in the macOS Keychain; the page only ever sees this state. */
+export type AICredentialState = "not_required" | "missing" | "stored";
+
+/** Outcome of ai.validateProvider (a free model-list request, no inference). */
+export interface AIProviderCheck {
+  ok: boolean;
+  checkedAt: ISODateString;
+  /** BridgeErrorCode when not ok, e.g. "not_authenticated", "unavailable". */
+  code: string | null;
+  message: string | null;
+  /** Model ids the provider reported (at most 100); empty when not ok. */
   models: string[];
 }
 
+export interface AIProviderInfo {
+  id: string;
+  displayName: string;
+  /** "local": loopback endpoint on this Mac. "cloud": any https endpoint elsewhere. */
+  kind: "local" | "cloud";
+  /** False while a cloud provider has no stored key, or no model is configured. */
+  available: boolean;
+  /** Models ai.chat may use with this provider. */
+  models: string[];
+  api: AIProviderApi;
+  /** Used when ai.chat names no model. */
+  defaultModel: string | null;
+  /** Endpoint base, e.g. "http://127.0.0.1:11434/v1". Never contains credentials. null for the built-in mock. */
+  baseUrl: string | null;
+  credential: AICredentialState;
+  /** Last ai.validateProvider result in this app session. */
+  lastCheck: AIProviderCheck | null;
+  /** Built-in providers (the offline mock) cannot be edited or removed. */
+  builtIn: boolean;
+}
+
+/** Non-secret provider settings, saved with ai.saveProvider. Keys go through ai.requestCredential instead. */
+export interface AIProviderSettings {
+  /** 1–32 lowercase letters, digits or dashes. Saving an existing id replaces its settings (the key is kept). */
+  id: string;
+  displayName: string;
+  api: "openai_compatible";
+  /** Loopback http(s) for a local runtime, https otherwise. No user info, query or fragment. */
+  baseUrl: string;
+  /** 1–20 model ids. */
+  models: string[];
+  /** Must be one of `models`; null = the first. */
+  defaultModel: string | null;
+}
+
+/** "system" is reserved for the host: ai.chat rejects it from the page. */
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
+}
+
+/**
+ * What workspace context to attach to an ai.chat request. The page names
+ * things by id only; the host fetches the data itself and applies the
+ * sharing preferences, so the page cannot inject content as "context".
+ */
+export interface AIContextRequest {
+  /** The zone the user is in. */
+  zone?: ZoneId;
+  /** The selected repository and, optionally, branch. */
+  repository?: { fullName: string; branch?: string };
+  /** Which repository-derived sections to include. All default to false. */
+  include?: { repository?: boolean; commits?: boolean; notes?: boolean };
+}
+
+export type AIContextSectionId = "workspace" | "repository" | "commits" | "notes";
+
+export interface AIContextSection {
+  id: AIContextSectionId;
+  title: string;
+  /** "app": produced by AURA. "untrusted": text from repositories or notes, sent fenced as data. */
+  trust: "app" | "untrusted";
+  /** Exactly the text the provider receives for this section. */
+  text: string;
+  truncated: boolean;
+}
+
+export type AIContextOmissionReason =
+  | "sharing_disabled"
+  | "private_repository"
+  | "not_connected"
+  | "not_found"
+  | "unavailable"
+  | "budget";
+
+/** The context the host would attach, for review (ai.previewContext) before sending. */
+export interface AIContextSnapshot {
+  sections: AIContextSection[];
+  omitted: { section: AIContextSectionId; reason: AIContextOmissionReason }[];
+  /** Characters across sections (roughly 4 per token). */
+  totalChars: number;
 }
 
 export type FinishReason = "stop" | "length" | "cancelled" | "error";

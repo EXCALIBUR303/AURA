@@ -40,6 +40,7 @@ final class AppModel {
                 store: store,
                 secrets: secrets,
                 github: LiveGitHubService(clientID: configuration.gitHubClientID, secrets: secrets),
+                credentialPrompt: { await CredentialPrompt.ask($0) },
                 deliverEvent: { [weak self] json in self?.deliverToWeb?(json) }
             )
             services.preferencesDidChange = { [weak self] prefs in self?.currentZone = prefs.lastZone }

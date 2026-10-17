@@ -49,7 +49,7 @@ import Testing
         let expected = try JSONDecoder().decode(JSONValue.self, from: Data(#"""
             {"lastZone":"studio","reduceMotion":false,
              "voice":{"enabled":true,"locale":"en-US","synthesisVoiceId":null},
-             "ai":{"defaultProviderId":null},
+             "ai":{"defaultProviderId":null,"contextSharing":true,"privateRepositoryContext":"never"},
              "graphics":{"quality":"high","maxPixelRatio":2}}
             """#.utf8))
         #expect(encoded == expected)
@@ -74,6 +74,7 @@ import Testing
                 case .githubGetRepository: _ = try params.decode(RepositoryRef.self)
                 case .githubListBranches: _ = try params.decode(ListBranchesParams.self)
                 case .aiChat: _ = try params.decode(ChatParams.self)
+                case .aiSaveProvider: try roundTrips(params, as: AIProviderSettings.self, fixture.name)
                 case .voiceSpeak: _ = try params.decode(SpeakParams.self)
                 default: _ = try params.decode(Empty.self)
                 }
@@ -94,6 +95,10 @@ import Testing
                     try roundTrips(try #require(fixture.message["result"]), as: Page<BranchSummary>.self, fixture.name)
                 } else if fixture.name.hasSuffix("github.listCommits") {
                     try roundTrips(try #require(fixture.message["result"]), as: [CommitSummary].self, fixture.name)
+                } else if fixture.name.hasSuffix("ai.listProviders") {
+                    try roundTrips(try #require(fixture.message["result"]), as: [AIProviderInfo].self, fixture.name)
+                } else if fixture.name.hasSuffix("ai.previewContext") {
+                    try roundTrips(try #require(fixture.message["result"]), as: AIContextSnapshot.self, fixture.name)
                 } else if fixture.name.hasSuffix("projects.suggestZones") {
                     try roundTrips(try #require(fixture.message["result"]), as: [ProjectZoneSuggestion].self, fixture.name)
                 }
@@ -102,7 +107,10 @@ import Testing
                 switch fixture.message["event"] {
                 case .string("app.command"): _ = try payload.decode(AppCommand.self)
                 case .string("app.windowStateChanged"): _ = try payload.decode(WindowState.self)
-                case .string("ai.chunk"): _ = try payload.decode(AIChunkPayload.self)
+                case .string("ai.chunk"): try roundTrips(payload, as: AIChunkPayload.self, fixture.name)
+                case .string("ai.done"): try roundTrips(payload, as: AIDonePayload.self, fixture.name)
+                case .string("ai.error"): try roundTrips(payload, as: AIErrorPayload.self, fixture.name)
+                case .string("ai.providersChanged"): try roundTrips(payload, as: [AIProviderInfo].self, fixture.name)
                 case .string("github.authChanged"): try roundTrips(payload, as: GitHubAuthStatus.self, fixture.name)
                 case .string("voice.statusChanged"): _ = try payload.decode(VoiceStatus.self)
                 default: Issue.record("unhandled event fixture \(fixture.name)")

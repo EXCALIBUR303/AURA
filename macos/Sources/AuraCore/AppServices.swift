@@ -13,6 +13,8 @@ public final class AppServices {
     public let github: any GitHubService
     public let ai: AIService
     public let voice: any VoiceService
+    /// Native secure prompt for API keys (AuraApp). Without one, ai.requestCredential is unavailable.
+    public var credentialPrompt: AICredentialPrompt?
     /// Called after the page changes preferences, so native UI (menus) can follow.
     public var preferencesDidChange: (@MainActor (Preferences) -> Void)?
 
@@ -21,7 +23,10 @@ public final class AppServices {
         store: AppStore,
         secrets: any SecretStore,
         github: any GitHubService = MockGitHubService(),
-        aiProviders: [any AIProvider] = [MockAIProvider()],
+        aiMock: any AIProvider = MockAIProvider(),
+        aiProviderFactory: AIProviderRegistry.ProviderFactory? = nil,
+        aiLimits: AIService.Limits = AIService.Limits(),
+        credentialPrompt: AICredentialPrompt? = nil,
         voice: any VoiceService = UnavailableVoiceService(),
         deliverEvent: @escaping @MainActor (String) -> Void
     ) {
@@ -32,7 +37,16 @@ public final class AppServices {
         self.voice = voice
         events = BridgeEventEmitter(deliver: deliverEvent)
         windowState = WindowStateStore(events: events)
-        ai = AIService(providers: aiProviders, defaultProviderId: aiProviders.first?.info.id ?? "mock", events: events)
+        self.credentialPrompt = credentialPrompt
+        let registry = AIProviderRegistry(store: store, secrets: secrets, mock: aiMock, makeProvider: aiProviderFactory)
+        ai = AIService(
+            registry: registry,
+            context: AIContextBuilder(github: github, store: store),
+            preferences: { (try? await store.loadPreferences()) ?? .defaults },
+            events: events,
+            limits: aiLimits
+        )
+        registry.onChange = { [events] infos in events.emit(.aiProvidersChanged, infos) }
         registerHandlers()
     }
 
@@ -86,8 +100,28 @@ public final class AppServices {
             ProjectZoneClassifier.suggestions(for: try await github.accessibleRepositories(), records: try await store.listProjects())
         }
 
-        router.register(.aiListProviders, Empty.self) { _ in ai.providerInfos }
-        router.register(.aiChat, ChatParams.self) { params in try ai.startChat(params) }
+        let registry = ai.registry
+        router.register(.aiListProviders, Empty.self) { _ in await registry.infos() }
+        router.register(.aiSaveProvider, AIProviderSettings.self) { settings in try await registry.save(settings) }
+        router.register(.aiRemoveProvider, ProviderRef.self) { ref in
+            try await registry.remove(ref.providerId)
+            return Empty()
+        }
+        router.register(.aiRequestCredential, ProviderRef.self) { [weak self] ref in
+            guard let prompt = self?.credentialPrompt else { throw AuraError.unavailable("API keys can only be entered in the AURA app") }
+            _ = try await registry.info(ref.providerId)
+            // Returns at once: the user may take longer than a bridge request may stay open.
+            Task {
+                do { try await registry.requestKey(ref.providerId, prompt: prompt) } catch {
+                    Log.ai.error("storing an API key failed: \(BridgeError(error).code.rawValue, privacy: .public)")
+                }
+            }
+            return Empty()
+        }
+        router.register(.aiDeleteCredential, ProviderRef.self) { ref in try await registry.deleteKey(ref.providerId) }
+        router.register(.aiValidateProvider, ProviderRef.self) { ref in try await registry.validate(ref.providerId) }
+        router.register(.aiPreviewContext, PreviewContextParams.self) { params in try await ai.previewContext(params.context, providerId: params.providerId) }
+        router.register(.aiChat, ChatParams.self) { params in try await ai.startChat(params) }
         router.register(.aiCancel, StreamRef.self) { ref in
             ai.cancel(ref.streamId)
             return Empty()

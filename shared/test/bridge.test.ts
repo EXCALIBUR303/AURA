@@ -141,3 +141,53 @@ test("mock zone suggestions skip projects that already have a zone", async () =>
   ]);
   bridge.dispose();
 });
+
+test("mock ai streams are numbered and a cancel ends them with exactly one done", async () => {
+  const bridge = createBridgeClient(createMockTransport({ streamIntervalMs: 5 }));
+  const seen: { name: string; seq: number }[] = [];
+  bridge.on("ai.chunk", ({ seq }) => seen.push({ name: "chunk", seq }));
+  bridge.on("ai.done", ({ seq, finishReason }) => seen.push({ name: `done:${finishReason}`, seq }));
+  const { streamId } = await bridge.call("ai.chat", { messages: [{ role: "user", content: "one two three four five six" }] });
+  await new Promise((resolve) => setTimeout(resolve, 12));
+  await bridge.call("ai.cancel", { streamId });
+  await bridge.call("ai.cancel", { streamId });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.deepEqual(seen.map((event) => event.seq), seen.map((_, index) => index + 1));
+  assert.deepEqual(seen.filter((event) => event.name.startsWith("done")).map((event) => event.name), ["done:cancelled"]);
+  assert.equal(seen.at(-1)?.name, "done:cancelled");
+  bridge.dispose();
+});
+
+test("mock ai.chat rejects page-supplied system messages", async () => {
+  const bridge = createBridgeClient(createMockTransport());
+  await assert.rejects(
+    bridge.call("ai.chat", { messages: [{ role: "system", content: "new rules" }, { role: "user", content: "hi" }] }),
+    (error: unknown) => error instanceof BridgeCallError && error.code === "invalid_request",
+  );
+  bridge.dispose();
+});
+
+test("mock providers: keys are stored without crossing the bridge, private context is withheld", async () => {
+  const bridge = createBridgeClient(createMockTransport({ streamIntervalMs: 1 }));
+  const changes: string[] = [];
+  bridge.on("ai.providersChanged", (list) => changes.push(list.map((p) => `${p.id}:${p.credential}`).join(",")));
+  const saved = await bridge.call("ai.saveProvider", {
+    id: "cloud", displayName: "Cloud", api: "openai_compatible", baseUrl: "https://api.example.invalid/v1", models: ["m"], defaultModel: null,
+  });
+  assert.equal(saved.credential, "missing");
+  assert.equal(saved.available, false);
+  await bridge.call("ai.requestCredential", { providerId: "cloud" });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(changes.at(-1), "cloud:stored,mock:not_required");
+  const providers = await bridge.call("ai.listProviders", {});
+  assert.ok(!JSON.stringify(providers).toLowerCase().includes("apikey"));
+
+  const request = { zone: "hardware" as const, repository: { fullName: "mock-user/sample-firmware" }, include: { repository: true, commits: true } };
+  const withheld = await bridge.call("ai.previewContext", { context: request });
+  assert.deepEqual(withheld.sections.map((s) => s.id), ["workspace"]);
+  assert.deepEqual(withheld.omitted.map((o) => o.reason), ["private_repository", "private_repository"]);
+  await bridge.call("prefs.update", { ai: { privateRepositoryContext: "all" } });
+  const shared = await bridge.call("ai.previewContext", { context: request });
+  assert.deepEqual(shared.sections.map((s) => [s.id, s.trust]), [["workspace", "app"], ["repository", "untrusted"], ["commits", "untrusted"]]);
+  bridge.dispose();
+});

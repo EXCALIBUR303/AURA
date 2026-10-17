@@ -23,6 +23,12 @@ public enum BridgeMethod: String, CaseIterable, Sendable {
     case projectsSuggestZones = "projects.suggestZones"
 
     case aiListProviders = "ai.listProviders"
+    case aiSaveProvider = "ai.saveProvider"
+    case aiRemoveProvider = "ai.removeProvider"
+    case aiRequestCredential = "ai.requestCredential"
+    case aiDeleteCredential = "ai.deleteCredential"
+    case aiValidateProvider = "ai.validateProvider"
+    case aiPreviewContext = "ai.previewContext"
     case aiChat = "ai.chat"
     case aiCancel = "ai.cancel"
 
@@ -44,6 +50,7 @@ public enum BridgeEventName: String, CaseIterable, Sendable {
     case aiChunk = "ai.chunk"
     case aiDone = "ai.done"
     case aiError = "ai.error"
+    case aiProvidersChanged = "ai.providersChanged"
     case voiceStatusChanged = "voice.statusChanged"
     case voiceTranscript = "voice.transcript"
     case voiceSpeechLevel = "voice.speechLevel"

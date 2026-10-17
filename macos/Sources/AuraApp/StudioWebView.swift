@@ -141,6 +141,12 @@ struct StudioWebView: NSViewRepresentable {
             return nil
         }
 
+        /// A new document replaced the page (reload, crash recovery): streams
+        /// the old page started have no listener any more.
+        func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            services.ai.cancelAll()
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             (webView as? AuraWebView)?.takeKeyboardFocus()
             guard DevProbe.isEnabled, !probeStarted else { return }
@@ -159,6 +165,7 @@ struct StudioWebView: NSViewRepresentable {
 
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             Log.app.fault("web content process terminated; reloading")
+            services.ai.cancelAll()
             webView.reload()
         }
     }

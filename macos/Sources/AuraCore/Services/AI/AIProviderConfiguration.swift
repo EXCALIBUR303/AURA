@@ -1,59 +1,61 @@
 import Foundation
 
-// AI provider foundation (Phase 3A). Providers are configured, not hardcoded:
-// a local runtime on this Mac (e.g. Ollama on 127.0.0.1) or a remote API whose
-// key lives in the Keychain under SecretKey.aiProviderKey(id). Which providers
-// to offer, and any spending, is the owner's decision (TASKS.md › Open
-// decisions 5); nothing here contacts a network. Streaming and cancellation
-// stay on the existing AIProvider / AIService contract (ai.chunk, ai.done,
-// ai.error, ai.cancel).
+// AI provider configuration (Phase 3A foundation, reworked in Phase 3C-A).
+// Providers are configured, not hardcoded: AIProviderSettings (non-secret,
+// stored in SQLite) says where a provider is and which models it may use; its
+// API key, if any, lives only in the Keychain under SecretKey.aiProviderKey(id).
 
+/// Validated, non-secret settings of one configured provider.
 public struct AIProviderConfiguration: Equatable, Sendable {
-    public enum Endpoint: Equatable, Sendable {
-        /// A model runtime on this Mac. Loopback http(s) only.
-        case local(URL)
-        /// A hosted API. https only; the key is read from the Keychain at request time.
-        case remote(URL)
-    }
+    public let settings: AIProviderSettings
+    public let baseURL: URL
+    public let kind: AIProviderInfo.Kind
 
-    public var id: String
-    public var displayName: String
-    public var endpoint: Endpoint
-    public var models: [String]
+    public var id: String { settings.id }
+    public var credentialKey: SecretKey { .aiProviderKey(settings.id) }
+    public var origin: HTTPOrigin { HTTPOrigin(baseURL)! }
+    /// Cloud providers need a key; local runtimes on this Mac do not.
+    public var requiresKey: Bool { kind == .cloud }
+    public var resolvedDefaultModel: String? { settings.defaultModel ?? settings.models.first }
 
-    public init(id: String, displayName: String, endpoint: Endpoint, models: [String]) {
-        self.id = id
-        self.displayName = displayName
-        self.endpoint = endpoint
-        self.models = models
-    }
+    static let loopbackHosts: Set<String> = ["localhost", "127.0.0.1", "::1"]
+    static let maxModels = 20
 
-    public var kind: AIProviderInfo.Kind {
-        if case .local = endpoint { .local } else { .cloud }
-    }
-
-    public var credentialKey: SecretKey { .aiProviderKey(id) }
-
-    /// Rejects endpoints that could send prompts somewhere unexpected.
-    public func validate() throws {
-        guard id.range(of: #"^[a-z0-9][a-z0-9-]{0,31}$"#, options: .regularExpression) != nil else {
+    /// Rejects anything that could send prompts or keys somewhere unexpected.
+    public init(_ settings: AIProviderSettings) throws {
+        guard settings.id.wholeMatch(of: /[a-z0-9][a-z0-9-]{0,31}/) != nil else {
             throw AuraError.invalidRequest("provider id must be 1-32 lowercase letters, digits or dashes")
         }
-        switch endpoint {
-        case .local(let url):
-            guard ["http", "https"].contains(url.scheme ?? ""), let host = url.host, ["localhost", "127.0.0.1", "::1"].contains(host) else {
-                throw AuraError.invalidRequest("a local provider must use a loopback address")
-            }
-        case .remote(let url):
-            guard url.scheme == "https", url.host?.isEmpty == false else {
-                throw AuraError.invalidRequest("a remote provider must use https")
-            }
+        let name = settings.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (1...64).contains(name.count), !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
+            throw AuraError.invalidRequest("display name must be 1-64 characters")
         }
+        guard settings.api == .openAICompatible else { throw AuraError.invalidRequest("unsupported provider api \(settings.api.rawValue)") }
+        guard let components = URLComponents(string: settings.baseUrl), let url = components.url,
+              let scheme = components.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              let host = components.host?.lowercased(), !host.isEmpty,
+              components.user == nil, components.password == nil, components.query == nil, components.fragment == nil
+        else { throw AuraError.invalidRequest("baseUrl must be an http(s) URL without credentials, query or fragment") }
+        let local = Self.loopbackHosts.contains(host.trimmingCharacters(in: CharacterSet(charactersIn: "[]")))
+        guard local || scheme == "https" else {
+            throw AuraError.invalidRequest("a provider outside this Mac must use https; http is allowed only on a loopback address")
+        }
+        guard (1...Self.maxModels).contains(settings.models.count), settings.models.allSatisfy(AIProviderRegistry.isValidModelId),
+              Set(settings.models).count == settings.models.count
+        else { throw AuraError.invalidRequest("models must be 1-\(Self.maxModels) distinct model ids") }
+        if let model = settings.defaultModel, !settings.models.contains(model) {
+            throw AuraError.invalidRequest("defaultModel must be one of models")
+        }
+        var normalized = settings
+        normalized.displayName = name
+        self.settings = normalized
+        baseURL = url
+        kind = local ? .local : .cloud
     }
 }
 
 /// Stores and removes provider API keys. Keys are write-only from the app's
-/// point of view: nothing here returns a key to callers other than a provider.
+/// point of view: only a provider making a request reads one back.
 public struct AICredentialStore: Sendable {
     private let secrets: any SecretStore
     public init(secrets: any SecretStore) { self.secrets = secrets }
@@ -65,6 +67,9 @@ public struct AICredentialStore: Sendable {
     public func saveKey(_ key: String, for provider: AIProviderConfiguration) throws {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw AuraError.invalidRequest("API key is empty") }
+        guard trimmed.count <= 512, !trimmed.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.contains($0) || CharacterSet.controlCharacters.contains($0) }) else {
+            throw AuraError.invalidRequest("API key has an unexpected format")
+        }
         try secrets.write(trimmed, for: provider.credentialKey)
     }
 
@@ -75,32 +80,5 @@ public struct AICredentialStore: Sendable {
     /// For a provider implementation making a request; never pass this across the bridge.
     public func key(for provider: AIProviderConfiguration) throws -> String? {
         try secrets.read(provider.credentialKey)
-    }
-}
-
-/// Builds the page-visible provider list. A remote provider is available only
-/// once its key is stored; a local one is reported available and fails with
-/// `unavailable` at request time if its runtime is not running.
-public struct AIProviderCatalog: Sendable {
-    public let configurations: [AIProviderConfiguration]
-    private let credentials: AICredentialStore
-
-    public init(configurations: [AIProviderConfiguration], credentials: AICredentialStore) throws {
-        try configurations.forEach { try $0.validate() }
-        guard Set(configurations.map(\.id)).count == configurations.count else {
-            throw AuraError.invalidRequest("duplicate provider id")
-        }
-        self.configurations = configurations
-        self.credentials = credentials
-    }
-
-    public func infos() -> [AIProviderInfo] {
-        configurations.map { config in
-            let available: Bool = switch config.endpoint {
-            case .local: true
-            case .remote: credentials.hasKey(for: config)
-            }
-            return AIProviderInfo(id: config.id, displayName: config.displayName, kind: config.kind, available: available, models: config.models)
-        }
     }
 }

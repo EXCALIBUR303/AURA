@@ -3,7 +3,10 @@
 // a mock in shared/bridge/mock.ts — in the same change.
 
 import type {
+  AIContextRequest,
+  AIContextSnapshot,
   AIProviderInfo,
+  AIProviderSettings,
   AppInfo,
   BranchSummary,
   ChatMessage,
@@ -65,11 +68,42 @@ export interface BridgeMethods {
   "projects.suggestZones": { params: Empty; result: ProjectZoneSuggestion[] };
 
   "ai.listProviders": { params: Empty; result: AIProviderInfo[] };
-  /** Starts a streamed completion. Output arrives as ai.chunk / ai.done / ai.error events. */
+  /** Adds or replaces a provider's non-secret settings. Emits ai.providersChanged. */
+  "ai.saveProvider": { params: AIProviderSettings; result: AIProviderInfo };
+  /** Removes a provider and deletes its Keychain key. Emits ai.providersChanged. */
+  "ai.removeProvider": { params: { providerId: string }; result: Empty };
+  /**
+   * Opens a native secure prompt for the provider's API key. The key goes
+   * straight to the Keychain and never reaches the page. Returns at once; the
+   * outcome (stored or cancelled) arrives as ai.providersChanged.
+   */
+  "ai.requestCredential": { params: { providerId: string }; result: Empty };
+  /** Deletes the provider's Keychain key. Emits ai.providersChanged. */
+  "ai.deleteCredential": { params: { providerId: string }; result: AIProviderInfo };
+  /** Checks reachability and the key with a free model-list request (no inference). */
+  "ai.validateProvider": { params: { providerId: string }; result: AIProviderInfo };
+  /** The context ai.chat would attach for this request and provider, for review. Sends nothing. */
+  "ai.previewContext": { params: { context: AIContextRequest; providerId?: string }; result: AIContextSnapshot };
+  /**
+   * Starts a streamed completion. Output arrives as ai.chunk / ai.done /
+   * ai.error events, numbered by `seq`. Messages are user/assistant only.
+   * `conversationId` (page-chosen, 1–64 chars) ties turns together: once a
+   * conversation has received private-repository context, the host refuses
+   * to send it to a provider the preferences do not allow.
+   */
   "ai.chat": {
-    params: { messages: ChatMessage[]; providerId?: string; model?: string };
+    params: {
+      messages: ChatMessage[];
+      providerId?: string;
+      model?: string;
+      context?: AIContextRequest;
+      conversationId?: string;
+      /** Upper bound for the reply, 1–8192 tokens. */
+      maxOutputTokens?: number;
+    };
     result: { streamId: string };
   };
+  /** Stops a stream. The host then sends exactly one ai.done with finishReason "cancelled" (unless it had already ended). */
   "ai.cancel": { params: { streamId: string }; result: Empty };
 
   "voice.getStatus": { params: Empty; result: VoiceStatus };

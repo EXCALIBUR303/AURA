@@ -38,6 +38,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if InputDiagnostics.isEnabled { InputDiagnostics.install() }
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        model.services?.ai.cancelAll()
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }

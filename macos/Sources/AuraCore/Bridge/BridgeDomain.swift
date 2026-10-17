@@ -40,7 +40,20 @@ public struct Preferences: Codable, Equatable, Sendable {
     }
 
     public struct AI: Codable, Equatable, Sendable {
+        public enum PrivateRepositoryContext: String, Codable, Sendable {
+            case never
+            case localOnly = "local_only"
+            case all
+        }
         public var defaultProviderId: String?
+        public var contextSharing: Bool
+        public var privateRepositoryContext: PrivateRepositoryContext
+
+        public init(defaultProviderId: String?, contextSharing: Bool = true, privateRepositoryContext: PrivateRepositoryContext = .never) {
+            self.defaultProviderId = defaultProviderId
+            self.contextSharing = contextSharing
+            self.privateRepositoryContext = privateRepositoryContext
+        }
     }
 
     public struct Graphics: Codable, Equatable, Sendable {
@@ -78,10 +91,20 @@ extension Preferences.Voice {
 }
 
 extension Preferences.AI {
-    enum Keys: String, CodingKey { case defaultProviderId }
+    enum Keys: String, CodingKey { case defaultProviderId, contextSharing, privateRepositoryContext }
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: Keys.self)
         try c.encode(defaultProviderId, forKey: .defaultProviderId)
+        try c.encode(contextSharing, forKey: .contextSharing)
+        try c.encode(privateRepositoryContext, forKey: .privateRepositoryContext)
+    }
+
+    /// Preferences stored before Phase 3C-A lack the context fields; they get the defaults.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        defaultProviderId = try c.decodeIfPresent(String.self, forKey: .defaultProviderId)
+        contextSharing = try c.decodeIfPresent(Bool.self, forKey: .contextSharing) ?? true
+        privateRepositoryContext = try c.decodeIfPresent(PrivateRepositoryContext.self, forKey: .privateRepositoryContext) ?? .never
     }
 }
 
@@ -95,6 +118,8 @@ public struct PreferencesPatch: Codable, Equatable, Sendable {
 
     public struct AI: Codable, Equatable, Sendable {
         public var defaultProviderId: String??
+        public var contextSharing: Bool?
+        public var privateRepositoryContext: Preferences.AI.PrivateRepositoryContext?
     }
 
     public struct Graphics: Codable, Equatable, Sendable {
@@ -125,7 +150,11 @@ public struct PreferencesPatch: Codable, Equatable, Sendable {
             if let locale = voice.locale { next.voice.locale = locale }
             if let id = voice.synthesisVoiceId { next.voice.synthesisVoiceId = id }
         }
-        if let ai, let id = ai.defaultProviderId { next.ai.defaultProviderId = id }
+        if let ai {
+            if let id = ai.defaultProviderId { next.ai.defaultProviderId = id }
+            if let sharing = ai.contextSharing { next.ai.contextSharing = sharing }
+            if let policy = ai.privateRepositoryContext { next.ai.privateRepositoryContext = policy }
+        }
         if let graphics {
             if let quality = graphics.quality { next.graphics.quality = quality }
             if let ratio = graphics.maxPixelRatio { next.graphics.maxPixelRatio = ratio }
@@ -146,10 +175,12 @@ extension PreferencesPatch.Voice {
 }
 
 extension PreferencesPatch.AI {
-    enum Keys: String, CodingKey { case defaultProviderId }
+    enum Keys: String, CodingKey { case defaultProviderId, contextSharing, privateRepositoryContext }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
         defaultProviderId = c.contains(.defaultProviderId) ? .some(try c.decodeIfPresent(String.self, forKey: .defaultProviderId)) : nil
+        contextSharing = try c.decodeIfPresent(Bool.self, forKey: .contextSharing)
+        privateRepositoryContext = try c.decodeIfPresent(Preferences.AI.PrivateRepositoryContext.self, forKey: .privateRepositoryContext)
     }
 }
 
@@ -550,6 +581,42 @@ public struct ProjectZoneSuggestion: Codable, Equatable, Sendable {
 
 // MARK: ai
 
+public enum AIProviderAPI: String, Codable, Sendable {
+    case openAICompatible = "openai_compatible"
+    case mock
+}
+
+public enum AICredentialState: String, Codable, Sendable {
+    case notRequired = "not_required"
+    case missing, stored
+}
+
+public struct AIProviderCheck: Codable, Equatable, Sendable {
+    public var ok: Bool
+    public var checkedAt: String
+    public var code: String?
+    public var message: String?
+    public var models: [String]
+
+    public init(ok: Bool, checkedAt: String, code: String?, message: String?, models: [String]) {
+        self.ok = ok
+        self.checkedAt = checkedAt
+        self.code = code
+        self.message = message
+        self.models = models
+    }
+
+    enum Keys: String, CodingKey { case ok, checkedAt, code, message, models }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(ok, forKey: .ok)
+        try c.encode(checkedAt, forKey: .checkedAt)
+        try c.encode(code, forKey: .code)
+        try c.encode(message, forKey: .message)
+        try c.encode(models, forKey: .models)
+    }
+}
+
 public struct AIProviderInfo: Codable, Equatable, Sendable {
     public enum Kind: String, Codable, Sendable { case local, cloud }
     public var id: String
@@ -557,20 +624,174 @@ public struct AIProviderInfo: Codable, Equatable, Sendable {
     public var kind: Kind
     public var available: Bool
     public var models: [String]
+    public var api: AIProviderAPI
+    public var defaultModel: String?
+    public var baseUrl: String?
+    public var credential: AICredentialState
+    public var lastCheck: AIProviderCheck?
+    public var builtIn: Bool
+
+    public init(
+        id: String, displayName: String, kind: Kind, available: Bool, models: [String], api: AIProviderAPI,
+        defaultModel: String?, baseUrl: String?, credential: AICredentialState, lastCheck: AIProviderCheck?, builtIn: Bool
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.kind = kind
+        self.available = available
+        self.models = models
+        self.api = api
+        self.defaultModel = defaultModel
+        self.baseUrl = baseUrl
+        self.credential = credential
+        self.lastCheck = lastCheck
+        self.builtIn = builtIn
+    }
+
+    enum Keys: String, CodingKey { case id, displayName, kind, available, models, api, defaultModel, baseUrl, credential, lastCheck, builtIn }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(displayName, forKey: .displayName)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(available, forKey: .available)
+        try c.encode(models, forKey: .models)
+        try c.encode(api, forKey: .api)
+        try c.encode(defaultModel, forKey: .defaultModel)
+        try c.encode(baseUrl, forKey: .baseUrl)
+        try c.encode(credential, forKey: .credential)
+        try c.encode(lastCheck, forKey: .lastCheck)
+        try c.encode(builtIn, forKey: .builtIn)
+    }
+}
+
+/// Params of ai.saveProvider. Also the persisted form (SQLite kv "ai.providers").
+public struct AIProviderSettings: Codable, Equatable, Sendable {
+    public var id: String
+    public var displayName: String
+    public var api: AIProviderAPI
+    public var baseUrl: String
+    public var models: [String]
+    public var defaultModel: String?
+
+    public init(id: String, displayName: String, api: AIProviderAPI = .openAICompatible, baseUrl: String, models: [String], defaultModel: String?) {
+        self.id = id
+        self.displayName = displayName
+        self.api = api
+        self.baseUrl = baseUrl
+        self.models = models
+        self.defaultModel = defaultModel
+    }
+
+    enum Keys: String, CodingKey { case id, displayName, api, baseUrl, models, defaultModel }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(displayName, forKey: .displayName)
+        try c.encode(api, forKey: .api)
+        try c.encode(baseUrl, forKey: .baseUrl)
+        try c.encode(models, forKey: .models)
+        try c.encode(defaultModel, forKey: .defaultModel)
+    }
+}
+
+public struct ProviderRef: Codable, Equatable, Sendable {
+    public var providerId: String
+    public init(providerId: String) { self.providerId = providerId }
 }
 
 public struct ChatMessage: Codable, Equatable, Sendable {
     public enum Role: String, Codable, Sendable { case system, user, assistant }
     public var role: Role
     public var content: String
+    public init(role: Role, content: String) {
+        self.role = role
+        self.content = content
+    }
 }
 
 public enum FinishReason: String, Codable, Sendable { case stop, length, cancelled, error }
+
+public struct AIContextRequest: Codable, Equatable, Sendable {
+    public struct Repository: Codable, Equatable, Sendable {
+        public var fullName: String
+        public var branch: String?
+        public init(fullName: String, branch: String? = nil) {
+            self.fullName = fullName
+            self.branch = branch
+        }
+    }
+    public struct Include: Codable, Equatable, Sendable {
+        public var repository: Bool?
+        public var commits: Bool?
+        public var notes: Bool?
+        public init(repository: Bool? = nil, commits: Bool? = nil, notes: Bool? = nil) {
+            self.repository = repository
+            self.commits = commits
+            self.notes = notes
+        }
+    }
+    public var zone: ZoneID?
+    public var repository: Repository?
+    public var include: Include?
+
+    public init(zone: ZoneID? = nil, repository: Repository? = nil, include: Include? = nil) {
+        self.zone = zone
+        self.repository = repository
+        self.include = include
+    }
+}
+
+public enum AIContextSectionID: String, Codable, Sendable, CaseIterable { case workspace, repository, commits, notes }
+
+public struct AIContextSection: Codable, Equatable, Sendable {
+    public enum Trust: String, Codable, Sendable { case app, untrusted }
+    public var id: AIContextSectionID
+    public var title: String
+    public var trust: Trust
+    public var text: String
+    public var truncated: Bool
+}
+
+public enum AIContextOmissionReason: String, Codable, Sendable {
+    case sharingDisabled = "sharing_disabled"
+    case privateRepository = "private_repository"
+    case notConnected = "not_connected"
+    case notFound = "not_found"
+    case unavailable, budget
+}
+
+public struct AIContextSnapshot: Codable, Equatable, Sendable {
+    public struct Omission: Codable, Equatable, Sendable {
+        public var section: AIContextSectionID
+        public var reason: AIContextOmissionReason
+    }
+    public var sections: [AIContextSection]
+    public var omitted: [Omission]
+    public var totalChars: Int
+}
+
+public struct PreviewContextParams: Codable, Sendable {
+    public var context: AIContextRequest
+    public var providerId: String?
+}
 
 public struct ChatParams: Codable, Sendable {
     public var messages: [ChatMessage]
     public var providerId: String?
     public var model: String?
+    public var context: AIContextRequest?
+    public var conversationId: String?
+    public var maxOutputTokens: Int?
+
+    public init(messages: [ChatMessage], providerId: String? = nil, model: String? = nil, context: AIContextRequest? = nil, conversationId: String? = nil, maxOutputTokens: Int? = nil) {
+        self.messages = messages
+        self.providerId = providerId
+        self.model = model
+        self.context = context
+        self.conversationId = conversationId
+        self.maxOutputTokens = maxOutputTokens
+    }
 }
 
 public struct StreamRef: Codable, Equatable, Sendable {
@@ -579,16 +800,19 @@ public struct StreamRef: Codable, Equatable, Sendable {
 
 public struct AIChunkPayload: Codable, Equatable, Sendable {
     public var streamId: String
+    public var seq: Int
     public var delta: String
 }
 
 public struct AIDonePayload: Codable, Equatable, Sendable {
     public var streamId: String
+    public var seq: Int
     public var finishReason: FinishReason
 }
 
 public struct AIErrorPayload: Codable, Equatable, Sendable {
     public var streamId: String
+    public var seq: Int
     public var error: BridgeError
 }
 

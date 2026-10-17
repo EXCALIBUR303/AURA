@@ -146,84 +146,8 @@ public final class MockGitHubService: GitHubService {
 
 // MARK: AI
 
-public protocol AIProvider: Sendable {
-    var info: AIProviderInfo { get }
-    /// Yields text deltas. Must honour task cancellation promptly.
-    func stream(messages: [ChatMessage], model: String?) -> AsyncThrowingStream<String, Error>
-}
-
-public struct MockAIProvider: AIProvider {
-    public let info = AIProviderInfo(id: "mock", displayName: "Mock provider (offline)", kind: .local, available: true, models: ["mock-echo"])
-    private let interval: Duration
-
-    public init(interval: Duration = .milliseconds(40)) {
-        self.interval = interval
-    }
-
-    public func stream(messages: [ChatMessage], model: String?) -> AsyncThrowingStream<String, Error> {
-        let text = "[mock] You said: \(messages.last?.content ?? "")"
-        let interval = interval
-        return AsyncThrowingStream { continuation in
-            let task = Task {
-                for word in text.split(separator: " ", omittingEmptySubsequences: false).enumerated().map({ $0.offset == 0 ? String($0.element) : " " + $0.element }) {
-                    try await Task.sleep(for: interval)
-                    continuation.yield(word)
-                }
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
-    }
-}
-
-/// Owns in-flight streams and turns them into ai.* events.
-@MainActor
-public final class AIService {
-    private let providers: [String: any AIProvider]
-    private let defaultProviderId: String
-    private let events: BridgeEventEmitter
-    private var streams: [String: Task<Void, Never>] = [:]
-    private var counter = 0
-
-    public init(providers: [any AIProvider], defaultProviderId: String, events: BridgeEventEmitter) {
-        self.providers = Dictionary(uniqueKeysWithValues: providers.map { ($0.info.id, $0) })
-        self.defaultProviderId = defaultProviderId
-        self.events = events
-    }
-
-    public var providerInfos: [AIProviderInfo] {
-        providers.values.map(\.info).sorted { $0.id < $1.id }
-    }
-
-    public func startChat(_ params: ChatParams) throws -> StreamRef {
-        let providerId = params.providerId ?? defaultProviderId
-        guard let provider = providers[providerId] else { throw AuraError.notFound("provider \(providerId)") }
-        guard provider.info.available else { throw AuraError.unavailable("provider \(providerId) is not configured") }
-        guard !params.messages.isEmpty else { throw AuraError.invalidRequest("messages must not be empty") }
-
-        counter += 1
-        let streamId = "native-stream-\(counter)"
-        let events = events
-        streams[streamId] = Task { [weak self] in
-            do {
-                for try await delta in provider.stream(messages: params.messages, model: params.model) {
-                    events.emit(.aiChunk, AIChunkPayload(streamId: streamId, delta: delta))
-                }
-                events.emit(.aiDone, AIDonePayload(streamId: streamId, finishReason: Task.isCancelled ? .cancelled : .stop))
-            } catch is CancellationError {
-                events.emit(.aiDone, AIDonePayload(streamId: streamId, finishReason: .cancelled))
-            } catch {
-                events.emit(.aiError, AIErrorPayload(streamId: streamId, error: BridgeError(error)))
-            }
-            self?.streams[streamId] = nil
-        }
-        return StreamRef(streamId: streamId)
-    }
-
-    public func cancel(_ streamId: String) {
-        streams.removeValue(forKey: streamId)?.cancel()
-    }
-}
+// The AI boundary lives in Services/AI: AIProvider (AIProvider.swift),
+// AIProviderRegistry, AIService (streaming) and AIContextBuilder.
 
 // MARK: Voice
 

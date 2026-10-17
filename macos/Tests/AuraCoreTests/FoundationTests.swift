@@ -9,62 +9,44 @@ import Testing
 
 // MARK: AI
 
+// Phase 3C-A replaced the Phase 3A AI catalog; see AITests.swift.
+
 @Suite struct AIProviderConfigurationTests {
-    @Test func endpointsAndIdsAreValidated() {
-        func valid(_ endpoint: AIProviderConfiguration.Endpoint, id: String = "p1") -> Bool {
-            (try? AIProviderConfiguration(id: id, displayName: "P", endpoint: endpoint, models: []).validate()) != nil
-        }
-        #expect(valid(.local(URL(string: "http://127.0.0.1:11434")!)))
-        #expect(valid(.local(URL(string: "http://localhost:11434")!)))
-        #expect(!valid(.local(URL(string: "http://192.168.1.5:11434")!)))
-        #expect(valid(.remote(URL(string: "https://api.example.com/v1")!)))
-        #expect(!valid(.remote(URL(string: "http://api.example.com/v1")!)))
-        #expect(!valid(.local(URL(string: "http://127.0.0.1")!), id: "Bad Id"))
+    func settings(_ baseUrl: String, id: String = "p1", models: [String] = ["m"], defaultModel: String? = nil) -> AIProviderSettings {
+        AIProviderSettings(id: id, displayName: "P", baseUrl: baseUrl, models: models, defaultModel: defaultModel)
     }
 
-    @Test func remoteProvidersBecomeAvailableOnlyWithAKey() throws {
+    func valid(_ settings: AIProviderSettings) -> Bool { (try? AIProviderConfiguration(settings)) != nil }
+
+    @Test func endpointsAndIdsAreValidated() throws {
+        #expect(try AIProviderConfiguration(settings("http://127.0.0.1:11434/v1")).kind == .local)
+        #expect(try AIProviderConfiguration(settings("http://localhost:1234/v1")).kind == .local)
+        #expect(try AIProviderConfiguration(settings("http://[::1]:8080/v1")).kind == .local)
+        #expect(try AIProviderConfiguration(settings("https://api.example.com/v1")).kind == .cloud)
+        #expect(!valid(settings("http://192.168.1.5:11434/v1")))     // LAN over http
+        #expect(!valid(settings("http://api.example.com/v1")))       // remote over http
+        #expect(!valid(settings("https://user:pw@api.example.com/v1")))
+        #expect(!valid(settings("https://api.example.com/v1?key=x")))
+        #expect(!valid(settings("https://api.example.com/v1#x")))
+        #expect(!valid(settings("ftp://api.example.com")))
+        #expect(!valid(settings("https://api.example.com/v1", id: "Bad Id")))
+        #expect(!valid(settings("https://api.example.com/v1", models: [])))
+        #expect(!valid(settings("https://api.example.com/v1", models: ["a b"])))
+        #expect(!valid(settings("https://api.example.com/v1", models: ["m"], defaultModel: "other")))
+        #expect(valid(settings("https://api.example.com/v1", models: ["openai/gpt-x", "llama3.2:latest"])))
+    }
+
+    @Test func keysAreTrimmedAndValidated() throws {
         let secrets = InMemorySecretStore()
         let credentials = AICredentialStore(secrets: secrets)
-        let local = AIProviderConfiguration(id: "ollama", displayName: "Ollama", endpoint: .local(URL(string: "http://127.0.0.1:11434")!), models: ["llama3"])
-        let remote = AIProviderConfiguration(id: "cloud", displayName: "Cloud", endpoint: .remote(URL(string: "https://api.example.com")!), models: ["m"])
-        let catalog = try AIProviderCatalog(configurations: [local, remote], credentials: credentials)
-
-        #expect(catalog.infos().map(\.available) == [true, false])
-        #expect(catalog.infos().map(\.kind) == [.local, .cloud])
+        let remote = try AIProviderConfiguration(settings("https://api.example.com/v1", id: "cloud"))
         #expect(throws: AuraError.self) { try credentials.saveKey("   ", for: remote) }
+        #expect(throws: AuraError.self) { try credentials.saveKey("sk-with space", for: remote) }
         try credentials.saveKey(" sk-test \n", for: remote)
         #expect(try secrets.read(.aiProviderKey("cloud")) == "sk-test")
-        #expect(catalog.infos().map(\.available) == [true, true])
+        #expect(credentials.hasKey(for: remote))
         try credentials.deleteKey(for: remote)
-        #expect(catalog.infos().map(\.available) == [true, false])
-
-        #expect(throws: AuraError.self) { try AIProviderCatalog(configurations: [local, local], credentials: credentials) }
-    }
-
-    struct FailingProvider: AIProvider {
-        let info = AIProviderInfo(id: "failing", displayName: "Failing", kind: .local, available: true, models: [])
-        func stream(messages: [ChatMessage], model: String?) -> AsyncThrowingStream<String, Error> {
-            AsyncThrowingStream { $0.finish(throwing: AuraError.unavailable("runtime not running")) }
-        }
-    }
-
-    @Test @MainActor func providerFailuresAndCancellationBecomeEvents() async throws {
-        let recorder = EventRecorder()
-        let events = BridgeEventEmitter(deliver: { recorder.record($0) })
-        let service = AIService(providers: [FailingProvider(), MockAIProvider(interval: .milliseconds(50))], defaultProviderId: "failing", events: events)
-        let message = [ChatMessage(role: .user, content: "hi")]
-
-        _ = try service.startChat(ChatParams(messages: message, providerId: "failing", model: nil))
-        try await Task.sleep(for: .milliseconds(50))
-        #expect(recorder.names() == ["ai.error"])
-        #expect(recorder.events.last?.payload["error"]?["code"] == .string("unavailable"))
-
-        let ref = try service.startChat(ChatParams(messages: message, providerId: "mock", model: nil))
-        service.cancel(ref.streamId)
-        try await Task.sleep(for: .milliseconds(100))
-        #expect(recorder.names().last == "ai.done")
-        #expect(recorder.events.last?.payload["finishReason"] == .string("cancelled"))
-        #expect(!recorder.names().contains("ai.chunk"))
+        #expect(!credentials.hasKey(for: remote))
     }
 }
 
