@@ -1,9 +1,9 @@
 # Phase 3C-C — Astra experience
 
-Current checkpoint: **Phases 3–4 implemented; Phase 5 QA is next, using GPT-6 Luna
-MEDIUM.** Keep this branch and existing work. Production implementation and current
-results are recorded below; the first section preserves the earlier design history.
-Phases 5–7 and native acceptance remain pending. Nothing is pushed or merged.
+Current checkpoint: **Phases 3–4 implementation and Phase 5 functional/accessibility
+QA are complete locally. Phase 6 design audit is next: GPT-6 Astra EXTRA HIGH.** Keep
+this branch and completed work. Phases 6–7 and native acceptance remain pending.
+Nothing is pushed or merged.
 
 ## Design checkpoint: Phases 1–2
 
@@ -293,18 +293,20 @@ Initial JavaScript is 1,357.68 kB (377.26 kB gzip). Lazy Markdown/code is 214.36
 53.34 kB (11.69 gzip). No existing locked dependency versions changed; 104 dependency
 entries were added for Markdown/GFM and syntax ASTs.
 
-The final production cloud sample reports **2 fps, 14 draw calls, 79,802 scene
+The final production cloud sample reports **6 fps, 14 draw calls, 79,802 scene
 triangles, DPR 1**, using Chromium WebGL2 through ANGLE/SwiftShader software rendering.
 This is an observed diagnostic sample, not an Apple GPU benchmark or evidence of
 the M5 ≥55 fps requirement. Earlier screenshots show the changing live sample.
 The original idle clip loaded successfully; the studio suite separately verifies
 the 72-joint rig, animation progress, and visible author/source/CC BY attribution.
 
-Visual inspection covered production compact, expanded, focus/code, minimum-window
-focus, project-inspector and provider views, plus the actual consent dialog under
-the simulated native transport. Final QA/design audit should revisit minimum-window
-focus heading clearance around Astra's head, long transcripts and dialog transitions.
-Those review phases remain separate from this engineering checkpoint.
+Phase 5 visual review found the focus heading covered Astra's head at 1100×700.
+The responsive heading now keeps its title and reset action and hides the redundant
+eyebrow and caption only in narrow focus mode. The regression checks these states,
+the title's visibility and captures the production result. Screenshots also cover
+compact and expanded 1440px, focus/code at 1440px, project inspector, providers,
+context and consent under simulated native transport. Phase 6 should inspect long
+transcripts, dialog transitions and the overall visual balance.
 
 Reproduce frontend checks with Node 23.6+ and the existing external browser setup:
 
@@ -319,11 +321,11 @@ npm --prefix frontend run test:github
 npm --prefix frontend run test:browser
 ```
 
-After this implementation commit, switch manually to **GPT-6 Luna, MEDIUM** for
-Phase 5 functional/accessibility QA. Inspect actual production screenshots and test
-edge cases; do not redo design or native work. Significant architecture/rendering
-defects should return to Sol High. After QA, follow the owner's Astra Extra High
-design-audit and Sol High final-integration checkpoints. No push/merge is approved.
+Phase 5 QA is complete on this branch. Switch manually to **GPT-6 Astra, EXTRA HIGH**
+for Phase 6: inspect the corrected 1100×700 focus framing, long transcripts and
+dialog transitions, then make visual refinements without replacing native services.
+After that, follow the owner's Sol High Phase 7 integration checkpoint. No push or
+merge is approved.
 
 Native Mac validation remains pending for:
 

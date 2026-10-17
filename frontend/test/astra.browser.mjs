@@ -186,6 +186,12 @@ try {
       assert.equal(await page.getByLabel('Message Astra', { exact: true }).inputValue(), 'Keep this layout draft');
     }
     await page.setViewportSize({ width:1100, height:700 }); await axe(page, 'focus-1100');
+    const heading = page.locator('.viewport-heading');
+    assert.equal(await heading.locator('.eyebrow').evaluate((node) => getComputedStyle(node).display), 'none');
+    assert.equal(await heading.locator('p').evaluate((node) => getComputedStyle(node).display), 'none');
+    assert.ok(await heading.locator('h1').isVisible());
+    assert.ok((await heading.boundingBox()).height <= 100, 'narrow focus heading must clear Astra’s head');
+    await page.screenshot({ path: path.join(artifacts, 'focus-1100.png') });
     await page.getByRole('button', { name: 'Open command menu', exact: true }).click();
     await page.getByLabel('Find a command', { exact: true }).fill('provider'); await page.keyboard.press('Tab'); await page.keyboard.press('End');
     assert.ok(await page.getByRole('button', { name: 'AI provider settings', exact: true }).last().evaluate((node) => node === document.activeElement));
