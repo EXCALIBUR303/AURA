@@ -26,6 +26,7 @@ AURA is a native macOS app (SwiftUI shell plus Swift services) that hosts a Reac
 | UI | React, TypeScript, Vite | 19.3.1 / TS 7.0.2 / Vite 8.3.4 | TS 7 (native `tsc`) verified working. |
 | 3D | three, @react-three/fiber, @react-three/drei | 0.186.1 / 9.8.2 / 10.7.9 | R3F 9 requires React <19.4. Do not bump React past 19.3.x without bumping R3F. |
 | UI motion | `motion` | 14.3.0 | Installed by Codex in Phase 2 for the dock and reply transitions. |
+| Reply rendering | `react-markdown`, `remark-gfm`, `lowlight` + `highlight.js` | 10.1 / 4.0 / 3.3 / 11.12 | Added by Codex in Phase 3C-C for Astra's replies: React AST Markdown and GFM with raw HTML and remote images disabled; syntax ASTs with seven bundled grammars, loaded lazily. No `dangerouslySetInnerHTML`. |
 | Persistence | System SQLite via `import SQLite3` | macOS SQLite 3.54 | No ORM dependency. The schema is tiny. |
 | Secrets | Keychain generic passwords | — | `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, not synced. |
 | Speech | `Speech` (SFSpeechRecognizer) and `AVSpeechSynthesizer` | Phase 3 | Requires the signed .app bundle (see Native build). |
