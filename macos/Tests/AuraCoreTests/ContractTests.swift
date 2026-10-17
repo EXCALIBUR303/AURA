@@ -48,7 +48,7 @@ import Testing
         let encoded = try JSONValue(encoding: Preferences.defaults)
         let expected = try JSONDecoder().decode(JSONValue.self, from: Data(#"""
             {"lastZone":"studio","reduceMotion":false,
-             "voice":{"enabled":true,"locale":"en-US","synthesisVoiceId":null},
+             "voice":{"enabled":true,"locale":"en-US","synthesisVoiceId":null,"autoSpeakReplies":false,"speechRate":1,"allowServerRecognition":false},
              "ai":{"defaultProviderId":null,"contextSharing":true,"privateRepositoryContext":"never"},
              "graphics":{"quality":"high","maxPixelRatio":2}}
             """#.utf8))
@@ -82,6 +82,12 @@ import Testing
                 case .githubListFiles: _ = try params.decode(ListFilesParams.self)
                 case .aiSaveProvider: try roundTrips(params, as: AIProviderSettings.self, fixture.name)
                 case .voiceSpeak: _ = try params.decode(SpeakParams.self)
+                case .voiceStartSession: _ = try params.decode(StartVoiceSessionParams.self)
+                case .voiceStartListening: _ = try params.decode(StartListeningParams.self)
+                case .voiceSpeakReply: _ = try params.decode(SpeakReplyParams.self)
+                case .voiceSetOutputMuted: _ = try params.decode(SetOutputMutedParams.self)
+                case .voiceListVoices: _ = try params.decode(ListVoicesParams.self)
+                case .voiceOpenSettings: _ = try params.decode(OpenVoiceSettingsParams.self)
                 default: _ = try params.decode(Empty.self)
                 }
             case .string("response"):
@@ -111,6 +117,12 @@ import Testing
                     try roundTrips(try #require(fixture.message["result"]), as: AIConversationDetail.self, fixture.name)
                 } else if fixture.name.hasSuffix("github.listFiles") {
                     try roundTrips(try #require(fixture.message["result"]), as: RepositoryTree.self, fixture.name)
+                } else if fixture.name.hasSuffix("voice.getStatus") || fixture.name.hasSuffix("voice.startListening") {
+                    try roundTrips(try #require(fixture.message["result"]), as: VoiceStatus.self, fixture.name)
+                } else if fixture.name.hasSuffix("voice.getCapabilities") {
+                    try roundTrips(try #require(fixture.message["result"]), as: VoiceCapabilities.self, fixture.name)
+                } else if fixture.name.hasSuffix("voice.listVoices") {
+                    try roundTrips(try #require(fixture.message["result"]), as: [VoiceOption].self, fixture.name)
                 } else if fixture.name.hasSuffix("projects.suggestZones") {
                     try roundTrips(try #require(fixture.message["result"]), as: [ProjectZoneSuggestion].self, fixture.name)
                 }
@@ -128,7 +140,12 @@ import Testing
                 case .string("ai.approvalRequested"): try roundTrips(payload, as: AIApprovalRequestedPayload.self, fixture.name)
                 case .string("ai.conversationChanged"): try roundTrips(payload, as: AIConversationChangedPayload.self, fixture.name)
                 case .string("github.authChanged"): try roundTrips(payload, as: GitHubAuthStatus.self, fixture.name)
-                case .string("voice.statusChanged"): _ = try payload.decode(VoiceStatus.self)
+                case .string("voice.statusChanged"): try roundTrips(payload, as: VoiceStatus.self, fixture.name)
+                case .string("voice.capabilitiesChanged"): try roundTrips(payload, as: VoiceCapabilities.self, fixture.name)
+                case .string("voice.transcript"): try roundTrips(payload, as: VoiceTranscriptPayload.self, fixture.name)
+                case .string("voice.inputLevel"): try roundTrips(payload, as: VoiceInputLevelPayload.self, fixture.name)
+                case .string("voice.speechLevel"): try roundTrips(payload, as: VoiceSpeechLevelPayload.self, fixture.name)
+                case .string("voice.speechProgress"): try roundTrips(payload, as: VoiceSpeechProgressPayload.self, fixture.name)
                 default: Issue.record("unhandled event fixture \(fixture.name)")
                 }
             default:

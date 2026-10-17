@@ -173,7 +173,7 @@ extension AIService {
         conversation.sourceGrants.removeAll()
         tools?.forget(conversation: conversation.id)
         let info = conversation.info(toolsAvailable: toolsAvailable(await preferences()))
-        events.emit(.aiConversationChanged, AIConversationChangedPayload(conversationId: conversation.id, reason: .repositoryChanged, conversation: info))
+        conversationChanged(AIConversationChangedPayload(conversationId: conversation.id, reason: .repositoryChanged, conversation: info))
         return info
     }
 
@@ -183,7 +183,7 @@ extension AIService {
         conversation.clearHistory()
         tools?.forget(conversation: id)
         let info = conversation.info(toolsAvailable: toolsAvailable(await preferences()))
-        events.emit(.aiConversationChanged, AIConversationChangedPayload(conversationId: id, reason: .reset, conversation: info))
+        conversationChanged(AIConversationChangedPayload(conversationId: id, reason: .reset, conversation: info))
         return info
     }
 
@@ -192,7 +192,7 @@ extension AIService {
         if let active = conversation.activeStreamId { cancel(active) }
         conversationTable[id] = nil
         tools?.forget(conversation: id)
-        events.emit(.aiConversationChanged, AIConversationChangedPayload(conversationId: id, reason: .ended, conversation: nil))
+        conversationChanged(AIConversationChangedPayload(conversationId: id, reason: .ended, conversation: nil))
     }
 
     public func respondToApproval(_ params: RespondToApprovalParams) throws {
@@ -225,7 +225,7 @@ extension AIService {
             if let active = conversation.activeStreamId { cancel(active) }
             conversation.clearHistory()
             if conversation.repository?.isPrivate == true { conversation.repository = nil }
-            events.emit(.aiConversationChanged, AIConversationChangedPayload(
+            conversationChanged(AIConversationChangedPayload(
                 conversationId: conversation.id, reason: .githubAccessChanged, conversation: conversation.info(toolsAvailable: tools != nil)
             ))
         }
@@ -239,7 +239,7 @@ extension AIService {
             guard current[conversation.providerId] != conversation.providerFingerprint else { continue }
             conversation.providerInvalid = true
             if let active = conversation.activeStreamId { cancel(active) }
-            events.emit(.aiConversationChanged, AIConversationChangedPayload(
+            conversationChanged(AIConversationChangedPayload(
                 conversationId: conversation.id, reason: .providerChanged, conversation: conversation.info(toolsAvailable: tools != nil)
             ))
         }
@@ -298,6 +298,7 @@ extension AIService {
                                 preferences: prefs, maxOutputTokens: params.maxOutputTokens)
         }
         Log.ai.info("conversation \(conversation.id, privacy: .public) reply \(streamId, privacy: .public) started")
+        replyObserver?.replyStarted(streamId: streamId, conversationId: conversation.id)
         return StreamRef(streamId: streamId)
     }
 
@@ -336,7 +337,7 @@ extension AIService {
                     // Some runtimes reject tool definitions outright: continue without tools, once, and say so.
                     Log.ai.notice("conversation \(conversation.id, privacy: .public): provider rejected tools (\(message, privacy: .private)); continuing without")
                     conversation.toolsUnsupported = true
-                    events.emit(.aiConversationChanged, AIConversationChangedPayload(
+                    conversationChanged(AIConversationChangedPayload(
                         conversationId: conversation.id, reason: .toolsUnavailable, conversation: conversation.info(toolsAvailable: true)
                     ))
                     continue
@@ -559,6 +560,7 @@ extension AIService {
         if let seq = nextSeq(streamId) {
             events.emit(.aiTurnState, AITurnStatePayload(streamId: streamId, conversationId: conversationId, seq: seq, state: next))
         }
+        replyObserver?.replyState(streamId: streamId, state: next)
     }
 
     private func activity(_ streamId: String, _ conversation: AIConversation, _ activity: AIToolActivity) {
@@ -650,7 +652,7 @@ extension AIService {
         }
         conversationTable[oldest.id] = nil
         tools?.forget(conversation: oldest.id)
-        events.emit(.aiConversationChanged, AIConversationChangedPayload(conversationId: oldest.id, reason: .evicted, conversation: nil))
+        conversationChanged(AIConversationChangedPayload(conversationId: oldest.id, reason: .evicted, conversation: nil))
     }
 
     /// Trusted, host-written lines about the conversation for the system message.

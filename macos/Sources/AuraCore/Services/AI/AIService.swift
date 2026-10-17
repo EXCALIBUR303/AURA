@@ -93,6 +93,15 @@ public final class AIService {
 
     public var activeStreamIds: [String] { Array(streams.keys) }
 
+    /// Voice listens to conversation replies through this (observe only).
+    public weak var replyObserver: (any AIReplyObserver)?
+
+    /// Emits ai.conversationChanged and tells the reply observer.
+    func conversationChanged(_ payload: AIConversationChangedPayload) {
+        events.emit(.aiConversationChanged, payload)
+        replyObserver?.conversationChanged(conversationId: payload.conversationId, reason: payload.reason)
+    }
+
     public func previewContext(_ request: AIContextRequest, providerId: String?) async throws -> AIContextSnapshot {
         let prefs = await preferences()
         let info = try await registry.info(providerId ?? prefs.ai.defaultProviderId ?? AIProviderRegistry.mockId)
@@ -264,7 +273,10 @@ public final class AIService {
         events.emit(.aiChunk, AIChunkPayload(streamId: streamId, seq: active.seq, delta: shown))
         active.buffer = ""
         // A conversation's history keeps exactly the text the user saw.
-        if let conversationId = active.conversationId { replyShown(streamId, conversationId, shown) }
+        if let conversationId = active.conversationId {
+            replyShown(streamId, conversationId, shown)
+            replyObserver?.replyText(streamId: streamId, delta: shown)
+        }
     }
 
     /// Sends the one terminal event and forgets the stream. Later calls are no-ops.
@@ -289,6 +301,9 @@ public final class AIService {
             Log.ai.info("stream \(streamId, privacy: .public) done (\(reason.rawValue, privacy: .public))")
         case .error(let error):
             events.emit(.aiError, AIErrorPayload(streamId: streamId, seq: active.seq, error: error))
+        }
+        if active.conversationId != nil {
+            if case .done(let reason) = terminal { replyObserver?.replyEnded(streamId: streamId, reason: reason) } else { replyObserver?.replyEnded(streamId: streamId, reason: .error) }
         }
     }
 

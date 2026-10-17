@@ -28,6 +28,10 @@ import type {
   ProjectZoneSuggestion,
   RepositorySummary,
   RepositoryTree,
+  VoiceCapabilities,
+  VoiceIssue,
+  VoiceIssueCode,
+  VoiceListenMode,
   VoiceStatus,
 } from "../contracts/domain.ts";
 import type { BridgeTransport } from "./transport.ts";
@@ -35,7 +39,7 @@ import type { BridgeTransport } from "./transport.ts";
 export const DEFAULT_PREFERENCES: Preferences = {
   lastZone: "studio",
   reduceMotion: false,
-  voice: { enabled: true, locale: "en-US", synthesisVoiceId: null },
+  voice: { enabled: true, locale: "en-US", synthesisVoiceId: null, autoSpeakReplies: false, speechRate: 1, allowServerRecognition: false },
   ai: { defaultProviderId: null, contextSharing: true, privateRepositoryContext: "never" },
   graphics: { quality: "high", maxPixelRatio: 2 },
 };
@@ -142,6 +146,10 @@ export interface MockTransportOptions {
   streamIntervalMs?: number;
   /** How long github.connect stays "authorizing" before the mock approves, ms. Defaults to 1500. */
   githubApprovalMs?: number;
+  /** Mock voice: end every listening attempt with this issue (to design error states). */
+  voiceIssue?: VoiceIssueCode;
+  /** Mock voice: start with the microphone already granted. */
+  voiceGranted?: boolean;
 }
 
 export function createMockTransport(options: MockTransportOptions = {}): MockTransport {
@@ -156,11 +164,37 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
   let prefs: Preferences = structuredClone(DEFAULT_PREFERENCES);
   const projects = new Map<string, ProjectRecord>();
   let voice: VoiceStatus = {
-    microphone: "not_determined",
+    microphone: options.voiceGranted ? "granted" : "not_determined",
     speechRecognition: "not_determined",
     listening: false,
     speaking: false,
+    phase: options.voiceGranted ? "idle" : "needs_permission",
+    revision: 0,
+    sessionActive: false,
+    conversationId: null,
+    mode: null,
+    utteranceId: null,
+    speechId: null,
+    speakingStreamId: null,
+    outputMuted: false,
+    inputDevice: { name: "Mock microphone (offline)", transport: "built_in" },
+    issue: null,
   };
+  const voiceCapabilities = (): VoiceCapabilities => ({
+    input: voice.microphone === "granted" ? "available" : "needs_permission",
+    recognition: "on_device",
+    engine: "speech_analyzer",
+    requiresSpeechRecognitionPermission: false,
+    recognitionAssets: "installed",
+    locale: prefs.voice.locale,
+    liveTranscripts: true,
+    autoEndOfUtterance: true,
+    handsFreeBargeIn: false,
+    maxUtteranceSeconds: 60,
+  });
+  let voiceRun = 0;
+  let utteranceCounter = 0;
+  let speechCounter = 0;
   let streamCounter = 0;
   const MOCK_PROVIDER: AIProviderInfo = {
     id: "mock", displayName: "Mock provider (offline)", kind: "local", available: true, models: ["mock-echo"],
@@ -394,9 +428,77 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
   }
 
   function setVoice(next: Partial<VoiceStatus>): VoiceStatus {
-    voice = { ...voice, ...next };
+    const merged = { ...voice, ...next };
+    if (JSON.stringify({ ...merged, revision: 0 }) === JSON.stringify({ ...voice, revision: 0 })) return voice;
+    voice = { ...merged, revision: voice.revision + 1 };
     emit("voice.statusChanged", voice);
     return voice;
+  }
+
+  const MOCK_VOICE_ISSUES: Partial<Record<VoiceIssueCode, Omit<VoiceIssue, "code">>> = {
+    no_audio: { message: "No audio is arriving from Mock microphone (offline). Try again, or choose another microphone.", recovery: ["retry", "choose_input"], transport: "built_in" },
+    input_failed: { message: "The Bluetooth headset's microphone could not start (error -10875). Try again, or choose another microphone.", recovery: ["retry", "choose_input"], transport: "bluetooth" },
+    input_lost: { message: "Audio from Mock headset stopped; it may have been disconnected. Try again, or choose another microphone.", recovery: ["retry", "choose_input"], transport: "bluetooth" },
+    no_speech: { message: "I didn't hear anything. Press Talk to try again.", recovery: ["retry"], transport: null },
+    recognition_unavailable: { message: "The on-device speech model for en-US isn't installed yet.", recovery: ["install_speech_assets"], transport: null },
+  };
+
+  function mockVoiceIssue(code: VoiceIssueCode): VoiceIssue {
+    const known = MOCK_VOICE_ISSUES[code];
+    return { code, message: known?.message ?? `Mock voice issue: ${code}.`, recovery: known?.recovery ?? ["retry"], transport: known?.transport ?? null };
+  }
+
+  /** Mock listening: levels, a partial and (auto_end) a final transcript. */
+  async function mockListen(run: number, utteranceId: string, mode: VoiceListenMode): Promise<void> {
+    await wait(streamIntervalMs * 2);
+    if (run !== voiceRun) return;
+    if (options.voiceIssue) {
+      const issue = mockVoiceIssue(options.voiceIssue);
+      setVoice({ phase: options.voiceIssue === "no_speech" ? "idle" : "error", listening: false, mode: null, issue });
+      return;
+    }
+    setVoice({ phase: "listening" });
+    for (let i = 0; i < 6 && run === voiceRun && voice.phase === "listening"; i++) {
+      emit("voice.inputLevel", { utteranceId, level: 0.2 + 0.5 * Math.abs(Math.sin(i)) });
+      if (i === 3) emit("voice.transcript", { utteranceId, seq: 1, text: "mock transcript", isFinal: false });
+      await wait(streamIntervalMs);
+    }
+    if (run === voiceRun && mode === "auto_end" && voice.phase === "listening") await mockFinish(run, utteranceId);
+  }
+
+  async function mockFinish(run: number, utteranceId: string): Promise<void> {
+    setVoice({ phase: "recognizing", listening: false });
+    await wait(streamIntervalMs * 2);
+    if (run !== voiceRun) return;
+    emit("voice.transcript", { utteranceId, seq: 2, text: "mock transcript complete", isFinal: true });
+    setVoice({ phase: "idle", mode: null });
+  }
+
+  /** Mock speech: one progress pair and a few levels per sentence. */
+  async function mockSpeak(text: string, streamId: string | null): Promise<void> {
+    const run = ++voiceRun;
+    const speechId = `speech-mock-${++speechCounter}`;
+    setVoice({ phase: "speaking", speaking: true, listening: false, mode: null, speechId, speakingStreamId: streamId, issue: null });
+    const sentences = text.replace(/```[\s\S]*?```/g, " I've put the code on screen. ").split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+    for (const [segment, sentence] of sentences.entries()) {
+      if (run !== voiceRun) return;
+      emit("voice.speechProgress", { speechId, streamId, segment, text: sentence, state: "started" });
+      for (let i = 0; i < 4 && run === voiceRun; i++) {
+        emit("voice.speechLevel", { level: Math.abs(Math.sin(i + segment)) });
+        await wait(streamIntervalMs);
+      }
+      if (run !== voiceRun) return;
+      emit("voice.speechProgress", { speechId, streamId, segment, text: sentence, state: "finished" });
+    }
+    emit("voice.speechLevel", { level: 0 });
+    setVoice({ phase: "idle", speaking: false, speechId: null, speakingStreamId: null });
+  }
+
+  function stopMockSpeech(): void {
+    if (!voice.speaking) return;
+    voiceRun++;
+    emit("voice.speechLevel", { level: 0 });
+    setVoice({ phase: "idle", speaking: false, speechId: null, speakingStreamId: null });
   }
 
   const handlers: Handlers = {
@@ -673,35 +775,76 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
     },
 
     "voice.getStatus": () => voice,
-    "voice.requestPermissions": () => setVoice({ microphone: "granted", speechRecognition: "granted" }),
-    "voice.startListening": () => {
-      if (voice.microphone !== "granted" || voice.speechRecognition !== "granted") {
-        throw new MockFailure({ code: "permission_denied", message: "call voice.requestPermissions first", retryable: false });
-      }
-      const status = setVoice({ listening: true });
-      void (async () => {
-        await wait(streamIntervalMs * 5);
-        if (voice.listening) emit("voice.transcript", { text: "mock transcript", isFinal: false });
-        await wait(streamIntervalMs * 5);
-        if (voice.listening) emit("voice.transcript", { text: "mock transcript complete", isFinal: true });
-      })();
+    "voice.getCapabilities": () => voiceCapabilities(),
+    "voice.requestPermissions": () => {
+      const status = setVoice({ microphone: "granted", phase: voice.phase === "needs_permission" ? "idle" : voice.phase, issue: null });
+      emit("voice.capabilitiesChanged", voiceCapabilities());
       return status;
     },
-    "voice.stopListening": () => setVoice({ listening: false }),
-    "voice.speak": () => {
-      setVoice({ speaking: true });
-      void (async () => {
-        for (let i = 0; i < 10 && voice.speaking; i++) {
-          emit("voice.speechLevel", { level: Math.abs(Math.sin(i)) });
-          await wait(streamIntervalMs);
-        }
-        emit("voice.speechLevel", { level: 0 });
-        setVoice({ speaking: false });
-      })();
+    "voice.startSession": ({ conversationId }) => setVoice({ sessionActive: true, conversationId: conversationId ?? null, issue: null }),
+    "voice.endSession": () => {
+      voiceRun++;
+      return setVoice({ sessionActive: false, conversationId: null, listening: false, speaking: false, mode: null, speechId: null, speakingStreamId: null, outputMuted: false, issue: null, phase: voice.microphone === "granted" ? "idle" : "needs_permission" });
+    },
+    "voice.startListening": ({ mode }) => {
+      if (voice.microphone !== "granted") {
+        setVoice({ phase: "needs_permission" });
+        throw new MockFailure({ code: "permission_denied", message: "call voice.requestPermissions first", retryable: false });
+      }
+      stopMockSpeech();
+      const run = ++voiceRun;
+      const utteranceId = `utt-mock-${++utteranceCounter}`;
+      const listenMode = mode ?? "auto_end";
+      const status = setVoice({ sessionActive: true, phase: "starting", listening: true, mode: listenMode, utteranceId, issue: null });
+      void mockListen(run, utteranceId, listenMode);
+      return status;
+    },
+    "voice.stopListening": () => {
+      if (voice.phase !== "listening" && voice.phase !== "starting") return voice;
+      if (voice.phase === "starting") { voiceRun++; return setVoice({ phase: "idle", listening: false, mode: null }); }
+      void mockFinish(voiceRun, voice.utteranceId ?? "");
+      return voice;
+    },
+    "voice.cancelListening": () => {
+      if (!voice.listening && voice.phase !== "recognizing") return voice;
+      voiceRun++;
+      return setVoice({ phase: "idle", listening: false, mode: null, issue: null });
+    },
+    "voice.speak": ({ text, interrupt }) => {
+      if (!text.trim()) throw new MockFailure({ code: "invalid_request", message: "nothing to speak", retryable: false });
+      if (voice.outputMuted) return {};
+      if (voice.speaking && interrupt === false) throw new MockFailure({ code: "invalid_request", message: "already speaking", retryable: false });
+      void mockSpeak(text, null);
       return {};
     },
+    "voice.speakReply": ({ conversationId, streamId }) => {
+      const turn = conversations.get(conversationId)?.turns.find((t) => t.streamId === streamId);
+      if (!turn) throw new MockFailure({ code: "not_found", message: "no such reply in this conversation", retryable: false });
+      if (turn.finishReason === "cancelled" || turn.finishReason === "error") {
+        throw new MockFailure({ code: "invalid_request", message: "that reply was not completed", retryable: false });
+      }
+      if (voice.outputMuted || voice.speakingStreamId === streamId) return voice;
+      const run = ++voiceRun;
+      setVoice({ phase: "thinking", speaking: true, listening: false, speakingStreamId: streamId, issue: null });
+      void (async () => {
+        for (let i = 0; i < 400 && !turn.finishReason && run === voiceRun; i++) await wait(streamIntervalMs);
+        if (run === voiceRun && turn.finishReason === "stop") await mockSpeak(turn.replyText, streamId);
+        else if (run === voiceRun) stopMockSpeech();
+      })();
+      return voice;
+    },
     "voice.stopSpeaking": () => {
-      setVoice({ speaking: false });
+      stopMockSpeech();
+      return {};
+    },
+    "voice.setOutputMuted": ({ muted }) => {
+      if (muted) stopMockSpeech();
+      return setVoice({ outputMuted: muted });
+    },
+    "voice.listVoices": ({ locale }) => [{ id: "mock.voice", name: "Mock voice (offline)", locale: locale ?? prefs.voice.locale, quality: "default" }],
+    "voice.openSettings": () => ({}),
+    "voice.installRecognitionAssets": () => {
+      void wait(streamIntervalMs).then(() => emit("voice.capabilitiesChanged", voiceCapabilities()));
       return {};
     },
 

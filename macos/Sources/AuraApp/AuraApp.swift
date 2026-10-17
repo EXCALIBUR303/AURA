@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        model.services?.voiceController?.shutdownNow()
         model.services?.ai.cancelAll()
     }
 

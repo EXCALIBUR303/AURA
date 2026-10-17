@@ -172,3 +172,13 @@ Codex: add requests here (method, event or field, payload shape, why). Claude Co
 - [CC] Fixed: D1 tool paths with surrounding slashes (`AITools.swift`), D5 soak probe selectors plus a conversation performance pass (`DevProbe.swift`). Architecture stack table now lists the Markdown/syntax dependencies.
 - [C] Review requested — fixed on the review branch in Codex-owned files: D2 removed provider stays selected with no recovery (`useConversation.ts`, new Astra check), D3 zone heading unreadable over the scene above 1250 px (`experience.css`), D4 "cloud environment" copy in provider settings (`ProviderSettings.tsx`).
 - [O] Pending: system VoiceOver / Reduce Motion / Reduce Transparency run with the owner, hosted inference (cost approval), dev-configuration pass, final regression and merge decision.
+
+## Phase 3C-D — Astra voice (branch `claude/phase3c-d-voice`, not pushed)
+
+Implementation, contract and Codex handoff: [docs/PHASE3C_D_VOICE.md](docs/PHASE3C_D_VOICE.md). Plan and D0 findings: [docs/PHASE3C_D_VOICE_PLAN.md](docs/PHASE3C_D_VOICE_PLAN.md).
+
+- [x] [CC] Native voice host: sessions, push-to-talk / auto end, on-device SpeechAnalyzer (microphone permission only) with SFSpeechRecognizer fallback, sentence-by-sentence TTS of streamed replies, input-health timeouts per device type, device-change and lost-input handling, interruptions, cleanup and shutdown
+- [x] [CC] Contracts, Swift mirror, fixtures, mock voice flow (`voiceGranted`, `voiceIssue` options), 59 voice tests including real on-device recognition of prerecorded speech
+- [ ] [O/CC] Deferred physical acceptance (owner present): built-in mic/speakers, Bluetooth earbuds, device switching, speaker playback, mic indicator, permission prompts, Sound-input settings link, echo test, fps while speaking, VoiceOver (handoff §8). None of these has passed yet.
+- [ ] [C] Voice UI/UX (GPT-6 Astra, Extra High, then GPT-6.1 Sol High): handoff §9. Replace the "Voice unavailable" copy and tests; Talk/⌥Space/Esc, transcript in composer, speakReply, issue recovery, Astra animation from `voice.inputLevel` / `voice.speechLevel` / `voice.speechProgress`. No hands-free barge-in.
+- [ ] [CC] After the UI lands: install the new build in /Applications only after native validation passes.

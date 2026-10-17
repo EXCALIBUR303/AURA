@@ -25,6 +25,9 @@ import type {
   RepositoryDetail,
   RepositorySummary,
   RepositoryTree,
+  VoiceCapabilities,
+  VoiceListenMode,
+  VoiceOption,
   VoiceStatus,
   WindowState,
 } from "./domain.ts";
@@ -169,12 +172,36 @@ export interface BridgeMethods {
   };
 
   "voice.getStatus": { params: Empty; result: VoiceStatus };
-  /** Triggers the macOS permission prompts on first use. */
+  "voice.getCapabilities": { params: Empty; result: VoiceCapabilities };
+  /** Shows the macOS prompts still needed (microphone; speech recognition only where required). Call only after the user asked to talk. */
   "voice.requestPermissions": { params: Empty; result: VoiceStatus };
-  "voice.startListening": { params: Empty; result: VoiceStatus };
+  /** Opens a voice session, optionally bound to a conversation. Opens no microphone. */
+  "voice.startSession": { params: { conversationId?: string | null }; result: VoiceStatus };
+  /** Stops listening and speaking and releases all audio. */
+  "voice.endSession": { params: Empty; result: VoiceStatus };
+  /** Opens the microphone (the user pressed Talk). Stops any speech first. Fails with permission_denied before access is granted. */
+  "voice.startListening": { params: { mode?: VoiceListenMode }; result: VoiceStatus };
+  /** Closes the microphone and finalises: one voice.transcript with isFinal follows if anything was heard. */
   "voice.stopListening": { params: Empty; result: VoiceStatus };
+  /** Closes the microphone and discards the utterance: no final transcript. */
+  "voice.cancelListening": { params: Empty; result: VoiceStatus };
+  /** Speaks text (for example "Read aloud" on a finished reply). Markdown is turned into speakable sentences. */
   "voice.speak": { params: { text: string; interrupt?: boolean }; result: Empty };
+  /**
+   * Speaks a conversation reply as it streams, sentence by sentence, from its start.
+   * Never speaks tool results; pauses with a short notice while an approval is pending.
+   * Stops when the reply is cancelled, the conversation is reset or ended, or another reply starts in it.
+   */
+  "voice.speakReply": { params: { conversationId: string; streamId: string }; result: VoiceStatus };
   "voice.stopSpeaking": { params: Empty; result: Empty };
+  /** Mutes or unmutes speech output for the session; muting stops current speech. */
+  "voice.setOutputMuted": { params: { muted: boolean }; result: VoiceStatus };
+  /** Installed system voices for the locale (default: the preference locale), best quality first. */
+  "voice.listVoices": { params: { locale?: string }; result: VoiceOption[] };
+  /** Opens System Settings for a recovery action. */
+  "voice.openSettings": { params: { target: "microphone" | "speech_recognition" | "sound_input" }; result: Empty };
+  /** Starts downloading Apple's on-device speech model for the locale; voice.capabilitiesChanged follows when done. */
+  "voice.installRecognitionAssets": { params: Empty; result: Empty };
 
   /** Forwards frontend logs into macOS unified logging (category "web"). */
   "log.write": {

@@ -1,6 +1,6 @@
 # Phase 3C-D: Astra Voice Intelligence (architecture plan)
 
-Status: **plan only, awaiting owner approval.** No voice code has been written.
+Status: **approved** (owner, with the §13 recommended defaults). Native implementation done on `claude/phase3c-d-voice`; see [PHASE3C_D_VOICE.md](PHASE3C_D_VOICE.md). Physical microphone and device tests are deferred (§14).
 Base: `main` at `e2996ba`, which includes Phase 3C-B and 3C-C.
 Author: Claude Code (Opus 5.5, High).
 

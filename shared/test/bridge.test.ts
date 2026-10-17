@@ -315,3 +315,50 @@ test("reply folding detects gaps and ignores other streams", () => {
   assert.equal(view.state, "error");
   assert.equal(applyReplyEvent(view, chunk(5, "late")), view);
 });
+
+test("mock voice: permission, live transcript, one final, revisions only increase", async () => {
+  const bridge = createBridgeClient(createMockTransport({ streamIntervalMs: 2 }));
+  const revisions: number[] = [];
+  const transcripts: { text: string; isFinal: boolean }[] = [];
+  bridge.on("voice.statusChanged", ({ revision }) => revisions.push(revision));
+  bridge.on("voice.transcript", ({ text, isFinal }) => transcripts.push({ text, isFinal }));
+  assert.equal((await bridge.call("voice.getStatus", {})).phase, "needs_permission");
+  await assert.rejects(bridge.call("voice.startListening", {}), (error: unknown) => error instanceof BridgeCallError && error.code === "permission_denied");
+  const granted = await bridge.call("voice.requestPermissions", {});
+  assert.equal(granted.microphone, "granted");
+  assert.equal(granted.speechRecognition, "not_determined");
+  assert.equal((await bridge.call("voice.getCapabilities", {})).handsFreeBargeIn, false);
+  await bridge.call("voice.startListening", { mode: "auto_end" });
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert.deepEqual(transcripts.map((t) => t.isFinal), [false, true]);
+  assert.equal((await bridge.call("voice.getStatus", {})).phase, "idle");
+  assert.deepEqual(revisions, revisions.map((_, index) => revisions[0] + index));
+  bridge.dispose();
+});
+
+test("mock voice: an issue scenario ends listening with recovery options", async () => {
+  const bridge = createBridgeClient(createMockTransport({ streamIntervalMs: 2, voiceGranted: true, voiceIssue: "no_audio" }));
+  await bridge.call("voice.startListening", { mode: "push_to_talk" });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const status = await bridge.call("voice.getStatus", {});
+  assert.equal(status.phase, "error");
+  assert.deepEqual(status.issue?.recovery, ["retry", "choose_input"]);
+  bridge.dispose();
+});
+
+test("mock voice: a reply is spoken sentence by sentence and can be stopped", async () => {
+  const bridge = createBridgeClient(createMockTransport({ streamIntervalMs: 2, voiceGranted: true }));
+  const progress: string[] = [];
+  bridge.on("voice.speechProgress", ({ segment, state }) => progress.push(`${segment}:${state}`));
+  const { conversationId } = await bridge.call("ai.startConversation", {});
+  const { streamId } = await bridge.call("ai.sendMessage", { conversationId, text: "Hello there. How are you?" });
+  const speaking = await bridge.call("voice.speakReply", { conversationId, streamId });
+  assert.equal(speaking.speakingStreamId, streamId);
+  for (let i = 0; i < 200 && (await bridge.call("voice.getStatus", {})).speaking; i++) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.ok(progress.length >= 2 && progress[0] === "0:started");
+  assert.equal(progress.at(-1)?.endsWith(":finished"), true);
+  await bridge.call("voice.speak", { text: "One. Two. Three." });
+  await bridge.call("voice.stopSpeaking", {});
+  assert.equal((await bridge.call("voice.getStatus", {})).speaking, false);
+  bridge.dispose();
+});

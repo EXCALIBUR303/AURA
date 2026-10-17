@@ -11,6 +11,7 @@ import type {
   FinishReason,
   GitHubAuthStatus,
   Preferences,
+  VoiceCapabilities,
   VoiceStatus,
   WindowState,
   ZoneId,
@@ -52,10 +53,20 @@ export interface BridgeEvents {
   /** The provider list changed (saved, removed, key stored or deleted, validated). */
   "ai.providersChanged": AIProviderInfo[];
 
+  /** Every voice status change (see VoiceStatus.revision for ordering). */
   "voice.statusChanged": VoiceStatus;
-  "voice.transcript": { text: string; isFinal: boolean };
+  "voice.capabilitiesChanged": VoiceCapabilities;
+  /**
+   * The utterance's whole text so far (not a delta). `seq` increases per utterance.
+   * Exactly one isFinal event ends an utterance that heard something; never send non-final text to a model.
+   */
+  "voice.transcript": { utteranceId: string; seq: number; text: string; isFinal: boolean };
+  /** Normalised 0–1 microphone level while listening (about 10–20 Hz). */
+  "voice.inputLevel": { utteranceId: string; level: number };
   /** Normalised 0–1 output level while speaking; drives jaw/glow animation. Max ~30 Hz. */
   "voice.speechLevel": { level: number };
+  /** A spoken sentence started or finished (captions). `segment` counts from 0 per speech. */
+  "voice.speechProgress": { speechId: string; streamId: string | null; segment: number; text: string; state: "started" | "finished" };
 }
 
 export type BridgeEventName = keyof BridgeEvents;

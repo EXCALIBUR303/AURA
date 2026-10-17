@@ -6,6 +6,8 @@ import Foundation
 @MainActor
 public final class WindowStateStore {
     public private(set) var current: WindowState
+    /// Called after each change (voice stops when AURA leaves the front).
+    public var onChange: (@MainActor (WindowState) -> Void)?
     private let events: BridgeEventEmitter
 
     /// Starts active and visible, so a page that loads before the first report
@@ -21,5 +23,6 @@ public final class WindowStateStore {
         current = next
         Log.app.info("window state active=\(next.active, privacy: .public) visible=\(next.visible, privacy: .public)")
         events.emit(.appWindowStateChanged, next)
+        onChange?(next)
     }
 }

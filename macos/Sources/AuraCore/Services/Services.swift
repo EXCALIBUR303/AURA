@@ -226,23 +226,45 @@ public final class MockGitHubService: GitHubService {
 
 public protocol VoiceService: Sendable {
     func status() async -> VoiceStatus
+    func capabilities() async -> VoiceCapabilities
     func requestPermissions() async throws -> VoiceStatus
-    func startListening() async throws -> VoiceStatus
-    func stopListening() async throws -> VoiceStatus
+    func startSession(conversationId: String?) async throws -> VoiceStatus
+    func endSession() async -> VoiceStatus
+    func startListening(mode: VoiceListenMode) async throws -> VoiceStatus
+    func stopListening() async -> VoiceStatus
+    func cancelListening() async -> VoiceStatus
     func speak(_ text: String, interrupt: Bool) async throws
-    func stopSpeaking() async throws
+    func speakReply(conversationId: String, streamId: String) async throws -> VoiceStatus
+    func stopSpeaking() async
+    func setOutputMuted(_ muted: Bool) async -> VoiceStatus
+    func voices(locale: String?) async -> [VoiceOption]
+    func openSettings(_ target: OpenVoiceSettingsParams.Target) async throws
+    func installRecognitionAssets() async throws
+    func handleSystemEvent(_ event: VoiceSystemEvent) async
+    func shutdown() async
 }
 
-/// Speech recognition and microphone access require the signed .app bundle
-/// (Info.plist usage descriptions); without them macOS terminates the process
-/// on first use. Until Phase 3 every action reports `unavailable`.
+/// Builds without the AURA.app bundle (`swift run`, tests without voice engines)
+/// have no microphone or speech usage strings; macOS would terminate the
+/// process on first use, so every voice action reports `unavailable`.
 public struct UnavailableVoiceService: VoiceService {
     public init() {}
-    private static let reason = "voice requires the signed AURA.app bundle (Phase 3)"
-    public func status() async -> VoiceStatus { .initial }
+    private static let reason = "voice requires the AURA.app bundle"
+    public func status() async -> VoiceStatus { .unavailable }
+    public func capabilities() async -> VoiceCapabilities { .unavailable }
     public func requestPermissions() async throws -> VoiceStatus { throw AuraError.unavailable(Self.reason) }
-    public func startListening() async throws -> VoiceStatus { throw AuraError.unavailable(Self.reason) }
-    public func stopListening() async throws -> VoiceStatus { .initial }
+    public func startSession(conversationId: String?) async throws -> VoiceStatus { throw AuraError.unavailable(Self.reason) }
+    public func endSession() async -> VoiceStatus { .unavailable }
+    public func startListening(mode: VoiceListenMode) async throws -> VoiceStatus { throw AuraError.unavailable(Self.reason) }
+    public func stopListening() async -> VoiceStatus { .unavailable }
+    public func cancelListening() async -> VoiceStatus { .unavailable }
     public func speak(_ text: String, interrupt: Bool) async throws { throw AuraError.unavailable(Self.reason) }
-    public func stopSpeaking() async throws {}
+    public func speakReply(conversationId: String, streamId: String) async throws -> VoiceStatus { throw AuraError.unavailable(Self.reason) }
+    public func stopSpeaking() async {}
+    public func setOutputMuted(_ muted: Bool) async -> VoiceStatus { .unavailable }
+    public func voices(locale: String?) async -> [VoiceOption] { [] }
+    public func openSettings(_ target: OpenVoiceSettingsParams.Target) async throws { throw AuraError.unavailable(Self.reason) }
+    public func installRecognitionAssets() async throws { throw AuraError.unavailable(Self.reason) }
+    public func handleSystemEvent(_ event: VoiceSystemEvent) async {}
+    public func shutdown() async {}
 }
