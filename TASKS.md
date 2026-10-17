@@ -136,3 +136,12 @@ Codex: add requests here (method, event or field, payload shape, why). Claude Co
 - [C] Frontend completion fixes and regression coverage: dock/avatar-safe projected cards at 1100×700; loaded/settled performance sampling; renderer startup error feedback; actual mouse orbit/zoom/reset diagnostics; loading, missing-model/retry, keyboard-only, attribution and AI error checks.
 - [C] Required frontend checks pass and the expanded browser suite has 22 passing checks. Full criterion-by-criterion evidence and exact isolated Mac M5 review commands are in `frontend/PHASE2_HANDOFF.md`; machine-readable results are in `frontend/PHASE2_RESULTS.json`.
 - [O/CC] Phase 2 acceptance remains pending for actual AuraApp/WebKit execution, native menus/focus/persistence/dragging, Safari network checks, accessibility review, and per-zone M5 browser plus AuraApp performance at DPR 2 (≥55 FPS). No Phase 3 work is included.
+
+## Phase 3C-C — Astra experience design checkpoint
+
+- [C] Phase 3C-C design checkpoint (Phases 1–2): creative direction, component and motion specifications, additive semantic tokens, and an isolated browser design study at `frontend/astra-design.html`. See `frontend/design/ASTRA_EXPERIENCE.md`. Functional conversation/provider/consent integration and final Mac validation remain pending; prototype actions do not send AI requests or native approvals.
+- [C] Design checkpoint verification: TypeScript and production build passed; existing bridge tests 16/16; prototype browser checks 13/13 with five zero-violation axe scans. Four desktop sizes inspected; original GLB checksum/attribution preserved. Mac M5 performance and live inference were not revalidated. Full evidence and next implementation steps: `docs/PHASE3C_C_ASTRA_EXPERIENCE.md`.
+
+### Bridge request — Phase 3C-C active-reply restoration
+
+- [CC] Consider extending `ai.getConversation` with an atomic active-reply snapshot containing `pendingApproval: AIApprovalRequest | null` (with the remaining lifetime) and the reply's sequence watermark. The current result has conversation info and turns, but no approval id/payload or `seq`. A reload or lost event during approval therefore cannot reconstruct a safe consent dialog, and an active `useReply` subscription starts without a snapshot cursor. Keep existing security, expiry and cancellation semantics. Until this lands, Codex will show a truthful restoration notice and offer Stop/send again rather than inventing approval state. No contract or native implementation was modified for this request.

@@ -101,6 +101,50 @@
   --aura-duration-fast: 120ms;
   --aura-duration-base: 200ms;
   --aura-duration-slow: 360ms;
+
+  /* Phase 3C-C: additive experience tokens. Adopted by the isolated design
+     prototype first; existing application tokens above retain their values. */
+  --aura-paper: #f8f9f6;
+  --aura-surface: #ffffff;
+  --aura-surface-subtle: #f0f3ef;
+  --aura-surface-raised: #fcfdfb;
+  --aura-surface-selected: #e7f0eb;
+  --aura-ink: #21352f;
+  --aura-ink-secondary: #53635f;
+  --aura-ink-muted: #62716c;
+  --aura-rule: #dde4dd;
+  --aura-control-border: #84958d;
+  --aura-action: #285f59;
+  --aura-action-hover: #214f4a;
+  --aura-action-pressed: #193e3a;
+  --aura-on-action: #ffffff;
+  --aura-selection-ink: #24584c;
+  --aura-focus: #2563eb;
+  --aura-disabled-surface: #edf0eb;
+  --aura-disabled-ink: #68736e;
+  --aura-success-ink: #286c53;
+  --aura-success-surface: #eaf3ed;
+  --aura-warning-ink: #865a1e;
+  --aura-warning-surface: #faf1df;
+  --aura-error-ink: #a23f41;
+  --aura-error-surface: #f9eeee;
+  --aura-working-ink: #6a528a;
+  --aura-working-surface: #f0ecf6;
+  --aura-code-surface: #f1f4f2;
+  --aura-code-ink: #183a3a;
+  --aura-code-keyword: #7558a6;
+  --aura-code-string: #356b50;
+  --aura-experience-title: 550 28px/34px var(--aura-font-ui);
+  --aura-pane-title: 600 20px/28px var(--aura-font-ui);
+  --aura-conversation-text: 400 14px/24px var(--aura-font-ui);
+  --aura-reading-text: 400 15px/26px var(--aura-font-ui);
+  --aura-experience-code: 400 12px/20px var(--aura-font-mono);
+  --aura-control-height: 32px;
+  --aura-experience-chrome: 56px;
+  --aura-context-height: 44px;
+  --aura-conversation-width: 480px;
+  --aura-shadow-floating: 0 10px 30px #20372c0d, 0 2px 5px #20372c08;
+  --aura-shadow-dialog: 0 24px 80px #142f2c26, 0 4px 16px #142f2c0d;
 }
 
 @media (prefers-reduced-motion: reduce) {
