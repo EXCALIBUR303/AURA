@@ -109,7 +109,7 @@ public final class AppServices {
         }
         router.register(.aiRequestCredential, ProviderRef.self) { [weak self] ref in
             guard let prompt = self?.credentialPrompt else { throw AuraError.unavailable("API keys can only be entered in the AURA app") }
-            _ = try await registry.info(ref.providerId)
+            try await registry.prepareKeyEntry(ref.providerId)
             // Returns at once: the user may take longer than a bridge request may stay open.
             Task {
                 do { try await registry.requestKey(ref.providerId, prompt: prompt) } catch {

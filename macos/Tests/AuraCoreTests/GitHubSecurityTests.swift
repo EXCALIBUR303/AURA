@@ -229,3 +229,97 @@ final class RedirectStubProtocol: URLProtocol, @unchecked Sendable {
         guard case .connected = h.service.status else { Issue.record("got \(h.service.status)"); return }
     }
 }
+
+// MARK: end to end through the bridge
+
+/// The production stack (AppServices, router, LiveGitHubService, Keychain
+/// store interface) against a scripted GitHub whose installation has just
+/// been given write access: what the page sees, and what is left behind.
+@Suite @MainActor struct GitHubExcessPermissionBridgeTests {
+    @Test func writeAccessEndsTheSessionAndEveryPageCallFails() async throws {
+        let fake = FakeGitHub()
+        fake.on("GET /user") { _ in FakeGitHub.json(["login": "octo", "name": "Octo Cat", "html_url": "https://github.com/octo"]) }
+        fake.on("GET /user/installations") { _ in
+            FakeGitHub.json(["total_count": 1, "installations": [[
+                "id": 7, "account": ["login": "octo"], "repository_selection": "all",
+                "permissions": ["metadata": "read", "contents": "write", "administration": "read"],
+                "html_url": "https://github.com/settings/installations/7",
+            ]]])
+        }
+        fake.on("GET /user/installations/7/repositories") { _ in FakeGitHub.json(["total_count": 0, "repositories": []]) }
+
+        let secrets = InMemorySecretStore()
+        try GitHubCredentialStore(secrets: secrets).save(GitHubCredentials(accessToken: "ghu_live_looking_token", account: GitHubAccount(login: "octo", name: nil, htmlUrl: "https://github.com/octo")))
+        let github = LiveGitHubService(clientID: "Iv-test-client", secrets: secrets, transport: fake)
+        let recorder = EventRecorder()
+        let services = AppServices(
+            configuration: AppConfiguration(environment: .development, devServerURL: nil, webRoot: nil, dataDirectory: URL(fileURLWithPath: "/dev/null"), appVersion: "0.1.0", build: "test"),
+            store: try await AppStore(database: Database(path: ":memory:")),
+            secrets: secrets, github: github, deliverEvent: { recorder.record($0) }
+        )
+
+        await github.restore()
+
+        // The page is told, with where to fix it and no secrets.
+        let status = try await call(services, "github.getAuthStatus")
+        #expect(status["result"]?["state"] == .string("error"))
+        #expect(status["result"]?["reason"] == .string("excess_permissions"))
+        #expect(status["result"]?["retryable"] == .bool(true))
+        guard case .string(let message)? = status["result"]?["message"] else { Issue.record("no message"); return }
+        #expect(message.contains("contents=write"))
+        #expect(!message.contains("administration")) // read-level extras are not "excess"
+        #expect(message.contains("https://github.com/settings/installations/7"))
+        #expect(recorder.raw.contains { $0.contains("excess_permissions") })
+        #expect(!recorder.raw.contains { $0.contains("ghu_live_looking_token") })
+
+        // The token is gone, and every data method refuses.
+        #expect(try GitHubCredentialStore(secrets: secrets).load() == nil)
+        for method in ["github.listRepositories", "github.getRepository", "github.listBranches", "github.listCommits"] {
+            let params = method == "github.listRepositories" ? "{}" : #"{"fullName":"octo/aura"}"#
+            let reply = try await call(services, method, params)
+            #expect(reply["ok"] == .bool(false), "\(method)")
+            #expect(reply["error"]?["code"] == .string("not_authenticated"), "\(method)")
+        }
+        #expect(!fake.requests.contains { $0.url?.path.contains("/repositories") == true || $0.url?.path.contains("/repos/") == true })
+        // Nothing but GETs ever left AURA.
+        #expect(fake.requests.allSatisfy { $0.httpMethod == "GET" })
+    }
+}
+
+@Suite @MainActor struct AIKeyEntryTests {
+    @Test func localAndUnknownProvidersAreRejectedBeforeAnySheetOpens() async throws {
+        let h = try await AIHarness()
+        try await h.saveLocal()
+        await #expect(throws: AuraError.invalidRequest("local providers take no key")) { try await h.registry.prepareKeyEntry("local") }
+        await #expect(throws: AuraError.notFound("no AI provider nope")) { try await h.registry.prepareKeyEntry("nope") }
+        await #expect(throws: AuraError.invalidRequest("the mock provider takes no key")) { try await h.registry.prepareKeyEntry("mock") }
+        try await h.saveCloud()
+        try await h.registry.prepareKeyEntry("cloud")
+    }
+
+    @Test func aRejectedKeyStillTellsThePageThePromptIsOver() async throws {
+        let h = try await AIHarness()
+        try await h.saveCloud()
+        try await h.registry.storeKey("sk-original", for: "cloud")
+        let before = h.recorder.names().count
+        await #expect(throws: AuraError.self) { try await h.registry.requestKey("cloud") { _ in "bad key with spaces" } }
+        #expect(h.recorder.names().count == before + 1)
+        #expect(h.recorder.names().last == "ai.providersChanged")
+        #expect(try h.secrets.read(.aiProviderKey("cloud")) == "sk-original") // the old key survives
+    }
+
+    @Test func keyShapeIsCheckedByTheSheetFirst() throws {
+        #expect(try AICredentialStore.normalized("  sk-abc123 \n") == "sk-abc123")
+        for bad in ["", "   ", "has space", "tab\there", String(repeating: "k", count: 513)] {
+            #expect(throws: AuraError.self) { try AICredentialStore.normalized(bad) }
+        }
+    }
+
+    @Test func unreachableHostsAreDescribedForTheirKind() {
+        let remote = URLRequest(url: URL(string: "https://api.example.invalid/v1/models")!)
+        let local = URLRequest(url: URL(string: "http://127.0.0.1:11434/v1/models")!)
+        #expect(URLSessionAITransport.mapped(URLError(.cannotFindHost), remote) as? AuraError
+            == .unavailable("could not reach api.example.invalid:443; check the provider's address and your network"))
+        #expect((URLSessionAITransport.mapped(URLError(.cannotConnectToHost), local) as? AuraError).map { "\($0)" }?.contains("start it") == true)
+    }
+}

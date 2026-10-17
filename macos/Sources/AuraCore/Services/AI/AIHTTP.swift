@@ -104,7 +104,10 @@ public struct URLSessionAITransport: AIHTTPTransport {
         case .cancelled: return CancellationError()
         case .timedOut: return AuraError.timeout
         case .cannotConnectToHost, .cannotFindHost:
-            return AuraError.unavailable("nothing answered at \(origin); if this is a local runtime, start it")
+            let loopback = request.url?.host.map { AIProviderConfiguration.loopbackHosts.contains($0.lowercased()) } ?? false
+            return AuraError.unavailable(loopback
+                ? "nothing answered at \(origin); if this is a local runtime, start it"
+                : "could not reach \(origin); check the provider's address and your network")
         case .notConnectedToInternet, .networkConnectionLost, .dnsLookupFailed:
             return AuraError.network("network unavailable while reaching \(origin)")
         case .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateNotYetValid, .serverCertificateHasUnknownRoot, .secureConnectionFailed:

@@ -64,13 +64,19 @@ public struct AICredentialStore: Sendable {
         ((try? secrets.read(provider.credentialKey)) ?? nil)?.isEmpty == false
     }
 
-    public func saveKey(_ key: String, for provider: AIProviderConfiguration) throws {
+    /// Trims the key and checks its shape. Used by the native key sheet so a
+    /// malformed key is rejected in the sheet, before anything is stored.
+    public static func normalized(_ key: String) throws -> String {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw AuraError.invalidRequest("API key is empty") }
         guard trimmed.count <= 512, !trimmed.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.contains($0) || CharacterSet.controlCharacters.contains($0) }) else {
-            throw AuraError.invalidRequest("API key has an unexpected format")
+            throw AuraError.invalidRequest("API key has an unexpected format (no spaces or line breaks, at most 512 characters)")
         }
-        try secrets.write(trimmed, for: provider.credentialKey)
+        return trimmed
+    }
+
+    public func saveKey(_ key: String, for provider: AIProviderConfiguration) throws {
+        try secrets.write(try Self.normalized(key), for: provider.credentialKey)
     }
 
     public func deleteKey(for provider: AIProviderConfiguration) throws {

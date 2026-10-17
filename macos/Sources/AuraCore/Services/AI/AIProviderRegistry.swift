@@ -64,7 +64,9 @@ public final class AIProviderRegistry {
             id: Self.mockId, displayName: "Mock provider (offline)", kind: .local, available: true, models: ["mock-echo"],
             api: .mock, defaultModel: "mock-echo", baseUrl: nil, credential: .notRequired, lastCheck: checks[Self.mockId], builtIn: true
         )
-        return [mockInfo] + configurations.values.sorted { $0.id < $1.id }.map(info)
+        var list = [mockInfo]
+        for configuration in configurations.values.sorted(by: { $0.id < $1.id }) { list.append(await info(configuration)) }
+        return list
     }
 
     public func info(_ id: String) async throws -> AIProviderInfo {
@@ -79,7 +81,8 @@ public final class AIProviderRegistry {
             throw AuraError.unavailable(info.credential == .missing ? "add an API key for \(info.displayName) first" : "\(info.displayName) is not configured")
         }
         guard let configuration = configurations[id] else { return (mock, info) }
-        let key = configuration.requiresKey ? try credentials.key(for: configuration) : nil
+        let store = credentials
+        let key = configuration.requiresKey ? try await Task.detached { try store.key(for: configuration) }.value : nil
         if configuration.requiresKey, key?.isEmpty ?? true { throw AuraError.unavailable("add an API key for \(info.displayName) first") }
         return (makeProvider(configuration, key), info)
     }
@@ -107,7 +110,7 @@ public final class AIProviderRegistry {
         try await persist()
         Log.ai.notice("saved AI provider \(settings.id, privacy: .public) (\(configuration.kind.rawValue, privacy: .public), \(configuration.origin.host, privacy: .private))")
         await changed()
-        return info(configuration)
+        return await info(configuration)
     }
 
     public func remove(_ id: String) async throws {
@@ -126,14 +129,25 @@ public final class AIProviderRegistry {
     public func requestKey(_ id: String, prompt: AICredentialPrompt) async throws {
         let configuration = try await keyedConfiguration(id)
         let destination = configuration.origin.port == 443 ? configuration.origin.host : "\(configuration.origin.host):\(configuration.origin.port)"
-        if let key = await prompt(AICredentialPromptRequest(providerName: configuration.settings.displayName, destination: destination)) {
-            // The settings may have changed while the prompt was open.
-            guard configurations[id]?.origin == configuration.origin else { throw AuraError.invalidRequest("the provider changed while the key was being entered") }
-            try credentials.saveKey(key, for: configuration)
-            checks[id] = nil
-            Log.ai.notice("stored an API key for AI provider \(id, privacy: .public)")
+        // Whatever happens, tell the page the prompt is over, so it stops waiting.
+        do {
+            if let key = await prompt(AICredentialPromptRequest(providerName: configuration.settings.displayName, destination: destination)) {
+                // The settings may have changed while the prompt was open.
+                guard configurations[id]?.origin == configuration.origin else { throw AuraError.invalidRequest("the provider changed while the key was being entered") }
+                try credentials.saveKey(key, for: configuration)
+                checks[id] = nil
+                Log.ai.notice("stored an API key for AI provider \(id, privacy: .public)")
+            }
+        } catch {
+            await changed()
+            throw error
         }
         await changed()
+    }
+
+    /// Checks, before a key prompt opens, that the provider exists and takes a key.
+    public func prepareKeyEntry(_ id: String) async throws {
+        _ = try await keyedConfiguration(id)
     }
 
     /// Stores a key directly (tests, and future native settings UI). Never exposed to the bridge.
@@ -150,7 +164,7 @@ public final class AIProviderRegistry {
         try credentials.deleteKey(for: configuration)
         checks[id] = nil
         await changed()
-        return info(configuration)
+        return await info(configuration)
     }
 
     /// A free model-list request: checks reachability and the key.
@@ -185,8 +199,13 @@ public final class AIProviderRegistry {
         return configuration
     }
 
-    private func info(_ configuration: AIProviderConfiguration) -> AIProviderInfo {
-        let credential: AICredentialState = configuration.requiresKey ? (credentials.hasKey(for: configuration) ? .stored : .missing) : .notRequired
+    /// Keychain reads run off the main actor: macOS may show an access prompt
+    /// (for example after a rebuild with ad-hoc signing) and a read waits for
+    /// the answer, which must not freeze the window.
+    private func info(_ configuration: AIProviderConfiguration) async -> AIProviderInfo {
+        let store = credentials
+        let hasKey = configuration.requiresKey ? await Task.detached { store.hasKey(for: configuration) }.value : false
+        let credential: AICredentialState = configuration.requiresKey ? (hasKey ? .stored : .missing) : .notRequired
         return AIProviderInfo(
             id: configuration.id, displayName: configuration.settings.displayName, kind: configuration.kind,
             available: credential != .missing, models: configuration.settings.models, api: configuration.settings.api,
