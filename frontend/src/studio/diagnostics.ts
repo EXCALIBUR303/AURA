@@ -12,6 +12,8 @@ export interface FrameSample {
 export interface StudioDiagnostics extends AvatarDiagnostics {
   zone: ZoneId;
   cameraSettled: boolean;
+  cameraRevision?: number;
+  cameraSampledAt?: number;
   context: "ready" | "lost" | "restoring";
   drawCalls?: number;
   sceneTriangles?: number;

@@ -5,6 +5,8 @@ import { createNativeTransport, isNativeHostAvailable } from "./transport.ts";
 
 export { BridgeCallError, createBridgeClient } from "./client.ts";
 export type { BridgeClient, BridgeClientOptions } from "./client.ts";
+export { applyReplyEvent, newReply } from "./conversation.ts";
+export type { ReplyEvent, ReplyView } from "./conversation.ts";
 export { createMockTransport, DEFAULT_PREFERENCES } from "./mock.ts";
 export type { MockTransport, MockTransportOptions } from "./mock.ts";
 export { createNativeTransport, isNativeHostAvailable } from "./transport.ts";

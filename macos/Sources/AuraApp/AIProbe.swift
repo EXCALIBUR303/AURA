@@ -47,6 +47,7 @@ enum AIProbe {
             await report(webView, "J done (key left stored for the restart check)")
         case "sheet":
             await step(webView, "K look at the sheet (no Passwords autofill button), then Cancel", "move-test", until: nil, wait: 90)
+        case "conversation": await conversation(webView)
         case "verify": await report(webView, "verify")
         case "cleanup":
             for id in ["cloud-test", "local-test", "move-test"] { _ = await call(webView, "ai.removeProvider", #"{"providerId":"\#(id)"}"#) }
@@ -54,6 +55,54 @@ enum AIProbe {
         default: log.error("unknown probe mode")
         }
         log.notice("probe end")
+    }
+
+    /// `AURA_DEV_AI_PROBE=conversation`: streaming, cancellation and isolation
+    /// of host-owned conversations on the built-in mock provider, through the
+    /// real bridge. Logs event names, seq numbers, counts and error codes only,
+    /// never message text.
+    private static func conversation(_ w: WebView) async {
+        let result = await js(w, """
+            const ev = [];
+            const bridge = window.__AURA_BRIDGE__;
+            const orig = bridge.dispatch.bind(bridge);
+            bridge.dispatch = (json) => { try { const m = JSON.parse(json); if (m.event && m.event.startsWith('ai.') && m.payload && m.payload.streamId) ev.push({ n: m.event, s: m.payload.streamId, q: m.payload.seq, r: m.payload.finishReason ?? null, t: m.payload.state ?? null, d: (m.payload.delta ?? '').length }); } catch {} orig(json); };
+            const call = window.__aiProbe.call;
+            const out = {};
+            const ok = (r) => r.ok ? 'ok' : r.error.code;
+            const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+            const a = await call('ai.startConversation', { providerId: 'mock', tools: true });
+            const b = await call('ai.startConversation', { providerId: 'mock', tools: true });
+            out.start = [ok(a), ok(b)];
+            const A = a.result.conversationId, B = b.result.conversationId;
+            const s1 = await call('ai.sendMessage', { conversationId: A, text: 'probe one alpha-marker' });
+            await wait(2500);
+            const e1 = ev.filter((e) => e.s === s1.result.streamId);
+            out.stream1 = { events: e1.length, seqOrdered: e1.every((e, i) => i === 0 || e.q > e1[i - 1].q), dones: e1.filter((e) => e.n === 'ai.done').length, chunks: e1.filter((e) => e.n === 'ai.chunk').length, last: e1[e1.length - 1].n, reason: e1[e1.length - 1].r };
+            const s2 = await call('ai.sendMessage', { conversationId: A, text: 'probe two, a long enough message to still be streaming when cancelled' });
+            await wait(120);
+            out.cancel = ok(await call('ai.cancel', { streamId: s2.result.streamId }));
+            await wait(1500);
+            const e2 = ev.filter((e) => e.s === s2.result.streamId);
+            const doneAt = e2.findIndex((e) => e.n === 'ai.done');
+            out.stream2 = { events: e2.length, dones: e2.filter((e) => e.n === 'ai.done').length, reason: doneAt >= 0 ? e2[doneAt].r : null, afterDone: doneAt >= 0 ? e2.length - doneAt - 1 : -1 };
+            const ga = await call('ai.getConversation', { conversationId: A });
+            const gb = await call('ai.getConversation', { conversationId: B });
+            out.turns = { A: ga.result.turns.length, B: gb.result.turns.length };
+            out.isolation = { bHasAText: JSON.stringify(gb.result).includes('alpha-marker') };
+            out.reset = ok(await call('ai.resetConversation', { conversationId: A }));
+            out.afterReset = (await call('ai.getConversation', { conversationId: A })).result.turns.length;
+            out.end = ok(await call('ai.endConversation', { conversationId: A }));
+            const gone = await call('ai.sendMessage', { conversationId: A, text: 'x' });
+            out.sendAfterEnd = ok(gone);
+            const bad = await call('ai.sendMessage', { conversationId: B, text: 'x', context: { repository: { fullName: 'a/b' } } });
+            out.contextRepoRefused = ok(bad);
+            const secrets = JSON.stringify([ga, gb, ev]).match(/(ghu_|ghp_|github_pat_|sk-)[A-Za-z0-9]{10,}/g);
+            out.secretsInPageData = secrets ? secrets.length : 0;
+            await call('ai.endConversation', { conversationId: B });
+            return JSON.stringify(out);
+            """) ?? "?"
+        log.notice("CONVERSATION \(result, privacy: .public)")
     }
 
     private static func runAll(_ w: WebView) async {

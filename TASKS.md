@@ -73,7 +73,20 @@ Report and Codex handoff: [docs/PHASE3C_AI_FOUNDATION.md](docs/PHASE3C_AI_FOUNDA
 - [x] [CC] Tool allowlist and approval policy (decisions only), voice route/interruption contracts
 - [ ] [O] Manual: open the native key sheet in AURA.app; decide which cloud provider (if any) to try, and approve any cost
 - [ ] [C] Phase 3C-C: conversation UI, provider settings, context preview and privacy controls (see the handoff in the document)
-- [ ] [CC] Phase 3C-B: project-aware conversations and tool execution; 3C-D: real voice (`SFSpeechRecognizer`, `AVSpeechSynthesizer`, CoreAudio route monitor)
+- [x] [CC] Phase 3C-B: project-aware conversations and tool execution (see below)
+- [ ] [CC] Phase 3C-D: real voice (`SFSpeechRecognizer`, `AVSpeechSynthesizer`, CoreAudio route monitor)
+
+## Phase 3C-B: Astra conversations, project context, read-only tools (branch `claude/phase3c-b-astra-intelligence`, awaiting owner review)
+
+Report and Codex handoff: [docs/PHASE3C_B_ASTRA_INTELLIGENCE.md](docs/PHASE3C_B_ASTRA_INTELLIGENCE.md)
+
+- [x] [CC] Host-owned conversations: provider/repository binding, explicit turn states, one `seq` per reply, cancel, bounded in-memory history
+- [x] [CC] OpenAI-compatible tool calling; read-only GitHub tools with scope, privacy gate, approvals, timeouts and budgets
+- [x] [CC] Context: README and selected files (line ranges), boundary fences, `consent_required`; `github.listFiles`
+- [x] [CC] Contracts, Swift mirror, mock, fixtures, tests; `useReply` hook in `platform/`
+- [ ] [CC] Checkpoint G (QA): Xcode Debug/Release, browser suites with axe, live check in AURA.app (recommended: Sonnet 5.5)
+- [ ] [O] Approve (or not) a hosted-provider test that may cost money; until then hosted inference is unverified
+- [ ] [C] Phase 3C-C: conversation panel, tool activity, approval dialog, context picker, provider settings (handoff §11)
 
 ## Phase 3: Real services (native-led)
 
@@ -123,3 +136,39 @@ Codex: add requests here (method, event or field, payload shape, why). Claude Co
 - [C] Frontend completion fixes and regression coverage: dock/avatar-safe projected cards at 1100×700; loaded/settled performance sampling; renderer startup error feedback; actual mouse orbit/zoom/reset diagnostics; loading, missing-model/retry, keyboard-only, attribution and AI error checks.
 - [C] Required frontend checks pass and the expanded browser suite has 22 passing checks. Full criterion-by-criterion evidence and exact isolated Mac M5 review commands are in `frontend/PHASE2_HANDOFF.md`; machine-readable results are in `frontend/PHASE2_RESULTS.json`.
 - [O/CC] Phase 2 acceptance remains pending for actual AuraApp/WebKit execution, native menus/focus/persistence/dragging, Safari network checks, accessibility review, and per-zone M5 browser plus AuraApp performance at DPR 2 (≥55 FPS). No Phase 3 work is included.
+
+## Phase 3C-C — Astra experience design checkpoint
+
+- [C] Phase 3C-C design checkpoint (Phases 1–2): creative direction, component and motion specifications, additive semantic tokens, and an isolated browser design study at `frontend/astra-design.html`. See `frontend/design/ASTRA_EXPERIENCE.md`. Functional conversation/provider/consent integration and final Mac validation remain pending; prototype actions do not send AI requests or native approvals.
+- [C] Design checkpoint verification: TypeScript and production build passed; existing bridge tests 16/16; prototype browser checks 13/13 with five zero-violation axe scans. Four desktop sizes inspected; original GLB checksum/attribution preserved. Mac M5 performance and live inference were not revalidated. Full evidence and next implementation steps: `docs/PHASE3C_C_ASTRA_EXPERIENCE.md`.
+
+### Bridge request — Phase 3C-C active-reply restoration
+
+- [CC] Consider extending `ai.getConversation` with an atomic active-reply snapshot containing `pendingApproval: AIApprovalRequest | null` (with the remaining lifetime) and the reply's sequence watermark. The current result has conversation info and turns, but no approval id/payload or `seq`. A reload or lost event during approval therefore cannot reconstruct a safe consent dialog, and an active `useReply` subscription starts without a snapshot cursor. Keep existing security, expiry and cancellation semantics. Until this lands, Codex will show a truthful restoration notice and offer Stop/send again rather than inventing approval state. No contract or native implementation was modified for this request.
+
+### Phase 3C-C — implementation checkpoint (Phases 3–4)
+
+- [C] Production conversation workspace, compact/expanded/focus layouts, native history/stream/cancel/error recovery, explicit repository/branch/file context and exact-text preview, host-issued consent, provider configuration and native key-sheet triggers implemented on `codex/phase3c-c-astra-experience`. Phases 3–4 implementation checkpoint and Phase 5 functional/accessibility QA complete locally: TypeScript/build pass; bridge 16/16, Astra 27/27, studio 28/28 and GitHub 23/23; 14 axe scans with zero violations; production smoke passes. QA fixed narrow focus heading overlap. See `docs/PHASE3C_C_ASTRA_EXPERIENCE.md`. Phase 6 design audit (GPT-6 Astra EXTRA HIGH) and Phase 7 final integration/handoff remain pending; no push or merge.
+- [C] Preserve one Canvas/GLB, cached GPU strings, adaptive DPR, background/hidden policy and original model credit. Added reversible exact camera capture, pointer hover emphasis, and camera revision/sample timestamps. No added scene geometry, lights, or postprocessing. Mac M5 performance still requires native validation.
+- [CC] Architecture stack-table update requested (root-document ownership): frontend now uses `react-markdown` 10.1 + `remark-gfm` 4.0 for React AST Markdown/GFM with raw HTML and remote images disabled; `lowlight` 3.3 + `highlight.js` 11.12 supply safe syntax ASTs with only seven bundled grammars. Code parsing is lazy, streaming parses are coalesced, and no extra animation/state framework was added. Reasons are also recorded in the Phase 3C-C handoff and implementation commit.
+- [C/CC] The frontend coordinator uses the existing exported `newReply`/`applyReplyEvent` folder with subscriptions installed before send and a bounded pre-return buffer. The platform's `useReply(streamId)` alone cannot collect events before that id resolves. Native conversations remain authoritative; no native/shared/platform files were changed. Consider incorporating this buffering and snapshot-sequence restoration into the platform hook alongside the snapshot request above.
+
+### Phase 3C-C — Phase 6 design audit checkpoint
+
+- [C] Phase 6 complete locally: corrected welcome-view scrolling and spacing, bounded keyboard-scrollable code, aligned composer focus, visible compact activity feedback, tool disclosure motion, and a two-column Projects inspector at minimum desktop sizes. Project drafts and existing native interactions preserved. No scene/native/contract/dependency/asset changes.
+- [C] Verification: TypeScript/build pass; bridge 16/16, Astra 27/27, GitHub 23/23 and unfiltered studio 28/28, zero skipped; 15 axe scans with zero violations. Production screenshots show the original GLB/idle, one canvas and no page/network failures. Before/after evidence and exact results are in `docs/PHASE3C_C_ASTRA_EXPERIENCE.md`. Mac M5 performance was not revalidated.
+- [C/O] Next checkpoint: manual switch to GPT-6.1 Sol HIGH for Phase 7 integrated release review and Claude Code handoff. Continue from `codex/phase3c-c-astra-experience`; no repeated implementation, push, merge or Phase 3C-D voice work. Native Mac acceptance and the active-approval snapshot request remain pending.
+
+### Phase 3C-C — Phase 7 final frontend handoff
+
+- [C] Phases 0–7 frontend work complete locally. Final integration fixed a confirmed startup error: Refresh now retries provider/preferences/session initialization without losing the draft or automatically sending. Functional code checkpoint: `6beade13b305600823355d702beeb585ef89573f` on `codex/phase3c-c-astra-experience`.
+- [C] Final evidence: Phase 7 TypeScript/build and 16 bridge tests pass; Astra 28/28, zero skipped; retained Phase 6 GitHub 23/23 and studio 28/28, zero skipped. Current combined evidence has 16 zero-violation axe scans. Targeted Keep/Reset/End and production HTTP-with-native-CSP/lazy-chunk/GLB checks pass. Original source and built model checksums match. No native/shared/platform changes or push/merge. Full acceptance table, screenshots and exact Mac instructions: `docs/PHASE3C_C_ASTRA_EXPERIENCE.md`.
+- [CC] Native optional soak maintenance: `macos/Sources/AuraApp/DevProbe.swift` still uses `HTMLInputElement.prototype.value` for `#companion-prompt` (now a textarea) and old `.reply`/`.companion-reply` counters. Update its setter and count `.conversation-turn`/`.assistant-markdown`, then validate the soak. The six-zone diagnostics sampler is unaffected. Do not count the old conversation soak as passing.
+- [O/CC] Pending: owner review and explicit push approval; final-branch native Debug/Release/Swift tests, real provider/Keychain/GitHub/tools/human consent, system accessibility/window integration and measured M5 ≥55 fps acceptance. The atomic pending-approval snapshot and architecture dependency documentation requests remain open. Stop here; Phase 3C-D voice has not started.
+
+### Phase 3C-C — native Mac validation (Claude Code)
+
+- [CC] Native validation checkpoint 1 on `review/phase3c-c-validation` (from Codex `db5bb30`): Release `AURA.app` on the M5 through the real bridge. Conversations, Stop, Keep/Reset/End, drafts, project binding, privacy enforcement, live Ollama tool execution, consent allow/deny, provider settings, native Keychain sheet, errors, layouts, title-bar drag and full screen pass. 60 fps in all six zones and while streaming or switching layouts. Results: `docs/PHASE3C_C_NATIVE_VALIDATION.md`.
+- [CC] Fixed: D1 tool paths with surrounding slashes (`AITools.swift`), D5 soak probe selectors plus a conversation performance pass (`DevProbe.swift`). Architecture stack table now lists the Markdown/syntax dependencies.
+- [C] Review requested — fixed on the review branch in Codex-owned files: D2 removed provider stays selected with no recovery (`useConversation.ts`, new Astra check), D3 zone heading unreadable over the scene above 1250 px (`experience.css`), D4 "cloud environment" copy in provider settings (`ProviderSettings.tsx`).
+- [O] Pending: system VoiceOver / Reduce Motion / Reduce Transparency run with the owner, hosted inference (cost approval), dev-configuration pass, final regression and merge decision.

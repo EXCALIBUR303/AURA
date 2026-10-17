@@ -4,7 +4,8 @@ import { bridge, useBridgeEvent } from "../platform/bridge.ts";
 import { log } from "../platform/log.ts";
 import { isZone, readBrowserZone, writeBrowserZone, ZONES } from "./zones.ts";
 
-export function useStudio() {
+export function useStudio(onNavigation?: () => void) {
+  const navigationCallback = useRef(onNavigation); navigationCallback.current = onNavigation;
   const [prefs, setPrefs] = useState<Preferences | null>(null);
   const [zone, setZone] = useState<ZoneId>("studio");
   const [revision, setRevision] = useState(0);
@@ -32,6 +33,7 @@ export function useStudio() {
   useBridgeEvent("prefs.changed", (value) => { setPrefs(value); });
 
   const navigate = useCallback((next: ZoneId) => {
+    navigationCallback.current?.();
     navigated.current = true;
     setZone(next);
     setRevision((value) => value + 1);

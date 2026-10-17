@@ -9,7 +9,8 @@ export function RepositoryDetails({ workspace: g, repo }: { workspace: GitHubWor
   const [branches, setBranches] = useState<BranchSummary[]>([]);
   const [branchPage, setBranchPage] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [branch, setBranch] = useState(repo.defaultBranch);
+  const branch = g.selectedBranches[repo.fullName] ?? repo.defaultBranch;
+  const setBranch = (value: string) => g.setBranch(repo.fullName, value);
   const [branchLoading, setBranchLoading] = useState(false);
   const [commits, setCommits] = useState<CommitSummary[]>([]);
   const [commitLoading, setCommitLoading] = useState(g.canRead);

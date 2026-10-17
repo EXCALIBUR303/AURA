@@ -1,4 +1,5 @@
-import { memo, useEffect } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
+import { Color } from "three";
 import { Instance, Instances } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
@@ -15,11 +16,13 @@ const STATIONS: { id: ZoneId; x: number; z: number; accent: string; top: string 
 function Box({ position, size, color = "#e8e8e3", rotation, onSelect }: {
   position: Point; size: Point; color?: string; rotation?: Point; onSelect?: () => void;
 }) {
+  const [hovered, setHovered] = useState(false);
+  const hoverColor = useMemo(() => onSelect ? `#${new Color(color).lerp(new Color("#ffffff"), 0.14).getHexString()}` : color, [color, !!onSelect]);
   const select = (event: ThreeEvent<MouseEvent>) => { event.stopPropagation(); onSelect?.(); };
-  return <Instance position={position} scale={size} color={color} rotation={rotation}
+  return <Instance position={position} scale={size} color={hovered ? hoverColor : color} rotation={rotation}
     onClick={onSelect ? select : undefined}
-    onPointerOver={onSelect ? (event) => { event.stopPropagation(); (event.nativeEvent.target as HTMLCanvasElement).style.cursor = "pointer"; } : undefined}
-    onPointerOut={onSelect ? (event) => { (event.nativeEvent.target as HTMLCanvasElement).style.cursor = ""; } : undefined} />;
+    onPointerOver={onSelect ? (event) => { event.stopPropagation(); setHovered(true); (event.nativeEvent.target as HTMLCanvasElement).style.cursor = "pointer"; } : undefined}
+    onPointerOut={onSelect ? (event) => { setHovered(false); (event.nativeEvent.target as HTMLCanvasElement).style.cursor = ""; } : undefined} />;
 }
 
 function Monitor({ x = 0, y = 1.48, width = 1.5, height = 0.83, accent, select }: {

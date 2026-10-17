@@ -712,4 +712,43 @@ final class AIHarness {
         #expect(after.last?.payload["finishReason"] == .string("cancelled"))
         #expect(after.filter { $0.name == "ai.done" }.count == 1)
     }
+
+    /// A host-owned conversation with real tool calling: the runtime is offered
+    /// the read-only tools and the mock GitHub repository. Small local models
+    /// do not always call tools; the outcome is printed, not assumed.
+    @Test func conversationWithToolsAgainstALocalRuntime() async throws {
+        let recorder = EventRecorder()
+        let store = try await AppStore(database: Database(path: ":memory:"))
+        let registry = AIProviderRegistry(store: store, secrets: InMemorySecretStore())
+        let github = MockGitHubService(approvalDelay: .zero)
+        let service = AIService(
+            registry: registry, context: AIContextBuilder(github: github, store: store),
+            preferences: { .defaults }, events: BridgeEventEmitter(deliver: { recorder.record($0) }), tools: AIToolExecutor(github: github)
+        )
+        _ = try await registry.save(AIProviderSettings(id: "ollama", displayName: "Ollama", baseUrl: "http://127.0.0.1:11434/v1", models: [model], defaultModel: nil))
+        let conversation = try await service.startConversation(StartConversationParams(providerId: "ollama", repository: .init(fullName: "mock-user/sample-web-app")))
+        let started = ContinuousClock.now
+        let ref = try await service.sendMessage(SendMessageParams(
+            conversationId: conversation.conversationId,
+            text: "Call read_repository_file with fullName mock-user/sample-web-app and path README.md, then tell me in one sentence what the README says.",
+            maxOutputTokens: 200
+        ))
+        for _ in 0..<2400 {
+            if recorder.events.contains(where: { ($0.name == "ai.done" || $0.name == "ai.error") && $0.payload["streamId"] == .string(ref.streamId) }) { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        let ours = recorder.events.filter { $0.payload["streamId"] == .string(ref.streamId) }
+        let seqs = ours.compactMap { if case .number(let n)? = $0.payload["seq"] { Int(n) } else { nil } }
+        #expect(seqs == Array(1...seqs.count))
+        #expect(ours.last?.name == "ai.done")
+        let tools = ours.filter { $0.name == "ai.toolActivity" }.compactMap { $0.payload["activity"] }
+        let states = ours.filter { $0.name == "ai.turnState" }.compactMap { if case .string(let s)? = $0.payload["state"] { s } else { nil } }
+        let text = ours.filter { $0.name == "ai.chunk" }.compactMap { if case .string(let s)? = $0.payload["delta"] { s } else { nil } }.joined()
+        let summaries = tools.compactMap { activity -> String? in
+            guard case .string(let tool)? = activity["tool"], case .string(let status)? = activity["status"] else { return nil }
+            if case .string(let message)? = activity["message"] { return "\(tool):\(status) (\(message))" }
+            return "\(tool):\(status)"
+        }
+        print("live local tools: model \(model), states \(states.joined(separator: ">")), tools \(summaries), reads \(github.fileReads), total \(ContinuousClock.now - started), reply: \(text.prefix(160))")
+    }
 }

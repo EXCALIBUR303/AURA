@@ -182,7 +182,7 @@ public final class LiveGitHubService: GitHubService {
 
     /// Runs API work, reporting session expiry and rate limits to the
     /// connection so its state (and github.authChanged) follows reality.
-    private func perform<T>(_ work: (GitHubAPIClient) async throws -> T) async throws -> T {
+    func perform<T>(_ work: (GitHubAPIClient) async throws -> T) async throws -> T {
         guard let client = connection.client else { throw AuraError.unavailable("GitHub sign-in is not configured in this build") }
         await waitUntilRestored()
         switch connection.state {

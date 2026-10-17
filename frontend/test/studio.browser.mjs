@@ -28,13 +28,15 @@ function observe(page) {
   });
 }
 async function check(name, action) {
+  if (process.env.AURA_STUDIO_TEST && !process.env.AURA_STUDIO_TEST.split('|').some((pattern) => name.includes(pattern)) && !name.startsWith('Scene loading') && !name.startsWith('Licensed avatar')) { outcomes.push({ name, status: 'skipped' }); return; }
   await action(); outcomes.push({ name, status: 'passed' }); console.log(`PASS ${name}`);
 }
 const ids = ['studio', 'hardware', 'software', 'ai-lab', 'github', 'companion'];
 const labels = ['Studio', 'Hardware', 'Software', 'AI Lab', 'Projects', 'Companion'];
 async function navigate(page, index) {
+  const previous = await page.evaluate(() => window.__AURA_DIAGNOSTICS__?.cameraRevision ?? -1);
   await page.getByRole('navigation', { name: 'Studio zones' }).getByRole('button', { name: `${labels[index]} ${index + 1}`, exact: true }).click();
-  await page.waitForFunction((zone) => window.__AURA_DIAGNOSTICS__?.zone === zone && window.__AURA_DIAGNOSTICS__.cameraSettled, ids[index]);
+  await page.waitForFunction(({zone,previous}) => window.__AURA_DIAGNOSTICS__?.zone === zone && window.__AURA_DIAGNOSTICS__.cameraSettled && window.__AURA_DIAGNOSTICS__.cameraRevision > previous, { zone: ids[index], previous });
 }
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, reducedMotion: 'reduce' });
@@ -162,13 +164,34 @@ try {
     await page.getByRole('button', { name: 'Reset overview', exact: true }).click();
     await page.waitForFunction((pose) => window.__AURA_DIAGNOSTICS__.camera.position.every((value, i) => Math.abs(value - pose[i]) < 0.03), getZone('studio').camera);
   });
+  await check('Focus mode restores the exact prior camera and preserves the draft and one canvas', async () => {
+    if (await page.getByRole('button', { name: 'Expand conversation', exact: true }).isVisible()) await page.getByRole('button', { name: 'Expand conversation', exact: true }).click();
+    await navigate(page, 0);
+    const canvas = page.locator('canvas');
+    await canvas.evaluate((node) => { node.dataset.identity = 'persistent-studio'; });
+    const box = await canvas.boundingBox();
+    await page.mouse.move(box.x + 8, box.y + 8); await page.mouse.down();
+    await page.mouse.move(box.x + 75, box.y + 35, { steps: 8 }); await page.mouse.up();
+    const ended = await page.evaluate(() => Date.now());
+    await page.waitForFunction((ended) => window.__AURA_DIAGNOSTICS__.cameraSampledAt >= ended, ended);
+    const before = await page.evaluate(() => window.__AURA_DIAGNOSTICS__.camera);
+    await page.evaluate((pose) => { window.__previousCameraTest = pose; }, before);
+    await page.getByLabel('Message Astra').fill('A draft kept across focus modes');
+    await page.getByRole('button', { name: 'Enter focus mode', exact: true }).click();
+    await page.waitForFunction(() => window.__AURA_DIAGNOSTICS__.zone === 'companion' && window.__AURA_DIAGNOSTICS__.cameraSettled);
+    await page.getByRole('button', { name: 'Leave focus mode', exact: true }).click();
+    await page.waitForFunction((pose) => window.__AURA_DIAGNOSTICS__.zone === 'studio' && window.__AURA_DIAGNOSTICS__.camera.position.every((v, i) => Math.abs(v - pose.position[i]) < 0.04) && window.__AURA_DIAGNOSTICS__.camera.target.every((v, i) => Math.abs(v - pose.target[i]) < 0.04), before);
+    assert.equal(await page.getByLabel('Message Astra').inputValue(), 'A draft kept across focus modes');
+    assert.equal(await canvas.getAttribute('data-identity'), 'persistent-studio');
+    assert.equal(await page.locator('canvas').count(), 1);
+  });
   await check('Browser shortcuts navigate; typing retains ordinary editing behavior', async () => {
     for (let i = 0; i < ids.length; i++) {
-      await page.locator('canvas').click({ position: { x: 8, y: 8 } }); await page.keyboard.press(`Control+${i + 1}`);
+      await page.getByRole('navigation', { name: 'Studio zones' }).locator('button').first().focus(); await page.keyboard.press(`Control+${i + 1}`);
       await page.waitForFunction((zone) => window.__AURA_DIAGNOSTICS__?.zone === zone && window.__AURA_DIAGNOSTICS__.cameraSettled, ids[i]);
     }
     for (let i = 0; i < ids.length; i++) {
-      await page.locator('canvas').click({ position: { x: 8, y: 8 } }); await page.keyboard.press(`Meta+${i + 1}`);
+      await page.getByRole('navigation', { name: 'Studio zones' }).locator('button').first().focus(); await page.keyboard.press(`Meta+${i + 1}`);
       await page.waitForFunction((zone) => window.__AURA_DIAGNOSTICS__?.zone === zone && window.__AURA_DIAGNOSTICS__.cameraSettled, ids[i]);
     }
     await page.getByLabel('Message Astra').focus(); await page.keyboard.press('Control+2');
@@ -181,30 +204,30 @@ try {
   await check('Mock streaming completes and can be cancelled', async () => {
     await page.getByLabel('Message Astra').fill('A browser integration check');
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
-    await page.getByRole('log').filter({ hasText: '[mock] You said: A browser integration check' }).waitFor();
-    await page.getByRole('button', { name: 'Animate mock speech', exact: true }).waitFor();
+    await page.locator('.assistant-markdown').filter({ hasText: '[mock] You said: A browser integration check' }).waitFor();
+    await page.getByRole('button', { name: 'Copy reply', exact: false }).last().waitFor();
     await page.getByLabel('Message Astra').fill('A longer prompt '.repeat(15));
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
     await page.getByRole('button', { name: 'Stop reply', exact: true }).click();
     await page.getByRole('button', { name: 'Send message', exact: true }).waitFor();
   });
-  await check('Speech levels move the jaw and listening surfaces the mock transcript', async () => {
-    await page.getByLabel('Message Astra').fill('Speech check'); await page.getByRole('button', { name: 'Send message', exact: true }).click();
-    await page.getByRole('button', { name: 'Animate mock speech', exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Animate mock speech', exact: true }).click();
-    await page.waitForFunction(() => window.__AURA_DIAGNOSTICS__?.rig?.jawAngle > 0.001, null, { polling: 20 });
-    await page.getByRole('button', { name: 'Talk with Astra', exact: false }).click();
-    await page.getByText('Transcript: mock transcript complete', { exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Stop listening', exact: false }).click();
+  await check('Text replies keep voice unavailable and do not invent speech metering', async () => {
+    await page.getByLabel('Message Astra').fill('Text response check');
+    await page.getByRole('button', { name: 'Send message', exact: true }).click();
+    await page.locator('.assistant-markdown').filter({ hasText: '[mock] You said: Text response check' }).waitFor();
+    assert.equal(await page.evaluate(() => window.__AURA_DIAGNOSTICS__.rig.jawAngle), 0);
+    assert.equal(await page.getByRole('button', { name: /Talk with Astra|Start listening|Animate mock speech/ }).count(), 0);
+    assert.ok(await page.getByText('Text conversation · Voice unavailable', { exact: true }).isVisible());
   });
   await check('Project notes, pinning, and zone assignment round-trip through the bridge', async () => {
+    await page.getByRole('button', { name: 'Project inspector', exact: true }).click();
     await page.getByLabel('Notes', { exact: true }).fill('Integration test note');
     await page.getByLabel('Studio zone', { exact: true }).selectOption('hardware');
     await page.getByLabel('Pin this project', { exact: true }).check();
     await page.getByRole('button', { name: 'Save project', exact: true }).click();
     await page.getByText('Saved to the project store.', { exact: true }).waitFor();
-    await page.getByRole('button', { name: /sample-web-app/ }).click();
-    await page.getByRole('button', { name: /sample-firmware/ }).click();
+    await page.locator('.repo-list').getByRole('button', { name: /sample-web-app/ }).click();
+    await page.locator('.repo-list').getByRole('button', { name: /sample-firmware/ }).click();
     await page.waitForFunction(() => document.querySelector('#project-notes').value === 'Integration test note' && document.querySelector('#project-zone').value === 'hardware');
     assert.equal(await page.getByLabel('Notes', { exact: true }).inputValue(), 'Integration test note');
     assert.equal(await page.getByLabel('Studio zone', { exact: true }).inputValue(), 'hardware');
@@ -213,9 +236,9 @@ try {
   await check('Workstation scope uses saved assignments and selection preserves unsaved drafts', async () => {
     await navigate(page, 1);
     await page.getByLabel('Notes', { exact: true }).fill('A draft to preserve');
-    await page.getByRole('button', { name: /sample-web-app/ }).click();
+    await page.locator('.repo-list').getByRole('button', { name: /sample-web-app/ }).click();
     await page.getByLabel('Notes', { exact: true }).fill('A separate draft');
-    await page.getByRole('button', { name: /sample-firmware/ }).click();
+    await page.locator('.repo-list').getByRole('button', { name: /sample-firmware/ }).click();
     assert.equal(await page.getByLabel('Notes', { exact: true }).inputValue(), 'A draft to preserve');
     await page.getByRole('button', { name: 'This workstation 1', exact: true }).click();
     assert.equal(await page.locator('.repo-list .repo-row').count(), 1);
@@ -230,10 +253,11 @@ try {
     await page.getByText('Saved to the project store.', { exact: true }).waitFor();
     assert.equal(await page.locator('.repo-list .repo-row').count(), 1);
     await page.getByRole('button', { name: 'All projects', exact: true }).click();
-    await page.getByRole('button', { name: /sample-web-app/ }).click();
+    await page.locator('.repo-list').getByRole('button', { name: /sample-web-app/ }).click();
     assert.equal(await page.getByLabel('Notes', { exact: true }).inputValue(), 'A separate draft');
-    await page.getByRole('button', { name: /sample-firmware/ }).click();
+    await page.locator('.repo-list').getByRole('button', { name: /sample-firmware/ }).click();
     await navigate(page, 0);
+    await page.getByRole('button', { name: 'Project inspector', exact: true }).click();
     await page.getByRole('button', { name: 'Visit AI / LLM Lab', exact: true }).click();
     await page.waitForFunction(() => window.__AURA_DIAGNOSTICS__.zone === 'ai-lab' && window.__AURA_DIAGNOSTICS__.cameraSettled);
   });
@@ -248,7 +272,7 @@ try {
   });
   await check('Minimum-window workstation heading has an opaque backing and accessible controls', async () => {
     await navigate(page, 1);
-    assert.equal(await page.locator('.viewport-heading').evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(248, 250, 247)');
+    assert.equal(await page.locator('.viewport-heading').evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(248, 249, 246)');
     if (process.env.AURA_AXE_MODULE) {
       const { default: AxeBuilder } = await import(process.env.AURA_AXE_MODULE);
       const scan = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
@@ -292,6 +316,7 @@ try {
     await broken.route('**/avatar/astra-lumen/*.glb', (route) => route.fulfill({ status: 404, body: 'Intentional test failure' }));
     await broken.goto(baseURL);
     await broken.getByRole('button', { name: 'Retry scene', exact: true }).waitFor();
+    await broken.getByRole('button', { name: 'Project inspector', exact: true }).click();
     await broken.getByRole('heading', { name: 'Workstation inspector', exact: true }).waitFor();
     await broken.unroute('**/avatar/astra-lumen/*.glb');
     await broken.getByRole('button', { name: 'Retry scene', exact: true }).click();
@@ -308,6 +333,7 @@ try {
     });
     await unavailable.goto(baseURL);
     await unavailable.getByRole('alert').waitFor();
+    await unavailable.getByRole('button', { name: 'Project inspector', exact: true }).click();
     await unavailable.getByRole('heading', { name: 'Workstation inspector', exact: true }).waitFor();
     assert.equal(await unavailable.evaluate(() => window.__AURA_DIAGNOSTICS__.status), 'error');
     await unavailable.close();
@@ -320,7 +346,7 @@ try {
     let pending;
     const ready = () => pending ??= import(mockModule).then((mod) => {
       const transport = mod.createMockTransport();
-      transport.onEvent((json) => window.__AURA_BRIDGE__?.dispatch(json));
+      transport.onEvent((json) => { const message = JSON.parse(json); if (message.payload?.seq) window.__testSeq = message.payload.seq; window.__AURA_BRIDGE__?.dispatch(json); });
       window.__testHost = transport;
       return transport;
     });
@@ -328,7 +354,7 @@ try {
       const request = JSON.parse(json);
       if (request.method.startsWith('voice.')) return JSON.stringify({ kind: 'response', v: 1, id: request.id, ok: false, error: { code: 'unavailable', message: 'Phase 3', retryable: false } });
       const reply = await (await ready()).send(json);
-      if (request.method === 'ai.chat') window.__testStreamId = JSON.parse(reply).result?.streamId;
+      if (request.method === 'ai.sendMessage') window.__testStreamId = JSON.parse(reply).result?.streamId;
       return reply;
     } } } };
   }, `/@fs${path.resolve(import.meta.dirname, '../../shared/bridge/mock.ts')}`);
@@ -341,26 +367,28 @@ try {
     }
     await native.locator('canvas').click({ position: { x: 8, y: 8 } }); await native.keyboard.press('Control+2');
     assert.equal(await native.evaluate(() => window.__AURA_DIAGNOSTICS__.zone), 'companion');
-    assert.equal(await native.getByRole('button', { name: 'Talk with Astra', exact: false }).isDisabled(), true);
+    assert.equal(await native.getByRole('button', { name: /Talk with Astra|Start listening/ }).count(), 0);
+    assert.ok(await native.getByText('Text conversation · Voice unavailable', { exact: true }).isVisible());
   });
   await check('AI start failures and streamed errors show recoverable companion state', async () => {
-    await native.evaluate(() => window.__testHost.failNext('ai.chat', { code: 'unavailable', message: 'Intentional test failure', retryable: true }));
+    await native.evaluate(() => window.__testHost.failNext('ai.sendMessage', { code: 'unavailable', message: 'Intentional test failure', retryable: true }));
     await native.getByLabel('Message Astra').fill('Error handling check');
     await native.getByRole('button', { name: 'Send message', exact: true }).click();
-    await native.getByText('AI unavailable (unavailable).', { exact: true }).waitFor();
+    await native.getByText('The service is unavailable or not configured. Review provider settings.', { exact: true }).waitFor();
     await native.getByLabel('Message Astra').fill('Keep streaming '.repeat(40));
     await native.getByRole('button', { name: 'Send message', exact: true }).click();
     await native.waitForFunction(() => window.__testStreamId);
-    await native.evaluate(() => window.__testHost.emit('ai.error', { streamId: window.__testStreamId, error: { code: 'internal', message: 'Intentional stream failure', retryable: true } }));
-    await native.getByText('Reply unavailable (internal). Try again.', { exact: true }).waitFor();
+    await native.evaluate(() => window.__testHost.emit('ai.error', { streamId: window.__testStreamId, seq: (window.__testSeq ?? 0) + 1, error: { code: 'internal', message: 'Intentional stream failure', retryable: true } }));
+    await native.getByText('The action could not be completed. Please try again.', { exact: true }).waitFor();
     assert.ok(await native.locator('.companion-pill').evaluate((pill) => pill.classList.contains('error')));
   });
   await native.close();
   assert.deepEqual(errors, []); assert.equal(external.size, 0);
   outcomes.push({ name: 'No uncaught browser errors or external runtime requests', status: 'passed' });
   await writeFile(path.join(artifacts, 'results.json'), JSON.stringify({ outcomes, errors, external: [...external], nativeValidation: 'Simulated transport only; AuraApp not run on Linux.' }, null, 2));
-  console.log(`${outcomes.length} integration checks passed. Artifacts: ${artifacts}`);
+  console.log(`${outcomes.filter((item) => item.status === 'passed').length} integration checks passed; ${outcomes.filter((item) => item.status === 'skipped').length} skipped. Artifacts: ${artifacts}`);
 } catch (error) {
+  for (const context of browser.contexts()) for (const debugPage of context.pages()) { try { console.log(JSON.stringify(await debugPage.evaluate(() => ({ previous: window.__previousCameraTest, camera: window.__AURA_DIAGNOSTICS__?.camera, zone: window.__AURA_DIAGNOSTICS__?.zone, layout: document.querySelector('.experience')?.dataset.layout })))); } catch {} }
   await writeFile(path.join(artifacts, 'results.json'), JSON.stringify({ outcomes, errors, external: [...external], failure: String(error) }, null, 2));
   throw error;
 } finally { await browser.close(); }

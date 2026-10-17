@@ -1,7 +1,20 @@
 // Push events (native → web). Fire-and-forget; no reply expected.
 
 import type { BridgeError } from "./errors.ts";
-import type { AIProviderInfo, FinishReason, GitHubAuthStatus, Preferences, VoiceStatus, WindowState, ZoneId } from "./domain.ts";
+import type {
+  AIApprovalRequest,
+  AIConversationChangeReason,
+  AIConversationInfo,
+  AIProviderInfo,
+  AIToolActivity,
+  AITurnState,
+  FinishReason,
+  GitHubAuthStatus,
+  Preferences,
+  VoiceStatus,
+  WindowState,
+  ZoneId,
+} from "./domain.ts";
 
 export interface BridgeEvents {
   /** Native menu items / global shortcuts asking the frontend to act. */
@@ -28,6 +41,14 @@ export interface BridgeEvents {
   "ai.chunk": { streamId: string; seq: number; delta: string };
   "ai.done": { streamId: string; seq: number; finishReason: FinishReason };
   "ai.error": { streamId: string; seq: number; error: BridgeError };
+  /** Conversation replies only: the reply's state changed (see AITurnState). Same `seq` sequence as the reply's other events. */
+  "ai.turnState": { streamId: string; conversationId: string; seq: number; state: AITurnState };
+  /** Conversation replies only: a tool call started, finished, was denied or awaits approval (same callId updates in place). */
+  "ai.toolActivity": { streamId: string; conversationId: string; seq: number; activity: AIToolActivity };
+  /** Conversation replies only: the reply waits for the user. Answer with ai.respondToApproval. */
+  "ai.approvalRequested": { streamId: string; conversationId: string; seq: number; approval: AIApprovalRequest };
+  /** A conversation was reset, ended, cleared or changed by the host. `conversation` is null when it no longer exists. */
+  "ai.conversationChanged": { conversationId: string; reason: AIConversationChangeReason; conversation: AIConversationInfo | null };
   /** The provider list changed (saved, removed, key stored or deleted, validated). */
   "ai.providersChanged": AIProviderInfo[];
 

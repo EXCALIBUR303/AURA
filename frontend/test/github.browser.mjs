@@ -203,6 +203,19 @@ try {
     assert.ok(await paging.evaluate(() => document.activeElement.matches(':focus-visible') && getComputedStyle(document.activeElement).outlineStyle !== 'none'));
     assert.ok(await paging.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await axe(paging, '1100'); await paging.screenshot({ path: path.join(artifacts, 'mock-native-1100.png') });
+    await inspectFirmware(paging).click();
+    await paging.getByRole('button', { name: 'Project inspector', exact: true }).click();
+    await paging.locator('.repository-detail').waitFor();
+    const detail = await paging.locator('.repository-detail').boundingBox(), list = await paging.locator('.repo-section').boundingBox();
+    assert.ok(detail.y < 350 && detail.x > list.x + list.width, 'selected repository details must open beside the project list');
+    await paging.getByLabel('Notes', { exact: true }).fill('Minimum-window draft');
+    await paging.getByRole('button', { name: 'Close project inspector', exact: true }).focus();
+    await axe(paging, 'inspector-1100'); await paging.screenshot({ path: path.join(artifacts, 'mock-native-inspector-1100.png') });
+    await paging.keyboard.press('Enter');
+    await inspectFirmware(paging).waitFor();
+    await paging.getByRole('button', { name: 'Project inspector', exact: true }).click();
+    assert.equal(await paging.getByLabel('Notes', { exact: true }).inputValue(), 'Minimum-window draft');
+    await paging.getByRole('button', { name: 'Close project inspector', exact: true }).click();
   });
   await check('Disconnect confirmation can be cancelled and confirmed with keyboard; late data cannot return', async () => {
     await paging.getByRole('button', { name: 'Disconnect GitHub', exact: true }).click();

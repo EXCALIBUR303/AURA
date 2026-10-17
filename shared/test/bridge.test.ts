@@ -191,3 +191,127 @@ test("mock providers: keys are stored without crossing the bridge, private conte
   assert.deepEqual(shared.sections.map((s) => [s.id, s.trust]), [["workspace", "app"], ["repository", "untrusted"], ["commits", "untrusted"]]);
   bridge.dispose();
 });
+
+// ---------------------------------------------------------------- Phase 3C-B conversations
+
+import { applyReplyEvent, newReply } from "../bridge/index.ts";
+import type { ReplyEvent, ReplyView } from "../bridge/index.ts";
+
+type Bridge = ReturnType<typeof createBridgeClient>;
+
+/** Collects one reply's events (in arrival order) and its folded view. */
+function track(bridge: Bridge, streamId: () => string | undefined) {
+  const events: ReplyEvent[] = [];
+  const names = ["ai.turnState", "ai.chunk", "ai.toolActivity", "ai.approvalRequested", "ai.done", "ai.error"] as const;
+  const offs = names.map((name) => bridge.on(name, (payload) => {
+    if (payload.streamId === streamId()) events.push({ name, payload } as ReplyEvent);
+  }));
+  return {
+    events,
+    view: (): ReplyView => events.reduce(applyReplyEvent, newReply(streamId() ?? "")),
+    stop: () => offs.forEach((off) => off()),
+  };
+}
+
+const until = async (condition: () => boolean) => {
+  for (let i = 0; i < 400 && !condition(); i++) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.ok(condition(), "condition not reached");
+};
+
+test("mock conversation: one seq per reply, explicit states, tool activity, history", async () => {
+  const bridge = createBridgeClient(createMockTransport({ streamIntervalMs: 1 }));
+  const conversation = await bridge.call("ai.startConversation", { repository: { fullName: "mock-user/sample-web-app" } });
+  assert.equal(conversation.repository?.isPrivate, false);
+  assert.equal(conversation.toolsEnabled, true);
+  let id: string | undefined;
+  const reply = track(bridge, () => id);
+  ({ streamId: id } = await bridge.call("ai.sendMessage", { conversationId: conversation.conversationId, text: "Summarise it", context: { zone: "software", include: { readme: true } } }));
+  await until(() => reply.view().ended);
+
+  const view = reply.view();
+  assert.equal(view.gap, false);
+  assert.deepEqual(reply.events.map((e) => e.payload.seq), reply.events.map((_, i) => i + 1));
+  assert.equal(view.state, "completed");
+  assert.equal(view.finishReason, "stop");
+  assert.match(view.text, /Read README\.md\. \[mock\] You said: Summarise it/);
+  assert.deepEqual(view.tools.map((t) => [t.tool, t.status]), [["read_repository_file", "succeeded"]]);
+  const states = reply.events.flatMap((e) => (e.name === "ai.turnState" ? [e.payload.state] : []));
+  assert.deepEqual(states, ["preparing_context", "requesting", "waiting_for_tool", "requesting", "streaming", "completed"]);
+
+  // Duplicates and late events change nothing.
+  const replayed = [...reply.events, ...reply.events].reduce(applyReplyEvent, newReply(id ?? ""));
+  assert.equal(replayed.text, view.text);
+  assert.equal(replayed.tools.length, 1);
+
+  await assert.rejects(
+    bridge.call("ai.sendMessage", { conversationId: conversation.conversationId, text: "x", context: { repository: { fullName: "mock-user/sample-firmware" } } as never }),
+    (error: unknown) => error instanceof BridgeCallError && error.code === "invalid_request",
+  );
+  const detail = await bridge.call("ai.getConversation", { conversationId: conversation.conversationId });
+  assert.equal(detail.turns.length, 1);
+  assert.ok(detail.turns[0]?.sources.some((s) => s.path === "README.md"));
+  const files = await bridge.call("github.listFiles", { fullName: "mock-user/sample-web-app", path: "src" });
+  assert.deepEqual(files.entries.map((e) => e.path), ["src/index.ts"]);
+  reply.stop();
+  bridge.dispose();
+});
+
+test("mock conversation: private source to a cloud provider waits for approval; cancel ends once", async () => {
+  const bridge = createBridgeClient(createMockTransport({ streamIntervalMs: 1 }));
+  await bridge.call("prefs.update", { ai: { privateRepositoryContext: "all" } });
+  await bridge.call("ai.saveProvider", { id: "cloud", displayName: "Cloud", api: "openai_compatible", baseUrl: "https://api.example.invalid/v1", models: ["m"], defaultModel: null });
+  await bridge.call("ai.requestCredential", { providerId: "cloud" });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const conversation = await bridge.call("ai.startConversation", { providerId: "cloud", repository: { fullName: "mock-user/sample-firmware" } });
+
+  let id: string | undefined;
+  const reply = track(bridge, () => id);
+  ({ streamId: id } = await bridge.call("ai.sendMessage", { conversationId: conversation.conversationId, text: "What does it do?" }));
+  await until(() => reply.view().approval !== null);
+  const pending = reply.view();
+  assert.equal(pending.state, "waiting_for_approval");
+  assert.equal(pending.approval?.kind, "share_private_source");
+  assert.deepEqual(pending.approval?.paths, ["README.md"]);
+  await bridge.call("ai.respondToApproval", { conversationId: conversation.conversationId, approvalId: pending.approval?.approvalId ?? "", decision: "allow_for_conversation" });
+  await until(() => reply.view().ended);
+  assert.equal(reply.view().tools.at(-1)?.status, "succeeded");
+  const info = (await bridge.call("ai.getConversation", { conversationId: conversation.conversationId })).conversation;
+  assert.deepEqual(info.sourceSharingAllowed, ["mock-user/sample-firmware"]);
+  assert.equal(info.carriesPrivateContext, true);
+  reply.stop();
+
+  let second: string | undefined;
+  const cancelled = track(bridge, () => second);
+  ({ streamId: second } = await bridge.call("ai.sendMessage", { conversationId: conversation.conversationId, text: "again" }));
+  await bridge.call("ai.cancel", { streamId: second });
+  await until(() => cancelled.view().ended);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(cancelled.view().finishReason, "cancelled");
+  assert.equal(cancelled.events.filter((e) => e.name === "ai.done").length, 1);
+  assert.equal(cancelled.events.at(-1)?.name, "ai.done");
+
+  const preview = await bridge.call("ai.previewContext", { context: { files: [{ path: "src/main.c" }] }, conversationId: conversation.conversationId });
+  assert.deepEqual(preview.sections.map((s) => s.title), ["File src/main.c lines 1–7"]); // allowed for this conversation
+  const fresh = await bridge.call("ai.resetConversation", { conversationId: conversation.conversationId });
+  assert.deepEqual(fresh.sourceSharingAllowed, []);
+  const withheld = await bridge.call("ai.previewContext", { context: { files: [{ path: "src/main.c" }] }, conversationId: conversation.conversationId });
+  assert.deepEqual(withheld.omitted, [{ section: "file", reason: "consent_required", path: "src/main.c" }]);
+  cancelled.stop();
+  bridge.dispose();
+});
+
+test("reply folding detects gaps and ignores other streams", () => {
+  const chunk = (seq: number, delta: string, streamId = "s"): ReplyEvent => ({ name: "ai.chunk", payload: { streamId, seq, delta } });
+  let view = newReply("s");
+  view = applyReplyEvent(view, chunk(1, "a"));
+  view = applyReplyEvent(view, chunk(1, "a"));
+  view = applyReplyEvent(view, chunk(2, "b", "other"));
+  assert.equal(view.text, "a");
+  assert.equal(view.gap, false);
+  view = applyReplyEvent(view, chunk(3, "c"));
+  assert.equal(view.text, "ac");
+  assert.equal(view.gap, true);
+  view = applyReplyEvent(view, { name: "ai.error", payload: { streamId: "s", seq: 4, error: { code: "network", message: "x", retryable: true } } });
+  assert.equal(view.state, "error");
+  assert.equal(applyReplyEvent(view, chunk(5, "late")), view);
+});

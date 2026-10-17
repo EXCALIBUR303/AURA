@@ -1,5 +1,5 @@
-import { Component, Suspense, useEffect, useRef, useState } from "react";
-import type { ReactNode, RefObject } from "react";
+import { Component, Suspense, useEffect, useImperativeHandle, useRef, useState } from "react";
+import type { ReactNode, Ref, RefObject } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
@@ -20,18 +20,21 @@ class SceneBoundary extends Component<{ children: ReactNode; onError: () => void
   override render() { return this.state.failed ? null : this.props.children; }
 }
 
-function CameraRig({ zone, revision, reducedMotion, report }: { zone: ZoneId; revision: number; reducedMotion: boolean; report: Report }) {
+export type CameraPose = { position: [number, number, number]; target: [number, number, number] };
+export type StudioCameraHandle = { capture: () => CameraPose | undefined };
+function CameraRig({ zone, revision, reducedMotion, report, restorePose, cameraHandle }: { zone: ZoneId; revision: number; reducedMotion: boolean; report: Report; restorePose?: CameraPose | null; cameraHandle?: Ref<StudioCameraHandle> }) {
   const controls = useRef<OrbitControlsImpl>(null);
   const moving = useRef(true);
   const destination = useRef(new THREE.Vector3());
   const target = useRef(new THREE.Vector3());
   const { camera } = useThree();
+  useImperativeHandle(cameraHandle, () => ({ capture: () => controls.current ? { position: camera.position.toArray(), target: controls.current.target.toArray() } : undefined }), [camera]);
   useEffect(() => {
     const pose = getZone(zone);
-    destination.current.fromArray(pose.camera);
-    target.current.fromArray(pose.target);
+    destination.current.fromArray(restorePose?.position ?? pose.camera);
+    target.current.fromArray(restorePose?.target ?? pose.target);
     moving.current = true;
-    report({ zone, cameraSettled: false });
+    report({ zone, cameraSettled: false, cameraRevision: revision });
     if (controls.current) {
       controls.current.enabled = false;
       controls.current.minDistance = zone === "studio" ? 7 : 2.1;
@@ -40,7 +43,7 @@ function CameraRig({ zone, revision, reducedMotion, report }: { zone: ZoneId; re
       controls.current.minAzimuthAngle = azimuth - 0.8;
       controls.current.maxAzimuthAngle = azimuth + 0.8;
     }
-  }, [zone, revision, report]);
+  }, [zone, revision, report, restorePose]);
   useFrame((_, delta) => {
     const orbit = controls.current;
     if (!orbit || !moving.current) return;
@@ -53,7 +56,7 @@ function CameraRig({ zone, revision, reducedMotion, report }: { zone: ZoneId; re
       orbit.target.copy(target.current);
       moving.current = false;
       orbit.enabled = true;
-      report({ cameraSettled: true });
+      report({ cameraSettled: true, cameraSampledAt: Date.now(), camera: { position: camera.position.toArray(), target: orbit.target.toArray(), fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : undefined } });
     }
   });
   return <OrbitControls ref={controls} makeDefault enablePan={false} enableDamping={!reducedMotion}
@@ -104,7 +107,7 @@ function Measurements({ zone, throttled, report, lowerDpr }: { zone: ZoneId; thr
     }
     const orbit = controls as OrbitControlsImpl | null;
     report({ fps, drawCalls: sample.drawCalls, sceneTriangles: sample.triangles, perZone: { ...samples.current },
-      camera: { position: camera.position.toArray(), target: orbit?.target.toArray() ?? [0, 0, 0],
+      cameraSampledAt: Date.now(), camera: { position: camera.position.toArray(), target: orbit?.target.toArray() ?? [0, 0, 0],
         fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : undefined },
       renderer: { webgl2: gl.capabilities.isWebGL2, pixelRatio: sample.pixelRatio,
         maxTextureSize: gl.capabilities.maxTextureSize, ...gpu.current } });
@@ -144,7 +147,7 @@ function ProjectHotspots({ buttons, zone }: { buttons: RefObject<Map<ZoneId, HTM
     const viewport = gl.domElement.closest(".viewport");
     if (!viewport) return;
     const origin = viewport.getBoundingClientRect();
-    const occupied: ScreenRect[] = [...viewport.querySelectorAll(".command-dock, .viewport-heading, .companion-pill, .viewport-tools, .diagnostics, .scene-message")].map((element) => {
+    const occupied: ScreenRect[] = [...viewport.querySelectorAll(".command-dock, .viewport-heading, .companion-pill, .viewport-tools, .diagnostics, .scene-message"), ...document.querySelectorAll('.companion-workspace[data-layout="compact"][data-visible="true"]')].map((element) => {
       const rect = element.getBoundingClientRect();
       return { left: rect.left - origin.left - 8, right: rect.right - origin.left + 8,
         top: rect.top - origin.top - 8, bottom: rect.bottom - origin.top + 8 };
@@ -204,9 +207,10 @@ function BackgroundFrames({ enabled }: { enabled: boolean }) {
   return null;
 }
 
-export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart, focusCompanion }: {
+export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart, focusCompanion, restorePose, cameraHandle }: {
   zone: ZoneId; revision: number; reducedMotion: boolean; maxDpr: number; state: CompanionState; speechLevel: number;
   report: Report; navigate: (zone: ZoneId) => void; restart: () => void; focusCompanion: () => void;
+  restorePose?: CameraPose | null; cameraHandle?: Ref<StudioCameraHandle>;
 }) {
   const buttons = useRef(new Map<ZoneId, HTMLButtonElement>());
   const startedAt = useRef(performance.now());
@@ -251,7 +255,7 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
         <SceneBoundary onError={() => report({ status: "error", error: "Astra could not load. Check the model file and retry the scene." })}>
           <Suspense fallback={null}><Astra startedAt={startedAt.current} state={state} speechLevel={speechLevel} reducedMotion={reducedMotion} report={report} /></Suspense>
         </SceneBoundary>
-        <CameraRig zone={zone} revision={revision} reducedMotion={reducedMotion} report={report} />
+        <CameraRig zone={zone} revision={revision} reducedMotion={reducedMotion} report={report} restorePose={restorePose} cameraHandle={cameraHandle} />
         <BackgroundFrames enabled={throttled} />
         <Measurements zone={zone} throttled={throttled} report={report} lowerDpr={() => setAdaptiveDpr((value) => Math.max(1, value - 0.25))} />
         <ContextEvents report={report} restored={restart} />

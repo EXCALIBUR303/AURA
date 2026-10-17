@@ -7,8 +7,9 @@ import { ZoneIcon } from "./ZoneIcon.tsx";
 import type { GitHubWorkspace, ProjectDraft } from "../github/useGitHubWorkspace.ts";
 import { RepositoryDetails } from "../github/RepositoryDetails.tsx";
 import { issueFor } from "../github/model.ts";
+import { IconButton } from "./ui.tsx";
 
-export function Inspector({ zone, navigate, workspace: g }: { zone: ZoneId; navigate: (zone: ZoneId) => void; workspace: GitHubWorkspace }) {
+export function Inspector({ zone, navigate, workspace: g, useInConversation, close }: { zone: ZoneId; navigate: (zone: ZoneId) => void; workspace: GitHubWorkspace; useInConversation?: () => void; close?: () => void }) {
   const [scope, setScope] = useState<"all" | "zone" | "pinned">("all");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,13 +48,15 @@ export function Inspector({ zone, navigate, workspace: g }: { zone: ZoneId; navi
     finally { setSaving(false); }
   }
   return <aside className="inspector glass" aria-labelledby="inspector-heading">
-    <div className="rail-heading"><span className="eyebrow">{zone === "studio" ? "WORKSPACE" : station.label}</span><span className="rail-symbol"><ZoneIcon zone={zone} size={22} /></span></div>
-    <h2 id="inspector-heading">Workstation inspector</h2><p className="muted compact">Your projects, close at hand.</p>
-    <div className="data-label">{bridge.transportKind === "mock" ? "Mock bridge · sample data" : "Native GitHub bridge"}</div>
-    <div className="inspector-connection"><span>{g.auth && "account" in g.auth ? `@${g.auth.account.login} · ${g.auth.state === "rate_limited" ? "Rate limited" : "GitHub connected"}` : g.auth?.state === "authorizing" ? "Waiting for GitHub authorization" : "GitHub not connected"}</span><button onClick={() => navigate("github")}>Manage GitHub</button></div>
-    {g.projectIssue && <p role="alert" className="inline-error">Project assignments or suggestions are unavailable. {g.projectIssue.text}<button disabled={g.busy || !g.canRead} onClick={() => void g.refresh()}>Retry projects</button></p>}
-    {error && <p role="alert" className="inline-error">{error}</p>}
-    {!showData ? <div className="inspector-empty"><ZoneIcon zone="github" size={26} /><p>{!g.auth ? "Checking GitHub connection…" : "Connect GitHub to bring your repositories into the studio."}</p><button className="primary" onClick={() => navigate("github")}>Open GitHub connection</button></div> : <>
+    <header className="inspector-summary">
+      <div className="rail-heading"><span className="eyebrow">{zone === "studio" ? "WORKSPACE" : station.label}</span><span className="rail-symbol"><ZoneIcon zone={zone} size={22} /></span></div>
+      <div className="section-heading"><h2 id="inspector-heading">Workstation inspector</h2>{close && <IconButton name="close" label="Close project inspector" onClick={close} />}</div><p className="muted compact">Your projects, close at hand.</p>
+      <div className="data-label">{bridge.transportKind === "mock" ? "Mock bridge · sample data" : "Native GitHub bridge"}</div>
+      <div className="inspector-connection"><span>{g.auth && "account" in g.auth ? `@${g.auth.account.login} · ${g.auth.state === "rate_limited" ? "Rate limited" : "GitHub connected"}` : g.auth?.state === "authorizing" ? "Waiting for GitHub authorization" : "GitHub not connected"}</span><button onClick={() => navigate("github")}>Manage GitHub</button></div>
+      {g.projectIssue && <p role="alert" className="inline-error">Project assignments or suggestions are unavailable. {g.projectIssue.text}<button disabled={g.busy || !g.canRead} onClick={() => void g.refresh()}>Retry projects</button></p>}
+      {error && <p role="alert" className="inline-error">{error}</p>}
+    </header>
+    {!showData ? <div className="inspector-empty"><ZoneIcon zone="github" size={26} /><p>{!g.auth ? "Checking GitHub connection…" : "Connect GitHub to bring your repositories into the studio."}</p><button className="primary" onClick={() => navigate("github")}>Open GitHub connection</button></div> : <div className="inspector-body">
       {g.auth?.state !== "connected" && <p className="compact cached-notice">Showing loaded data. GitHub requests are paused.</p>}
       <section className="repo-section"><h3>Project repositories <span className="count">{g.repos.length}</span></h3>
         <div className="project-scope" role="group" aria-label="Project scope"><button aria-pressed={scope === "all"} onClick={() => setScope("all")}>All projects</button><button aria-pressed={scope === "zone"} onClick={() => setScope("zone")}>This workstation <span>{scoped.length}</span></button>{zone === "studio" && <button aria-pressed={scope === "pinned"} onClick={() => setScope("pinned")}>Pinned</button>}</div>
@@ -62,7 +65,8 @@ export function Inspector({ zone, navigate, workspace: g }: { zone: ZoneId; navi
         <div className="repo-list" role="group" aria-label="Project repositories">{visible.map((item) => <button key={item.fullName} onClick={() => g.select(item.fullName)} disabled={saving} aria-pressed={item.fullName === g.selected} className={`repo-row ${item.fullName === g.selected ? "active" : ""}`}><span className="repo-icon"><ZoneIcon zone={g.projects.find((p) => p.id === item.fullName)?.zone ?? "github"} size={17} /></span><span><strong>{item.name}</strong><small>{item.owner} · {item.primaryLanguage ?? "No language"}</small></span>{g.projects.find((p) => p.id === item.fullName)?.pinned && <span aria-label="Pinned">◆</span>}</button>)}</div>
         <button className="browse-projects" onClick={() => navigate("github")}>Browse and search repositories <ArrowIcon /></button>
       </section>
-      {repo && <>
+      {repo && <div className="inspector-project">
+        {useInConversation && <button className="ui-button use-project-context" disabled={!g.canRead} onClick={useInConversation}>Use project in conversation <ArrowIcon /></button>}
         {record?.zone && record.zone !== zone && !["studio", "github", "companion"].includes(zone) && <p className="compact muted selected-project-context">Selected project: {getZone(record.zone).label}. Assign it here or visit its saved workstation below.</p>}
         <RepositoryDetails key={`${g.epoch}:${repo.fullName}`} workspace={g} repo={repo} />
         <form className="project-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
@@ -78,7 +82,7 @@ export function Inspector({ zone, navigate, workspace: g }: { zone: ZoneId; navi
           <button className="primary save-project" disabled={saving}>{saving ? "Saving…" : "Save project"}<ArrowIcon /></button><p role="status" className="save-status">{savedFor === g.selected ? "Saved to the project store." : bridge.transportKind === "mock" ? "Mock project changes last for this session." : "Stored locally on this Mac. GitHub stays read-only."}</p>
           </fieldset>
         </form>
-      </>}
-    </>}
+      </div>}
+    </div>}
   </aside>;
 }
