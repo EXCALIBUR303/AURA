@@ -1,10 +1,11 @@
 # Phase 3C-D — Astra voice frontend
 
-## Current checkpoint: design complete, production implementation pending
+## Current checkpoint: Phases 3–4 implementation
 
-This is the **Phases 0–2 design handoff**, not the final voice implementation or
-hardware acceptance report. The owner requires a manual model checkpoint before
-Phases 3–4. No voice controls have been wired into the production application yet.
+The production voice frontend and existing-rig reactions are implemented. This is
+the implementation checkpoint before the owner's required **Phase 5 visual audit**,
+not the final release or native hardware acceptance report. Phases 0–2 were saved
+in `ce0fa3eef6a3690e66b6670473115506bcc1a3e1` and continued without restarting.
 
 - Branch: `codex/phase3c-d-voice-experience`, created directly from remote
   `claude/phase3c-d-voice`.
@@ -14,6 +15,118 @@ Phases 3–4. No voice controls have been wired into the production application 
   those changes was performed.
 - No push, merge, native service edit, platform edit or contract change.
 - `/Applications/AURA.app` has not been touched.
+
+## Production frontend implementation
+
+- `companion/voice/VoiceController.ts`: native-only coordinator for all 15 voice
+  methods and six events. It applies revisioned method replies/events through one
+  cursor, handles pre-return transcripts, claims final text once, filters utterance
+  seq and speech segments, reconciles restored capture, and serializes session
+  bind/end operations including StrictMode cleanup.
+- `useVoice.ts`: React subscription and physical-key handling. Hold ⌥Space,
+  release to finish, Esc to cancel input or stop speech; native inactive/hidden
+  events and browser focus loss invalidate capture intents. No automatic restart.
+- `VoiceRail.tsx` / `voice.css`: capability-gated Talk, Finish, Cancel, output mute,
+  Stop speaking, End voice, live read-only transcript, sentence captions, scalar
+  input/output levels, exact native recovery buttons and typed bridge failures.
+- `VoiceSettings.tsx` (lazy): native voice preferences, installed voice options and
+  quality, rate, output automation, fallback-only Apple server opt-in, input settings,
+  and an explicit page-local Edit before sending option (default on).
+- `CompanionWorkspace.tsx`: explicit permission explainer; final speech goes through
+  the existing composer/send path. Typed drafts are preserved, occupied/busy drafts
+  retain a separate unsent transcript, and completed assistant turns can be read
+  aloud. Context changes and session management close voice before changing scope.
+- `useConversation.ts`: a frontend-only `ensureConversation` for first Talk without
+  inference; successful send now returns the accepted conversation/stream identifiers
+  so auto-speech targets that exact reply. Existing privacy, stream, tool and approval
+  logic remains in charge. Typed requests never auto-speak.
+- `App.tsx`, `Studio.tsx`, `Astra.tsx`: a stable audio sample object connects native
+  levels to the existing floor ring and jaw. Audio samples do not update App state.
+  Phase changes reuse existing listening/thinking/speaking/error poses. Reduced
+  motion freezes jaw/head/idle motion and uses static level segments. No new 3D
+  geometry, materials, lights, textures, shaders or decoder dependencies.
+
+The microphone is requested only after Talk and a second explanation action.
+Granting permission requires a fresh Talk gesture. Denied/restricted permissions
+are not repeatedly prompted. No browser capture, browser speech synthesis, paid
+speech service, always-on listening or hands-free barge-in was added.
+
+Output mute is session-local and separate from saved auto-speak preferences.
+Stopping speech leaves the text reply running; Stop reply cancels through the
+existing AI path. End voice keeps the text conversation and draft. Read aloud
+falls back to native `voice.speak` only on `not_found`, with assistant reply text,
+never tool results or cancelled/failed replies. Native planning remains responsible
+for speech omissions and the character limit.
+
+### Implementation verification
+
+TypeScript and production build pass. Controller tests pass **18/18**; the shared
+bridge suite passes **19/19** (also invoked directly with `node shared/test/bridge.test.ts`
+to show each test under this environment's Node runner). Existing Astra browser
+regressions pass **29/29**. Voice browser integration passes **18/18**, and the full
+Studio suite passes **28/28, zero skipped**. These three browser suites total **75
+checks** and **16 axe scans with zero violations** (voice 7, Astra 7, Studio 2).
+
+The native-shaped unavailable-host regression found an automatic bind retry loop:
+when voice snapshots failed, creating a text conversation could repeatedly attempt
+`startSession`. The coordinator now requires a known available status and suppresses
+automatic retries after a binding failure. A fresh Talk action can retry; an older
+host rejecting all voice methods keeps text replies fully usable. Both controller
+and browser regressions cover this. No native contract was changed.
+
+Short-window controls were compacted to retain at least a 96 px message area while
+speaking at 1100×700. Secondary editing/provider controls remain reachable through
+the existing settings actions. Read-only partial text retains its own focus ring.
+
+| Current evidence | Location outside Git |
+|---|---|
+| Voice: 18 checks, 7 axe scans, no page errors/external requests/browser capture | `/workspace/aura-phase3c-d/implementation/results.json` |
+| Astra: 29 checks, 7 axe scans, no page errors/external requests | `/workspace/aura-phase3c-d/astra/results.json` |
+| Studio: 28 checks, 0 skipped, 2 axe scans, no browser errors/external requests | `/workspace/aura-phase3c-d/studio/results.json` |
+| Production voice screenshots | `/workspace/aura-phase3c-d/implementation/{scene-speaking,scene-1100,transcript-review,permission,settings,no-audio,voice-1100}.png` |
+
+Actual GLB rendering with shared-mock TTS was checked: jaw >0.005 rad while metered
+output played, settled after Stop, and exactly 0 under Reduce Motion. One canvas,
+72 joints, original idle, 14 draw calls and 79,802 triangles were retained. The final
+voice test's cloud sample was **2 fps / DPR 1 / ANGLE SwiftShader**; it is a software
+renderer functional test with no Mac performance conclusion. Native microphone,
+speaker playback, real TTS metering and M5 ≥55 fps still require the Mac checks below.
+
+Production build: **1,064 modules**, initial JS **1,388.45 kB / 385.72 kB gzip**, CSS
+**62.22 kB / 13.17 kB gzip**, lazy Voice Settings **5.16 kB / 1.90 kB gzip**. No chunk
+size warning. The native base's initial JS was 1,362.98 / 378.78 kB gzip; the initial
+increase is about 25.47 kB / 6.94 kB gzip. No dependencies were added.
+
+This is implementation verification. The required Phase 6 matrix (including a
+fresh complete GitHub suite after any Phase 5 refinements) remains pending.
+The frontend-owned controller tests run with `npm --prefix frontend run test:voice`;
+the UI tests with `npm --prefix frontend run test:voice:browser` (external Playwright/
+axe module paths as in the design test command below). The application still runs
+from the existing `npm --prefix frontend run dev` entry.
+
+Native Swift, shared contracts/mock, `frontend/src/platform`, original assets,
+credential storage and permission policies remain unchanged. New dependencies:
+**none**. `frontend/package.json` adds only voice test scripts; the Node TypeScript
+configuration also checks frontend controller tests. Existing Astra and Studio
+browser assertions now reflect available voice while retaining unavailable-host
+coverage.
+
+### Remaining phase checkpoints
+
+1. **Phase 5: GPT-6 Astra / Extra High.** Audit the running production voice UI and
+   refine hierarchy, status/caption clarity, ergonomics, panel spacing and motion.
+   Preserve the working controller/bridge integration. Screenshots below and the
+   original design study are references; do not replace native code for cosmetics.
+2. **Phase 6: GPT-6 Luna / Medium.** Perform the full specified regression and
+   accessibility matrix, including GitHub, permission/device failures, cancellation,
+   all window sizes and reduced motion. Implementation checks below do not mark
+   that phase complete.
+3. **Phase 7: GPT-6.1 Sol / High.** Final combined engineering review and exact
+   commit/handoff, then stop for owner review. No push or merge without approval.
+
+Physical microphone/speakers, real Bluetooth switching, OS permission prompts,
+SpeechAnalyzer/fallback/downloads, VoiceOver and Mac M5 performance remain pending
+as specified in the native acceptance section at the end of this document.
 
 ## Completed in Phases 0–2
 
@@ -152,11 +265,11 @@ provider-settings copy, tool path normalization, soak probe selectors and perfor
 sampler. Native source reports earlier 60 fps M5 acceptance for 3C-C; **this checkpoint
 has not revalidated Mac performance**, especially native speech engine startup.
 
-## Next implementation task (Phases 3–4)
+## Original design continuation plan (implemented in Phases 3–4)
 
-Recommended model: **GPT-6.1 Sol, High**. Continue on this branch; do not repeat the
-fetch/review/design work. Read the design specification's race/lifecycle decisions
-before writing a controller.
+At the design checkpoint the recommended model was **GPT-6.1 Sol, High**. That
+continuation is now implemented on this branch; the following checklist records
+its original scope. The next active checkpoint is Phase 5, described above.
 
 1. Implement a frontend-owned voice controller around `platform/bridge.ts`; subscribe
    before snapshots, revision/run/sequence guards, explicit gestures and reliable cleanup.
@@ -188,6 +301,7 @@ From the final review checkout (after explicit push approval):
 npm --prefix frontend ci
 npm --prefix frontend run typecheck
 npm --prefix frontend test
+npm --prefix frontend run test:voice
 npm --prefix frontend run build
 tools/swift-test.sh
 tools/build-app.sh Release
@@ -211,3 +325,19 @@ listening, streaming and speaking, including first-sentence engine startup. Comp
 against the preserved baseline and ≥55 fps target. Cloud SwiftShader results are
 not Mac performance acceptance. Live provider tests must obey existing cost and
 credential permissions; local native voice alone does not verify hosted inference.
+
+For native voice acceptance, keep the implementation defaults (auto-speak off,
+Edit before sending on) for the first permission/recognition run. Verify that the
+permission explainer's Continue action grants access without opening capture, and
+that a fresh Talk produces a final editable draft with no AI request until Send.
+Then opt into auto-speak, turn editing off, and verify one native final → one AI
+send → the matching speakReply stream; repeat with read-only tools and a source
+approval that can only be answered on screen. A typed request must remain silent.
+
+Hold/release ⌥Space, release while starting, Esc, Cancel, Stop speaking, Mute/Unmute,
+End voice, context/settings dialogs, conversation reset/switch/end, app inactivity,
+sleep/lock and GitHub access loss all need owner-present acceptance with the macOS
+microphone indicator observed. Test no-speech and Bluetooth failure recovery without
+automatic restart. Confirm that Stop speaking keeps text streaming while Stop reply
+cancels it, and that unmuting never resumes speech by itself. Exercise both short
+desktop windows and focus/compact layouts with keyboard and VoiceOver.

@@ -18,6 +18,7 @@ import { useGitHubWorkspace } from "./github/useGitHubWorkspace.ts";
 import { RepositoryExplorer } from "./github/RepositoryExplorer.tsx";
 import { CompanionWorkspace } from "./companion/CompanionWorkspace.tsx";
 import type { CompanionHandle, CompanionPresentation, ConversationLayout } from "./companion/CompanionWorkspace.tsx";
+import type { VoiceSamples } from "./companion/voice/VoiceController.ts";
 import "./studio.css";
 import "./github/github.css";
 import "./experience.css";
@@ -35,6 +36,7 @@ export function App() {
   const [paneWidth, setPaneWidth] = useState<number | null>(null), [windowWidth, setWindowWidth] = useState(innerWidth);
   const [presentation, setPresentation] = useState<CompanionPresentation>({ state: "idle", activity: "idle", label: "Ready when you are" });
   const companion = useRef<CompanionHandle>(null), camera = useRef<StudioCameraHandle>(null);
+  const voiceSamples = useRef<VoiceSamples>({ input: 0, output: 0, phase: "idle" });
   const previousView = useRef<{ zone: ZoneId; pose?: CameraPose } | null>(null);
   const navigate = useCallback((next: ZoneId) => {
     previousView.current = null; setRestorePose(null); studio.navigate(next);
@@ -87,7 +89,7 @@ export function App() {
     <div className="workspace-context-strip"><span><span className="mono">{String(ZONES.findIndex((item) => item.id === studio.zone) + 1).padStart(2, "0")}</span>{zone.label}</span><div>{project && <button className="selected-project-chip" title="Choose this project for conversation context" onClick={useProject}><ZoneIcon zone="github" size={14} /><span>{project.name}</span><code>{github.selectedBranch}</code><UiIcon name="plus" /></button>}{studio.zone === "companion" && previousView.current && <button onClick={returnToView}><UiIcon name="back" />Previous view</button>}<button aria-pressed={inspector} onClick={() => { changeLayout("compact"); setInspectorOpen(!inspector); }}><UiIcon name="file" />{inspector ? "Hide inspector" : "Project inspector"}</button><button onClick={() => { setLayout("expanded"); companion.current?.focus(); }}><ZoneIcon zone="companion" size={14} />Astra</button></div></div>
     <main className="workspace">
       <section className={`viewport ${studio.zone === "github" ? "exploring" : ""}`} aria-label="Interactive 3D studio">
-        {probe ? <AvatarProbe report={report} maxPixelRatio={studio.prefs?.graphics.maxPixelRatio ?? 2} /> : <StableStudio key={sceneKey} zone={studio.zone} revision={studio.revision} reducedMotion={studio.reducedMotion} maxDpr={studio.prefs?.graphics.maxPixelRatio ?? 2} state={presentation.state} speechLevel={0} report={report} navigate={navigate} restart={restart} focusCompanion={focusCompanion} cameraHandle={camera} restorePose={restorePose} />}
+        {probe ? <AvatarProbe report={report} maxPixelRatio={studio.prefs?.graphics.maxPixelRatio ?? 2} /> : <StableStudio key={sceneKey} zone={studio.zone} revision={studio.revision} reducedMotion={studio.reducedMotion} maxDpr={studio.prefs?.graphics.maxPixelRatio ?? 2} state={presentation.state} speechLevel={0} voiceSamples={voiceSamples.current} report={report} navigate={navigate} restart={restart} focusCompanion={focusCompanion} cameraHandle={camera} restorePose={restorePose} />}
         {studio.zone !== "github" && <div className="viewport-heading"><div className="eyebrow">A PERSONAL DEVELOPMENT STUDIO</div><h1>{zone.id === "studio" ? <>Room to <em>think clearly.</em></> : zone.id === "companion" ? <>Astra, <em>alongside.</em></> : zone.label}</h1><p>{zone.caption}</p><div className="view-actions"><button onClick={() => navigate("studio")}><ArrowIcon reset /> Reset overview</button><span>Drag to orbit · scroll to explore</span></div></div>}
         {studio.zone === "github" && <RepositoryExplorer workspace={github} navigate={navigate} />}
         <div className={`companion-pill ${presentation.state}`} data-activity={presentation.activity}><button className="astra-spark" onClick={focusCompanion} aria-label="Focus Astra companion"><ZoneIcon zone="companion" size={24} /></button><span><strong>ASTRA LUMEN II</strong><small>{presentation.label}</small></span><i className={`state-dot ${presentation.state}`} /></div>
@@ -97,7 +99,7 @@ export function App() {
         {showDiagnostics && <aside className="diagnostics glass" aria-label="Measured render diagnostics"><div className="section-heading"><h2>Render diagnostics</h2><button aria-label="Close diagnostics" onClick={() => setShowDiagnostics(false)}>×</button></div><dl className="facts"><dt>Zone</dt><dd>{diagnostics.zone}</dd><dt>FPS</dt><dd>{diagnostics.fps ?? "Measuring…"}</dd><dt>Draw calls</dt><dd>{diagnostics.drawCalls ?? "—"}</dd><dt>Scene triangles</dt><dd>{diagnostics.sceneTriangles?.toLocaleString() ?? "—"}</dd><dt>Avatar height</dt><dd>{diagnostics.heightMeters ?? "—"} m</dd><dt>Animation</dt><dd>{diagnostics.playingClip ?? "—"}</dd><dt>WebGL2</dt><dd>{String(diagnostics.renderer?.webgl2 ?? "—")}</dd></dl><p className="compact muted">{diagnostics.renderer?.renderer ?? "Detecting renderer…"}</p><p className="compact muted">Measured in this environment. Per-zone samples are available in window.__AURA_DIAGNOSTICS__.</p></aside>}
         {studio.error && <p className="preference-error" role="status">{studio.error}</p>}
       </section>
-      <CompanionWorkspace ref={companion} zone={studio.zone} workspace={github} layout={layout} changeLayout={changeLayout} report={reportCompanion} visible={studio.zone !== "github" || layout !== "compact"} resized={width} resize={resize} />
+      <CompanionWorkspace ref={companion} zone={studio.zone} workspace={github} layout={layout} changeLayout={changeLayout} report={reportCompanion} visible={studio.zone !== "github" || layout !== "compact"} resized={width} resize={resize} voiceSamples={voiceSamples.current} reducedMotion={studio.reducedMotion} />
       {inspector && <Inspector zone={studio.zone} navigate={navigate} workspace={github} useInConversation={useProject} close={() => setInspectorOpen(false)} />}
     </main>
     <footer className="app-footer"><span>AURA{appInfo ? ` / ${appInfo.appVersion}` : ""}<span className="footer-divider">/</span>Spatial workspace</span><span className="model-credit">“Astra Lumen II, a rigged companion android” by <a href="https://sketchfab.com/pinckneyb" target="_blank" rel="noreferrer">XRProfXR</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a> · <a href="https://sketchfab.com/3d-models/astra-lumen-ii-a-rigged-companion-android-84761f55aa17493d9b226bb1f7101428" target="_blank" rel="noreferrer">Source</a></span></footer>
