@@ -8,7 +8,9 @@ import Foundation
 /// done("cancelled") at once and drops anything still in flight. Failures
 /// before any text arrived are retried (network, timeout, short rate limits);
 /// after text has been shown they are not, so a reply never repeats.
-/// Conversations are not stored: the page sends the history it wants used.
+/// ai.chat conversations are not stored: the page sends the history it
+/// wants used. Host-owned conversations (ai.startConversation, Phase 3C-B)
+/// live in AIConversation.swift and share the stream machinery here.
 @MainActor
 public final class AIService {
     public struct Limits: Sendable {
@@ -24,23 +26,50 @@ public final class AIService {
         public var retryDelays: [Duration] = [.milliseconds(500), .seconds(2)]
         /// A rate limit asking for a longer wait is reported, not retried.
         public var maxRetryAfterSeconds = 10
+
+        // Conversations (in memory only).
+        public var maxConversations = 16
+        /// Turns kept per conversation; older ones are dropped.
+        public var maxTurnsKept = 40
+        /// Characters of earlier turns sent with each request.
+        public var maxHistoryChars = 100_000
+        /// Model → tools → model rounds per reply; the last round asks for text.
+        public var maxToolRounds = 4
+        public var maxToolCallsPerReply = 8
+        /// Characters of tool results per reply.
+        public var maxToolResultChars = 48_000
+        public var toolCallTimeout: Duration = .seconds(20)
+        /// An unanswered approval counts as declined after this long.
+        public var approvalTimeout: Duration = .seconds(300)
         public init() {}
     }
 
     public let registry: AIProviderRegistry
-    private let context: AIContextBuilder
-    private let preferences: @MainActor () async -> Preferences
-    private let events: BridgeEventEmitter
-    private let limits: Limits
+    let context: AIContextBuilder
+    let preferences: @MainActor () async -> Preferences
+    let events: BridgeEventEmitter
+    let limits: Limits
     private let sleep: @Sendable (Duration) async throws -> Void
     private let conversations = AIConversationGuard()
-    private var streams: [String: ActiveStream] = [:]
+    var streams: [String: ActiveStream] = [:]
 
-    private final class ActiveStream {
+    /// Host-owned conversations (AIConversation.swift).
+    var conversationTable: [String: AIConversation] = [:]
+    /// Runs tools for conversations; nil: conversations have no tools.
+    let tools: AIToolExecutor?
+    let toolPolicy: AIToolPolicy
+    /// The GitHub account conversations last saw (to notice a switch).
+    var lastGitHubLogin: String?
+
+    final class ActiveStream {
         var seq = 0
         var task: Task<Void, Never>?
         var buffer = ""
         var flush: Task<Void, Never>?
+        /// Set for conversation replies.
+        var conversationId: String?
+        /// Pending user approvals for this reply.
+        var approvals: [String: CheckedContinuation<AIApprovalDecision, Never>] = [:]
     }
 
     public init(
@@ -49,6 +78,7 @@ public final class AIService {
         preferences: @escaping @MainActor () async -> Preferences,
         events: BridgeEventEmitter,
         limits: Limits = Limits(),
+        tools: AIToolExecutor? = nil,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.registry = registry
@@ -56,6 +86,8 @@ public final class AIService {
         self.preferences = preferences
         self.events = events
         self.limits = limits
+        self.tools = tools
+        toolPolicy = AIToolPolicy(maxCallsPerReply: limits.maxToolCallsPerReply)
         self.sleep = sleep
     }
 
@@ -108,6 +140,9 @@ public final class AIService {
         for (id, active) in streams {
             active.flush?.cancel()
             active.task?.cancel()
+            if let conversationId = active.conversationId { endTurnQuietly(id, conversationId) }
+            for approval in active.approvals.values { approval.resume(returning: .deny) }
+            active.approvals.removeAll()
             Log.ai.info("stream \(id, privacy: .public) dropped with its page")
         }
         streams.removeAll()
@@ -125,11 +160,11 @@ public final class AIService {
                 snapshot = build.snapshot
             }
             let request = AIRequest(
-                messages: [AIPromptComposer.systemMessage(snapshot)] + params.messages,
+                messages: ([AIPromptComposer.systemMessage(snapshot)] + params.messages).map(AIMessage.init),
                 model: model,
                 maxOutputTokens: min(params.maxOutputTokens ?? limits.maxOutputTokens, limits.maxOutputTokens)
             )
-            let reason = try await stream(streamId, request: request, provider: provider)
+            let reason = try await stream(streamId, request: request, provider: provider).reason
             finish(streamId, .done(reason))
         } catch is CancellationError {
             finish(streamId, .done(.cancelled))
@@ -140,27 +175,43 @@ public final class AIService {
         }
     }
 
+    struct RoundResult {
+        var reason: FinishReason
+        var text: String
+        var toolCalls: [AIToolCall]
+    }
+
     /// Consumes the provider, retrying failures that happen before any text.
-    private func stream(_ streamId: String, request: AIRequest, provider: any AIProvider) async throws -> FinishReason {
+    /// `outputBudget`: characters this response may still add to the reply.
+    func stream(_ streamId: String, request: AIRequest, provider: any AIProvider, outputBudget: Int? = nil) async throws -> RoundResult {
         var attempt = 0
         var produced = 0
+        var text = ""
+        var calls: [AIToolCall] = []
+        let budget = outputBudget ?? limits.maxOutputChars
         while true {
             do {
                 for try await event in provider.stream(request) {
                     try Task.checkCancellation()
                     switch event {
-                    case .delta(let text):
-                        let room = limits.maxOutputChars - produced
-                        produced += text.count
-                        append(streamId, String(text.prefix(room)))
-                        if produced >= limits.maxOutputChars { return .length }
+                    case .delta(let delta):
+                        if produced == 0 { firstOutput(streamId) }
+                        let room = budget - produced
+                        produced += delta.count
+                        let shown = String(delta.prefix(max(0, room)))
+                        text += shown
+                        append(streamId, shown)
+                        if produced >= budget { return RoundResult(reason: .length, text: text, toolCalls: []) }
+                    case .toolCalls(let proposed):
+                        calls += proposed
                     case .finished(let reason):
-                        return reason
+                        return RoundResult(reason: reason, text: text, toolCalls: calls)
                     }
                 }
                 throw AuraError.network("the AI provider ended the stream without finishing")
             } catch {
                 try Task.checkCancellation()
+                calls = []
                 guard produced == 0, attempt < limits.retryDelays.count, let delay = retryDelay(error, attempt) else { throw error }
                 attempt += 1
                 Log.ai.notice("stream \(streamId, privacy: .public) retry \(attempt, privacy: .public) after \(BridgeError(error).code.rawValue, privacy: .public)")
@@ -169,7 +220,7 @@ public final class AIService {
         }
     }
 
-    private func retryDelay(_ error: any Error, _ attempt: Int) -> Duration? {
+    func retryDelay(_ error: any Error, _ attempt: Int) -> Duration? {
         switch error {
         case AuraError.network, AuraError.timeout: return limits.retryDelays[attempt]
         case AuraError.rateLimited(let after):
@@ -181,9 +232,16 @@ public final class AIService {
 
     // MARK: events
 
-    private enum Terminal { case done(FinishReason), error(BridgeError) }
+    enum Terminal { case done(FinishReason), error(BridgeError) }
 
-    private func append(_ streamId: String, _ text: String) {
+    /// The next `seq` of a live stream; nil once it ended (late events are dropped).
+    func nextSeq(_ streamId: String) -> Int? {
+        guard let active = streams[streamId] else { return nil }
+        active.seq += 1
+        return active.seq
+    }
+
+    func append(_ streamId: String, _ text: String) {
         guard let active = streams[streamId], !text.isEmpty else { return }
         active.buffer += text
         if limits.flushInterval == .zero { return flush(streamId) }
@@ -196,18 +254,21 @@ public final class AIService {
         }
     }
 
-    private func flush(_ streamId: String) {
+    func flush(_ streamId: String) {
         guard let active = streams[streamId] else { return }
         active.flush?.cancel()
         active.flush = nil
         guard !active.buffer.isEmpty else { return }
         active.seq += 1
-        events.emit(.aiChunk, AIChunkPayload(streamId: streamId, seq: active.seq, delta: active.buffer))
+        let shown = active.buffer
+        events.emit(.aiChunk, AIChunkPayload(streamId: streamId, seq: active.seq, delta: shown))
         active.buffer = ""
+        // A conversation's history keeps exactly the text the user saw.
+        if let conversationId = active.conversationId { replyShown(streamId, conversationId, shown) }
     }
 
     /// Sends the one terminal event and forgets the stream. Later calls are no-ops.
-    private func finish(_ streamId: String, _ terminal: Terminal) {
+    func finish(_ streamId: String, _ terminal: Terminal) {
         guard let active = streams[streamId] else { return }
         if case .done(.cancelled) = terminal {
             active.flush?.cancel()
@@ -215,8 +276,12 @@ public final class AIService {
         } else {
             flush(streamId) // text that arrived before the end (or the error) is still shown
         }
+        if let conversationId = active.conversationId { endTurn(streamId, conversationId, terminal) }
         streams[streamId] = nil
         active.task?.cancel()
+        // Anything still waiting for the user is declined; the reply is over.
+        for approval in active.approvals.values { approval.resume(returning: .deny) }
+        active.approvals.removeAll()
         active.seq += 1
         switch terminal {
         case .done(let reason):
@@ -229,7 +294,7 @@ public final class AIService {
 
     // MARK: validation
 
-    private func validate(_ params: ChatParams) throws {
+    func validate(_ params: ChatParams) throws {
         guard !params.messages.isEmpty, params.messages.count <= limits.maxMessages else {
             throw AuraError.invalidRequest("messages must contain 1-\(limits.maxMessages) entries")
         }

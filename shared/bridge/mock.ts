@@ -8,10 +8,17 @@ import type { BridgeError } from "../contracts/errors.ts";
 import type { BridgeEventName, EventPayload } from "../contracts/events.ts";
 import type { BridgeMethod, MethodParams, MethodResult } from "../contracts/methods.ts";
 import type {
+  AIApprovalDecision,
+  AIApprovalRequest,
   AIContextRequest,
   AIContextSection,
   AIContextSnapshot,
+  AIConversationInfo,
+  AIConversationTurn,
   AIProviderInfo,
+  AISourceRef,
+  AIToolActivity,
+  AITurnState,
   CommitSummary,
   GitHubAccount,
   GitHubAuthStatus,
@@ -20,6 +27,7 @@ import type {
   ProjectRecord,
   ProjectZoneSuggestion,
   RepositorySummary,
+  RepositoryTree,
   VoiceStatus,
 } from "../contracts/domain.ts";
 import type { BridgeTransport } from "./transport.ts";
@@ -66,6 +74,49 @@ const MOCK_REPOS: RepositorySummary[] = MOCK_REPO_SEEDS.map(([name, description,
   isFork: false,
   isArchived: false,
 }));
+
+const MOCK_SHA = "0".repeat(40);
+
+/** Synthetic files per mock repository, matching MockGitHubService in Swift. */
+function mockFiles(repo: RepositorySummary): Record<string, string> {
+  const [path, text] =
+    repo.primaryLanguage === "C" ? ["src/main.c", '#include <stdio.h>\n\n// Mock firmware entry point.\nint main(void) {\n    printf("mock\\n");\n    return 0;\n}\n']
+    : repo.primaryLanguage === "Python" ? ["eval/run.py", '"""Mock evaluation script."""\n\ndef main() -> None:\n    print("mock")\n\nif __name__ == "__main__":\n    main()\n']
+    : ["src/index.ts", '// Mock web app entry point.\nexport function main(): string {\n  return "mock";\n}\n'];
+  return {
+    "README.md": `# ${repo.name}\n\n${repo.description ?? "Mock repository."}\n\nThis is synthetic mock content.\n`,
+    "docs/ARCHITECTURE.md": `# Architecture (mock)\n\nOne module: \`${path}\`.\n`,
+    [path]: text,
+  };
+}
+
+function mockTree(repo: RepositorySummary, ref: string): RepositoryTree {
+  const files = mockFiles(repo);
+  const dirs = new Set<string>();
+  for (const path of Object.keys(files)) {
+    const parts = path.split("/").slice(0, -1);
+    while (parts.length) { dirs.add(parts.join("/")); parts.pop(); }
+  }
+  const entries = [
+    ...[...dirs].map((path) => ({ path, type: "directory" as const, size: null })),
+    ...Object.entries(files).map(([path, text]) => ({ path, type: "file" as const, size: new TextEncoder().encode(text).length })),
+  ].sort((a, b) => a.path.localeCompare(b.path));
+  return { fullName: repo.fullName, ref, commitSha: MOCK_SHA, entries, truncated: false };
+}
+
+function numbered(text: string, start = 1, end?: number): { text: string; lines: { start: number; end: number } } {
+  const lines = text.replace(/\n$/, "").split("\n");
+  const first = Math.min(Math.max(start, 1), lines.length);
+  const last = Math.min(Math.max(end ?? lines.length, first), lines.length);
+  const width = String(last).length;
+  return {
+    text: lines.slice(first - 1, last).map((line, i) => `${String(first + i).padStart(width)}| ${line}`).join("\n"),
+    lines: { start: first, end: last },
+  };
+}
+
+const validPath = (path: string) =>
+  path.length > 0 && path.length <= 512 && path.split("/").every((p) => p !== "" && p !== "." && p !== "..") && !/[\u0000-\u001f?#%\\]/.test(path);
 
 class MockFailure extends Error {
   readonly error: BridgeError;
@@ -129,34 +180,192 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
     emit("ai.providersChanged", providerList());
     return next;
   }
-  function mockContext(request: AIContextRequest, kind: AIProviderInfo["kind"]): AIContextSnapshot {
+  function mockContext(request: AIContextRequest, kind: AIProviderInfo["kind"], sourceConsent = false): AIContextSnapshot {
     const sections: AIContextSection[] = [];
     const omitted: AIContextSnapshot["omitted"] = [];
     const wanted = request.include ?? {};
     const repoSections = (["repository", "commits", "notes"] as const).filter((id) => request.repository && wanted[id]);
+    const files = request.files ?? [];
+    const readme = Boolean(request.repository && wanted.readme);
+    if (files.length > 5) throw new MockFailure({ code: "invalid_request", message: "at most 5 files", retryable: false });
+    if (files.some((file) => !validPath(file.path))) throw new MockFailure({ code: "invalid_request", message: "path must be a file path inside the repository", retryable: false });
     if (!prefs.ai.contextSharing) {
-      if (request.zone) omitted.push({ section: "workspace", reason: "sharing_disabled" });
-      repoSections.forEach((section) => omitted.push({ section, reason: "sharing_disabled" }));
+      if (request.zone) omitted.push({ section: "workspace", reason: "sharing_disabled", path: null });
+      repoSections.forEach((section) => omitted.push({ section, reason: "sharing_disabled", path: null }));
+      if (readme) omitted.push({ section: "readme", reason: "sharing_disabled", path: null });
+      files.forEach((file) => omitted.push({ section: "file", reason: "sharing_disabled", path: file.path }));
       return { sections, omitted, totalChars: 0 };
     }
-    if (request.zone) sections.push({ id: "workspace", title: "Workspace", trust: "app", text: `Active zone: ${request.zone}`, truncated: false });
-    if (request.repository && repoSections.length) {
+    const src = (kind: AISourceRef["kind"], extra: Partial<AISourceRef> = {}): AISourceRef => ({ kind, fullName: null, path: null, ref: null, lines: null, ...extra });
+    if (request.zone) sections.push({ id: "workspace", title: "Workspace", trust: "app", text: `Active zone: ${request.zone}`, truncated: false, source: src("workspace") });
+    if (request.repository && (repoSections.length || readme || files.length)) {
       const repo = MOCK_REPOS.find((r) => r.fullName === request.repository?.fullName);
       const policy = prefs.ai.privateRepositoryContext;
       const blocked = repo?.isPrivate && (policy === "never" || (policy === "local_only" && kind !== "local"));
+      const fullName = repo?.fullName ?? null;
+      const ref = request.repository.branch ?? repo?.defaultBranch ?? null;
       for (const section of repoSections) {
-        if (!repo) omitted.push({ section, reason: "not_found" });
-        else if (blocked) omitted.push({ section, reason: "private_repository" });
-        else if (section === "repository") sections.push({ id: section, title: "Repository", trust: "untrusted", text: `${repo.fullName}: ${repo.description ?? ""} (${repo.primaryLanguage ?? "unknown"})`, truncated: false });
-        else if (section === "commits") sections.push({ id: section, title: "Recent commits", trust: "untrusted", text: "0000000 Mock commit 1", truncated: false });
+        if (!repo) omitted.push({ section, reason: "not_found", path: null });
+        else if (blocked) omitted.push({ section, reason: "private_repository", path: null });
+        else if (section === "repository") sections.push({ id: section, title: "Repository", trust: "untrusted", text: `${repo.fullName}: ${repo.description ?? ""} (${repo.primaryLanguage ?? "unknown"})`, truncated: false, source: src("repository", { fullName, ref }) });
+        else if (section === "commits") sections.push({ id: section, title: "Recent commits", trust: "untrusted", text: "0000000 Mock commit 1", truncated: false, source: src("commits", { fullName, ref }) });
         else {
           const note = projects.get(repo.fullName)?.notes ?? "";
-          if (note) sections.push({ id: section, title: "Project notes", trust: "untrusted", text: note, truncated: false });
+          if (note) sections.push({ id: section, title: "Project notes", trust: "untrusted", text: note, truncated: false, source: src("notes", { fullName }) });
+          else omitted.push({ section, reason: "not_found", path: null });
+        }
+      }
+      const needsConsent = Boolean(repo?.isPrivate && kind === "cloud" && !sourceConsent);
+      const wantedFiles = [...(readme ? [{ path: "README.md", id: "readme" as const }] : []), ...files.map((file) => ({ ...file, id: "file" as const }))];
+      for (const file of wantedFiles) {
+        const path = file.id === "readme" ? "README.md" : file.path;
+        const text = repo ? mockFiles(repo)[path] : undefined;
+        if (!repo || text === undefined) omitted.push({ section: file.id, reason: "not_found", path });
+        else if (blocked) omitted.push({ section: file.id, reason: "private_repository", path });
+        else if (needsConsent) omitted.push({ section: file.id, reason: "consent_required", path });
+        else {
+          const excerpt = numbered(text, "startLine" in file ? file.startLine : undefined, "endLine" in file ? file.endLine : undefined);
+          const title = file.id === "readme" ? "README (README.md)" : `File ${path} lines ${excerpt.lines.start}–${excerpt.lines.end}`;
+          sections.push({ id: file.id, title, trust: "untrusted", text: excerpt.text, truncated: false, source: src("file", { fullName, path, ref, lines: excerpt.lines }) });
         }
       }
     }
     return { sections, omitted, totalChars: sections.reduce((sum, section) => sum + section.text.length, 0) };
   }
+
+  // ---------------------------------------------------------- conversations (mock)
+  // A simplified host: with a repository and tools on, every reply reads
+  // README.md through a simulated tool call (with the same privacy and
+  // approval rules as the native host), then echoes the message.
+  interface MockConversation {
+    info: AIConversationInfo;
+    turns: AIConversationTurn[];
+    approvals: Map<string, (decision: AIApprovalDecision) => void>;
+  }
+  const conversations = new Map<string, MockConversation>();
+  let conversationCounter = 0;
+  const notFound = (what: string) => new MockFailure({ code: "not_found", message: what, retryable: false });
+  function conversation(id: string): MockConversation {
+    const found = conversations.get(id);
+    if (!found) throw notFound(`no conversation ${id}`);
+    return found;
+  }
+  function mockRepositoryRef(ref: { fullName: string; branch?: string }): NonNullable<AIConversationInfo["repository"]> {
+    const repo = mockRepo(ref.fullName);
+    return { fullName: repo.fullName, branch: ref.branch ?? null, isPrivate: repo.isPrivate };
+  }
+
+  async function runMockTurn(conv: MockConversation, turn: AIConversationTurn, text: string, contextRequest: AIContextRequest | undefined): Promise<void> {
+    const { streamId } = turn;
+    const conversationId = conv.info.conversationId;
+    let seq = 0;
+    const live = () => activeStreams.has(streamId);
+    const state = (next: AITurnState) => {
+      if (!live()) return;
+      conv.info.state = next;
+      turn.state = next;
+      emit("ai.turnState", { streamId, conversationId, seq: ++seq, state: next });
+    };
+    const activity = (next: AIToolActivity) => {
+      if (!live()) return;
+      const index = turn.tools.findIndex((a) => a.callId === next.callId);
+      if (index >= 0) turn.tools[index] = next; else turn.tools.push(next);
+      emit("ai.toolActivity", { streamId, conversationId, seq: ++seq, activity: next });
+    };
+    const ask = (request: Omit<AIApprovalRequest, "approvalId" | "expiresInSeconds" | "providerName" | "providerKind">) =>
+      new Promise<AIApprovalDecision>((resolve) => {
+        const approvalId = `mock-appr-${++conversationCounter}`;
+        conv.approvals.set(approvalId, resolve);
+        emit("ai.approvalRequested", { streamId, conversationId, seq: ++seq, approval: {
+          ...request, approvalId, expiresInSeconds: 300, providerName: conv.info.providerName, providerKind: conv.info.providerKind,
+        } });
+      });
+    const end = (finishReason: "stop" | "cancelled") => {
+      turn.finishReason = finishReason;
+      conv.info.activeStreamId = null;
+      activeStreams.delete(streamId);
+      cancelStream.delete(streamId);
+    };
+    cancelStream.set(streamId, () => {
+      for (const resolve of conv.approvals.values()) resolve("deny");
+      conv.approvals.clear();
+      conv.info.state = "cancelled";
+      turn.state = "cancelled";
+      emit("ai.turnState", { streamId, conversationId, seq: ++seq, state: "cancelled" });
+      emit("ai.done", { streamId, seq: ++seq, finishReason: "cancelled" });
+      end("cancelled");
+    });
+
+    await wait(streamIntervalMs);
+    state("preparing_context");
+    const repo = conv.info.repository;
+    const kind = conv.info.providerKind;
+    const policy = prefs.ai.privateRepositoryContext;
+    const privateAllowed = policy === "all" || (policy === "local_only" && kind === "local");
+    if (contextRequest) {
+      const request = { ...contextRequest, repository: repo ? { fullName: repo.fullName, branch: repo.branch ?? undefined } : undefined };
+      let consent = Boolean(repo && conv.info.sourceSharingAllowed.includes(repo.fullName));
+      let snapshot = mockContext(request, kind, consent);
+      const needed = snapshot.omitted.filter((o) => o.reason === "consent_required").map((o) => o.path ?? "");
+      if (needed.length && repo) {
+        state("waiting_for_approval");
+        const decision = await ask({ kind: "share_private_source", callId: null, tool: null, summary: `Send ${needed.length} files from the private repository ${repo.fullName} to ${conv.info.providerName}`, repository: repo.fullName, paths: needed });
+        if (!live()) return;
+        state("preparing_context");
+        if (decision !== "deny") {
+          consent = true;
+          if (decision === "allow_for_conversation") conv.info.sourceSharingAllowed = [repo.fullName];
+          snapshot = mockContext(request, kind, consent);
+        }
+      }
+      turn.sources.push(...snapshot.sections.flatMap((section) => (section.source ? [section.source] : [])));
+    }
+    state("requesting");
+    await wait(streamIntervalMs);
+    let lead = "";
+    if (repo && conv.info.toolsEnabled) {
+      const callId = `mock-call-${++conversationCounter}`;
+      const tool = "read_repository_file";
+      state("waiting_for_tool");
+      let allowed = !repo.isPrivate || privateAllowed;
+      if (!allowed) {
+        activity({ callId, tool, status: "denied", summary: "Refused read_repository_file", sources: [], message: "the repository is private, and AURA's privacy settings do not share private repositories with this provider" });
+      } else if (repo.isPrivate && kind === "cloud" && !conv.info.sourceSharingAllowed.includes(repo.fullName)) {
+        activity({ callId, tool, status: "awaiting_approval", summary: `Send README.md from the private repository ${repo.fullName} to ${conv.info.providerName}`, sources: [], message: null });
+        state("waiting_for_approval");
+        const decision = await ask({ kind: "share_private_source", callId, tool, summary: `Send README.md from the private repository ${repo.fullName} to ${conv.info.providerName}`, repository: repo.fullName, paths: ["README.md"] });
+        if (!live()) return;
+        state("waiting_for_tool");
+        if (decision === "allow_for_conversation") conv.info.sourceSharingAllowed = [repo.fullName];
+        allowed = decision !== "deny";
+        if (!allowed) activity({ callId, tool, status: "denied", summary: "Send README.md", sources: [], message: "the user declined" });
+      }
+      if (allowed) {
+        activity({ callId, tool, status: "running", summary: `Running ${tool}`, sources: [], message: null });
+        await wait(streamIntervalMs);
+        const readmeText = mockFiles(mockRepo(repo.fullName))["README.md"] ?? "";
+        const source: AISourceRef = { kind: "file", fullName: repo.fullName, path: "README.md", ref: MOCK_SHA, lines: numbered(readmeText).lines };
+        activity({ callId, tool, status: "succeeded", summary: `Read README.md, lines ${source.lines?.start}–${source.lines?.end}`, sources: [source], message: null });
+        turn.sources.push(source);
+        if (repo.isPrivate) conv.info.carriesPrivateContext = true;
+        lead = "[mock] Read README.md. ";
+      }
+      state("requesting");
+    }
+    const words = `${lead}[mock] You said: ${text}`.split(/(?<= )/);
+    for (const delta of words) {
+      await wait(streamIntervalMs);
+      if (!live()) return;
+      if (turn.state !== "streaming") state("streaming");
+      turn.replyText += delta;
+      emit("ai.chunk", { streamId, seq: ++seq, delta });
+    }
+    if (!live()) return;
+    state("completed");
+    emit("ai.done", { streamId, seq: ++seq, finishReason: "stop" });
+    end("stop");
+  }
+
   let github: GitHubAuthStatus = MOCK_CONNECTED;
   let githubAttempt = 0;
 
@@ -269,6 +478,15 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
         htmlUrl: `${repo.htmlUrl}/commit/${i}`,
       }));
     },
+    "github.listFiles": ({ fullName, branch, path, limit }) => {
+      if (path !== undefined && !validPath(path)) throw new MockFailure({ code: "invalid_request", message: "path must be a file path inside the repository", retryable: false });
+      const repo = mockRepo(fullName);
+      const tree = mockTree(repo, branch ?? repo.defaultBranch);
+      if (path !== undefined && !tree.entries.some((e) => e.path === path && e.type === "directory")) throw notFound(`${path} is not a directory`);
+      const entries = tree.entries.filter((e) => path === undefined || e.path.startsWith(`${path}/`));
+      const max = Math.min(Math.max(limit ?? 500, 1), 1000);
+      return { ...tree, entries: entries.slice(0, max), truncated: entries.length > max };
+    },
 
     "projects.list": () => [...projects.values()],
     "projects.update": (patch) => {
@@ -340,7 +558,16 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
         },
       });
     },
-    "ai.previewContext": ({ context, providerId }) => mockContext(context, provider(providerId ?? prefs.ai.defaultProviderId ?? "mock").kind),
+    "ai.previewContext": ({ context, providerId, conversationId }) => {
+      if (conversationId) {
+        const conv = conversation(conversationId);
+        if (context.repository) throw new MockFailure({ code: "invalid_request", message: "a conversation uses its own repository; change it with ai.setConversationRepository", retryable: false });
+        const repo = conv.info.repository;
+        return mockContext({ ...context, repository: repo ? { fullName: repo.fullName, branch: repo.branch ?? undefined } : undefined }, conv.info.providerKind,
+          Boolean(repo && conv.info.sourceSharingAllowed.includes(repo.fullName)));
+      }
+      return mockContext(context, provider(providerId ?? prefs.ai.defaultProviderId ?? "mock").kind);
+    },
     "ai.chat": ({ messages, providerId }) => {
       const target = provider(providerId ?? prefs.ai.defaultProviderId ?? "mock");
       if (!target.available) throw new MockFailure({ code: "unavailable", message: `provider ${target.id} is not configured`, retryable: false });
@@ -368,6 +595,80 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
     "ai.cancel": ({ streamId }) => {
       if (activeStreams.delete(streamId)) cancelStream.get(streamId)?.();
       cancelStream.delete(streamId);
+      return {};
+    },
+    "ai.startConversation": ({ providerId, model, repository, tools }) => {
+      const target = provider(providerId ?? prefs.ai.defaultProviderId ?? "mock");
+      if (!target.available) throw new MockFailure({ code: "unavailable", message: `provider ${target.id} is not configured`, retryable: false });
+      const chosen = model ?? target.defaultModel ?? target.models[0];
+      if (!chosen || !target.models.includes(chosen)) throw new MockFailure({ code: "invalid_request", message: `model ${model} is not configured`, retryable: false });
+      const conversationId = `conv-mock-${++conversationCounter}`;
+      const info: AIConversationInfo = {
+        conversationId, providerId: target.id, providerName: target.displayName, providerKind: target.kind, model: chosen,
+        repository: repository ? mockRepositoryRef(repository) : null, toolsEnabled: (tools ?? true) && prefs.ai.contextSharing,
+        state: "idle", activeStreamId: null, turnCount: 0, carriesPrivateContext: false, sourceSharingAllowed: [], createdAt: new Date().toISOString(),
+      };
+      conversations.set(conversationId, { info, turns: [], approvals: new Map() });
+      return structuredClone(info);
+    },
+    "ai.listConversations": () => [...conversations.values()].map((c) => structuredClone({ ...c.info, turnCount: c.turns.length })),
+    "ai.getConversation": ({ conversationId }) => {
+      const conv = conversation(conversationId);
+      return structuredClone({ conversation: { ...conv.info, turnCount: conv.turns.length }, turns: conv.turns });
+    },
+    "ai.sendMessage": ({ conversationId, text, context }) => {
+      const conv = conversation(conversationId);
+      if (conv.info.activeStreamId) throw new MockFailure({ code: "invalid_request", message: "a reply is already in progress in this conversation", retryable: false });
+      const trimmed = text.trim();
+      if (!trimmed || trimmed.length > 32000) throw new MockFailure({ code: "invalid_request", message: "text must be 1-32000 characters", retryable: false });
+      if (context && "repository" in context && (context as AIContextRequest).repository) {
+        throw new MockFailure({ code: "invalid_request", message: "a conversation uses its own repository; change it with ai.setConversationRepository", retryable: false });
+      }
+      if (context?.files?.length && !conv.info.repository) throw new MockFailure({ code: "invalid_request", message: "select a repository for this conversation before attaching files", retryable: false });
+      streamCounter += 1;
+      const streamId = `mock-stream-${streamCounter}`;
+      activeStreams.add(streamId);
+      const turn: AIConversationTurn = { streamId, userText: trimmed, replyText: "", finishReason: null, state: "idle", tools: [], sources: [] };
+      conv.turns.push(turn);
+      conv.info.activeStreamId = streamId;
+      conv.info.state = "idle";
+      void runMockTurn(conv, turn, trimmed, context);
+      return { streamId };
+    },
+    "ai.setConversationRepository": ({ conversationId, repository }) => {
+      const conv = conversation(conversationId);
+      if (conv.info.activeStreamId) throw new MockFailure({ code: "invalid_request", message: "wait for the reply to finish, or cancel it, before switching repositories", retryable: false });
+      conv.info.repository = repository ? mockRepositoryRef(repository) : null;
+      conv.info.sourceSharingAllowed = [];
+      const info = structuredClone({ ...conv.info, turnCount: conv.turns.length });
+      emit("ai.conversationChanged", { conversationId, reason: "repository_changed", conversation: info });
+      return info;
+    },
+    "ai.resetConversation": ({ conversationId }) => {
+      const conv = conversation(conversationId);
+      if (conv.info.activeStreamId && activeStreams.delete(conv.info.activeStreamId)) cancelStream.get(conv.info.activeStreamId)?.();
+      conv.turns = [];
+      Object.assign(conv.info, { state: "idle", activeStreamId: null, carriesPrivateContext: false, sourceSharingAllowed: [] });
+      const info = structuredClone({ ...conv.info, turnCount: 0 });
+      emit("ai.conversationChanged", { conversationId, reason: "reset", conversation: info });
+      return info;
+    },
+    "ai.endConversation": ({ conversationId }) => {
+      const conv = conversation(conversationId);
+      if (conv.info.activeStreamId && activeStreams.delete(conv.info.activeStreamId)) cancelStream.get(conv.info.activeStreamId)?.();
+      conversations.delete(conversationId);
+      emit("ai.conversationChanged", { conversationId, reason: "ended", conversation: null });
+      return {};
+    },
+    "ai.respondToApproval": ({ conversationId, approvalId, decision }) => {
+      const conv = conversation(conversationId);
+      const resolve = conv.approvals.get(approvalId);
+      if (!resolve) throw notFound(`no pending approval ${approvalId} in this conversation`);
+      if (!["allow_once", "allow_for_conversation", "deny"].includes(decision)) {
+        throw new MockFailure({ code: "invalid_request", message: "decision must be allow_once, allow_for_conversation or deny", retryable: false });
+      }
+      conv.approvals.delete(approvalId);
+      resolve(decision);
       return {};
     },
 

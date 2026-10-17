@@ -6,22 +6,59 @@ import Foundation
 // events) is AIService's job. Adding a provider means one type conforming to
 // AIProvider plus a case in AIProviderAPI and AIProviderRegistry.makeProvider.
 
+/// One message as a provider receives it. Unlike the bridge's ChatMessage it
+/// can carry the tool-call exchange: an assistant message proposing calls and
+/// one `tool` message with each call's (fenced) result.
+public struct AIMessage: Equatable, Sendable {
+    public enum Role: String, Sendable { case system, user, assistant, tool }
+    public var role: Role
+    public var content: String
+    /// Assistant only: the calls it proposed.
+    public var toolCalls: [AIToolCall]
+    /// Tool only: the call this result answers.
+    public var toolCallId: String?
+
+    public init(role: Role, content: String, toolCalls: [AIToolCall] = [], toolCallId: String? = nil) {
+        self.role = role
+        self.content = content
+        self.toolCalls = toolCalls
+        self.toolCallId = toolCallId
+    }
+
+    public init(_ message: ChatMessage) {
+        self.init(role: Role(rawValue: message.role.rawValue) ?? .user, content: message.content)
+    }
+}
+
 /// One completion request as the provider receives it: the host's system
-/// message (with any workspace context) first, then the page's turns.
+/// message (with any workspace context) first, then the turns.
 public struct AIRequest: Equatable, Sendable {
-    public var messages: [ChatMessage]
+    public enum ToolChoice: String, Sendable { case auto, none }
+    public var messages: [AIMessage]
     public var model: String
     public var maxOutputTokens: Int?
+    /// Tools the model may call. Empty: none offered.
+    public var tools: [AIToolDefinition]
+    /// `.none` keeps the definitions (the history may contain tool calls) but asks for a text answer.
+    public var toolChoice: ToolChoice
 
-    public init(messages: [ChatMessage], model: String, maxOutputTokens: Int? = nil) {
+    public init(messages: [AIMessage], model: String, maxOutputTokens: Int? = nil, tools: [AIToolDefinition] = [], toolChoice: ToolChoice = .auto) {
         self.messages = messages
         self.model = model
         self.maxOutputTokens = maxOutputTokens
+        self.tools = tools
+        self.toolChoice = toolChoice
+    }
+
+    public init(messages: [ChatMessage], model: String, maxOutputTokens: Int? = nil) {
+        self.init(messages: messages.map(AIMessage.init), model: model, maxOutputTokens: maxOutputTokens)
     }
 }
 
 public enum AIStreamEvent: Equatable, Sendable {
     case delta(String)
+    /// Complete tool calls the model proposed in this response (untrusted).
+    case toolCalls([AIToolCall])
     /// The provider's last word. A stream that ends without one was cut short.
     case finished(FinishReason)
 }
@@ -40,6 +77,8 @@ public protocol AIProvider: Sendable {
 public struct MockAIProvider: AIProvider {
     public enum Step: Sendable, Equatable {
         case delta(String)
+        /// Proposes tool calls: (id, name, raw JSON arguments).
+        case toolCalls([AIToolCall])
         case finish(FinishReason)
         case fail(AuraError)
         case pause(Duration)
@@ -58,9 +97,11 @@ public struct MockAIProvider: AIProvider {
 
     /// How many times `stream` was called (retries included).
     public var streamCalls: Int { attempts.value }
+    /// Every request received, in order (tests).
+    public var requests: [AIRequest] { attempts.requests }
 
     public func stream(_ request: AIRequest) -> AsyncThrowingStream<AIStreamEvent, Error> {
-        let attempt = attempts.next()
+        let attempt = attempts.next(request)
         let steps: [Step] = script.isEmpty ? Self.echo(request) : script[min(attempt, script.count - 1)]
         let interval = interval
         return AsyncThrowingStream { continuation in
@@ -71,6 +112,7 @@ public struct MockAIProvider: AIProvider {
                         case .delta(let text):
                             try await Task.sleep(for: interval)
                             continuation.yield(.delta(text))
+                        case .toolCalls(let calls): continuation.yield(.toolCalls(calls))
                         case .finish(let reason): continuation.yield(.finished(reason))
                         case .fail(let error): throw error
                         case .pause(let duration): try await Task.sleep(for: duration)
@@ -96,7 +138,15 @@ public struct MockAIProvider: AIProvider {
     final class AttemptCounter: @unchecked Sendable {
         private let lock = NSLock()
         private var count = 0
-        func next() -> Int { lock.withLock { defer { count += 1 }; return count } }
+        private var received: [AIRequest] = []
+        func next(_ request: AIRequest) -> Int {
+            lock.withLock {
+                defer { count += 1 }
+                if received.count < 100 { received.append(request) }
+                return count
+            }
+        }
         var value: Int { lock.withLock { count } }
+        var requests: [AIRequest] { lock.withLock { received } }
     }
 }

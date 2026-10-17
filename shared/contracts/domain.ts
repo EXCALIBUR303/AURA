@@ -294,22 +294,49 @@ export interface ChatMessage {
 export interface AIContextRequest {
   /** The zone the user is in. */
   zone?: ZoneId;
-  /** The selected repository and, optionally, branch. */
+  /** The selected repository and, optionally, branch. In a conversation, leave it out: the conversation's repository is used. */
   repository?: { fullName: string; branch?: string };
   /** Which repository-derived sections to include. All default to false. */
-  include?: { repository?: boolean; commits?: boolean; notes?: boolean };
+  include?: { repository?: boolean; commits?: boolean; notes?: boolean; readme?: boolean };
+  /**
+   * Files the user selected (at most 5), optionally narrowed to 1-based,
+   * inclusive lines. Source content: private-repository files go to a cloud
+   * provider only inside a conversation and after the user approves
+   * (ai.approvalRequested); elsewhere they are omitted as "consent_required".
+   */
+  files?: AIFileSelection[];
 }
 
-export type AIContextSectionId = "workspace" | "repository" | "commits" | "notes";
+export interface AIFileSelection {
+  path: string;
+  startLine?: number;
+  endLine?: number;
+}
+
+export type AIContextSectionId = "workspace" | "repository" | "commits" | "notes" | "readme" | "file";
+
+/** Where a piece of context or a tool result came from, for citations. */
+export interface AISourceRef {
+  kind: "workspace" | "repository" | "commits" | "commit" | "notes" | "directory" | "file";
+  /** owner/name; null for the workspace. */
+  fullName: string | null;
+  /** Repository-relative path (file, directory) or null. */
+  path: string | null;
+  /** Branch or commit SHA the data was read at. */
+  ref: string | null;
+  /** 1-based inclusive line range of a file excerpt. */
+  lines: { start: number; end: number } | null;
+}
 
 export interface AIContextSection {
   id: AIContextSectionId;
   title: string;
   /** "app": produced by AURA. "untrusted": text from repositories or notes, sent fenced as data. */
   trust: "app" | "untrusted";
-  /** Exactly the text the provider receives for this section. */
+  /** Exactly the text the provider receives for this section (inside its data fence). */
   text: string;
   truncated: boolean;
+  source: AISourceRef | null;
 }
 
 export type AIContextOmissionReason =
@@ -318,17 +345,146 @@ export type AIContextOmissionReason =
   | "not_connected"
   | "not_found"
   | "unavailable"
-  | "budget";
+  | "budget"
+  /** Private source for a cloud provider without the user's approval. */
+  | "consent_required"
+  | "binary"
+  | "too_large";
 
 /** The context the host would attach, for review (ai.previewContext) before sending. */
 export interface AIContextSnapshot {
   sections: AIContextSection[];
-  omitted: { section: AIContextSectionId; reason: AIContextOmissionReason }[];
+  /** `path` names the file for "file" omissions, otherwise null. */
+  omitted: { section: AIContextSectionId; reason: AIContextOmissionReason; path: string | null }[];
   /** Characters across sections (roughly 4 per token). */
   totalChars: number;
 }
 
 export type FinishReason = "stop" | "length" | "cancelled" | "error";
+
+// ---------------------------------------------------------------- ai conversations
+
+/**
+ * Lifecycle of one reply in a conversation. Allowed transitions:
+ * idle → preparing_context → requesting → streaming ⇄ waiting_for_tool,
+ * requesting/streaming → waiting_for_tool → requesting (next round),
+ * waiting_for_tool ⇄ waiting_for_approval, and any active state → completed,
+ * cancelled or error (terminal). A conversation is "idle" before its first reply.
+ */
+export type AITurnState =
+  | "idle"
+  | "preparing_context"
+  | "requesting"
+  | "streaming"
+  | "waiting_for_tool"
+  | "waiting_for_approval"
+  | "completed"
+  | "cancelled"
+  | "error";
+
+/** A host-owned conversation. History stays in memory on the Mac and is never written to disk. */
+export interface AIConversationInfo {
+  /** Host-issued, e.g. "conv-…". */
+  conversationId: string;
+  providerId: string;
+  providerName: string;
+  providerKind: "local" | "cloud";
+  model: string;
+  /** The repository this conversation may read. Changes only through ai.setConversationRepository. */
+  repository: { fullName: string; branch: string | null; isPrivate: boolean } | null;
+  /** False when context sharing is off, tools were not requested, or the provider rejected tool definitions. */
+  toolsEnabled: boolean;
+  /** State of the latest reply; "idle" before the first one. */
+  state: AITurnState;
+  /** streamId of the reply in progress, if any. */
+  activeStreamId: string | null;
+  turnCount: number;
+  /** True once data from a private repository entered this conversation. */
+  carriesPrivateContext: boolean;
+  /** Repositories whose private source the user allowed for this conversation ("allow_for_conversation"). */
+  sourceSharingAllowed: string[];
+  createdAt: ISODateString;
+}
+
+export interface AIConversationTurn {
+  streamId: string;
+  userText: string;
+  /** The reply as shown to the user (all rounds), possibly partial. */
+  replyText: string;
+  /** null while the reply is in progress. */
+  finishReason: FinishReason | null;
+  state: AITurnState;
+  tools: AIToolActivity[];
+  /** Everything this reply used: attached context and tool results. */
+  sources: AISourceRef[];
+}
+
+/** One tool call as the user should see it. The text is host-written, never model output. */
+export interface AIToolActivity {
+  callId: string;
+  /** An allowlisted tool name, or "unknown" when the model asked for something AURA does not offer. */
+  tool: string;
+  status: "running" | "succeeded" | "failed" | "denied" | "awaiting_approval" | "cancelled";
+  /** e.g. "Read Sources/App.swift, lines 1–120". */
+  summary: string;
+  sources: AISourceRef[];
+  /** Why it was denied or failed; null otherwise. */
+  message: string | null;
+}
+
+/** Something only the user can allow. The reply waits (state "waiting_for_approval") until ai.respondToApproval or expiry (= deny). */
+export interface AIApprovalRequest {
+  approvalId: string;
+  /** "share_private_source": private repository source would go to a cloud provider. "app_action": the model suggests navigating. */
+  kind: "share_private_source" | "app_action";
+  /** The tool call it belongs to; null for files attached as context. */
+  callId: string | null;
+  tool: string | null;
+  /** Host-written description of exactly what would happen. */
+  summary: string;
+  repository: string | null;
+  paths: string[];
+  providerName: string;
+  providerKind: "local" | "cloud";
+  expiresInSeconds: number;
+}
+
+/** "allow_for_conversation" covers further private source from the same repository in this conversation only. */
+export type AIApprovalDecision = "allow_once" | "allow_for_conversation" | "deny";
+
+export type AIConversationChangeReason =
+  | "reset"
+  | "ended"
+  | "repository_changed"
+  /** GitHub disconnected or the account changed: private content was cleared from conversations. */
+  | "github_access_changed"
+  /** The provider was removed or its endpoint changed; the conversation cannot continue. */
+  | "provider_changed"
+  | "tools_unavailable"
+  /** Dropped to stay within the in-memory limit. */
+  | "evicted";
+
+// ---------------------------------------------------------------- repository content
+
+export interface RepositoryTreeEntry {
+  /** Repository-relative path, e.g. "Sources/App.swift". */
+  path: string;
+  type: "file" | "directory";
+  /** Bytes, for files. */
+  size: number | null;
+}
+
+/** github.listFiles: paths only, never file contents. */
+export interface RepositoryTree {
+  fullName: string;
+  /** The branch (or SHA) that was listed. */
+  ref: string;
+  /** The commit the listing was taken from. */
+  commitSha: string;
+  entries: RepositoryTreeEntry[];
+  /** True when GitHub or AURA cut the listing short. */
+  truncated: boolean;
+}
 
 // ---------------------------------------------------------------- voice
 

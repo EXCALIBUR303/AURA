@@ -39,14 +39,20 @@ public final class AppServices {
         windowState = WindowStateStore(events: events)
         self.credentialPrompt = credentialPrompt
         let registry = AIProviderRegistry(store: store, secrets: secrets, mock: aiMock, makeProvider: aiProviderFactory)
+        let tools = AIToolExecutor(github: github)
+        tools.navigate = { [events] zone in events.emit(.appCommand, AppCommand.navigate(zone)) }
         ai = AIService(
             registry: registry,
             context: AIContextBuilder(github: github, store: store),
             preferences: { (try? await store.loadPreferences()) ?? .defaults },
             events: events,
-            limits: aiLimits
+            limits: aiLimits,
+            tools: tools
         )
-        registry.onChange = { [events] infos in events.emit(.aiProvidersChanged, infos) }
+        registry.onChange = { [events, ai] infos in
+            events.emit(.aiProvidersChanged, infos)
+            ai.providersChanged(infos)
+        }
         registerHandlers()
     }
 
@@ -75,7 +81,10 @@ public final class AppServices {
             return next
         }
 
-        github.onStatusChange = { status in events.emit(.githubAuthChanged, status) }
+        github.onStatusChange = { status in
+            events.emit(.githubAuthChanged, status)
+            ai.githubAccessChanged(status)
+        }
         router.register(.githubGetAuthStatus, Empty.self) { _ in
             await github.waitUntilRestored()
             return github.status
@@ -92,6 +101,9 @@ public final class AppServices {
         }
         router.register(.githubListCommits, ListCommitsParams.self) { params in
             try await github.listCommits(fullName: params.fullName, branch: params.branch, limit: min(max(params.limit ?? 10, 1), 100))
+        }
+        router.register(.githubListFiles, ListFilesParams.self) { params in
+            try await Self.listFiles(github, params)
         }
 
         router.register(.projectsList, Empty.self) { _ in try await store.listProjects() }
@@ -120,10 +132,27 @@ public final class AppServices {
         }
         router.register(.aiDeleteCredential, ProviderRef.self) { ref in try await registry.deleteKey(ref.providerId) }
         router.register(.aiValidateProvider, ProviderRef.self) { ref in try await registry.validate(ref.providerId) }
-        router.register(.aiPreviewContext, PreviewContextParams.self) { params in try await ai.previewContext(params.context, providerId: params.providerId) }
+        router.register(.aiPreviewContext, PreviewContextParams.self) { params in
+            if let conversationId = params.conversationId { return try await ai.previewConversationContext(conversationId, params.context) }
+            return try await ai.previewContext(params.context, providerId: params.providerId)
+        }
         router.register(.aiChat, ChatParams.self) { params in try await ai.startChat(params) }
         router.register(.aiCancel, StreamRef.self) { ref in
             ai.cancel(ref.streamId)
+            return Empty()
+        }
+        router.register(.aiStartConversation, StartConversationParams.self) { params in try await ai.startConversation(params) }
+        router.register(.aiListConversations, Empty.self) { _ in await ai.listConversations() }
+        router.register(.aiGetConversation, ConversationRef.self) { ref in try await ai.conversationDetail(ref.conversationId) }
+        router.register(.aiSendMessage, SendMessageParams.self) { params in try await ai.sendMessage(params) }
+        router.register(.aiSetConversationRepository, SetConversationRepositoryParams.self) { params in try await ai.setConversationRepository(params) }
+        router.register(.aiResetConversation, ConversationRef.self) { ref in try await ai.resetConversation(ref.conversationId) }
+        router.register(.aiEndConversation, ConversationRef.self) { ref in
+            try ai.endConversation(ref.conversationId)
+            return Empty()
+        }
+        router.register(.aiRespondToApproval, RespondToApprovalParams.self) { params in
+            try ai.respondToApproval(params)
             return Empty()
         }
 
@@ -151,5 +180,21 @@ public final class AppServices {
             }
             return Empty()
         }
+    }
+
+    /// github.listFiles: paths under `path` (all when nil), at most `limit`.
+    static func listFiles(_ github: any GitHubService, _ params: ListFilesParams) async throws -> RepositoryTree {
+        let limit = min(max(params.limit ?? 500, 1), 1000)
+        let path = try params.path.map(validatedRepositoryPath)
+        var tree = try await github.listTree(fullName: params.fullName, ref: params.branch)
+        if let path {
+            guard tree.entries.contains(where: { $0.path == path && $0.type == .directory }) else { throw AuraError.notFound("\(path) is not a directory") }
+            tree.entries = tree.entries.filter { $0.path.hasPrefix(path + "/") }
+        }
+        if tree.entries.count > limit {
+            tree.entries = Array(tree.entries.prefix(limit))
+            tree.truncated = true
+        }
+        return tree
     }
 }

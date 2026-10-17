@@ -74,6 +74,12 @@ import Testing
                 case .githubGetRepository: _ = try params.decode(RepositoryRef.self)
                 case .githubListBranches: _ = try params.decode(ListBranchesParams.self)
                 case .aiChat: _ = try params.decode(ChatParams.self)
+                case .aiStartConversation: _ = try params.decode(StartConversationParams.self)
+                case .aiSendMessage: _ = try params.decode(SendMessageParams.self)
+                case .aiRespondToApproval: _ = try params.decode(RespondToApprovalParams.self)
+                case .aiSetConversationRepository: _ = try params.decode(SetConversationRepositoryParams.self)
+                case .aiGetConversation, .aiResetConversation, .aiEndConversation: _ = try params.decode(ConversationRef.self)
+                case .githubListFiles: _ = try params.decode(ListFilesParams.self)
                 case .aiSaveProvider: try roundTrips(params, as: AIProviderSettings.self, fixture.name)
                 case .voiceSpeak: _ = try params.decode(SpeakParams.self)
                 default: _ = try params.decode(Empty.self)
@@ -99,6 +105,12 @@ import Testing
                     try roundTrips(try #require(fixture.message["result"]), as: [AIProviderInfo].self, fixture.name)
                 } else if fixture.name.hasSuffix("ai.previewContext") {
                     try roundTrips(try #require(fixture.message["result"]), as: AIContextSnapshot.self, fixture.name)
+                } else if fixture.name.hasSuffix("ai.startConversation") {
+                    try roundTrips(try #require(fixture.message["result"]), as: AIConversationInfo.self, fixture.name)
+                } else if fixture.name.hasSuffix("ai.getConversation") {
+                    try roundTrips(try #require(fixture.message["result"]), as: AIConversationDetail.self, fixture.name)
+                } else if fixture.name.hasSuffix("github.listFiles") {
+                    try roundTrips(try #require(fixture.message["result"]), as: RepositoryTree.self, fixture.name)
                 } else if fixture.name.hasSuffix("projects.suggestZones") {
                     try roundTrips(try #require(fixture.message["result"]), as: [ProjectZoneSuggestion].self, fixture.name)
                 }
@@ -111,6 +123,10 @@ import Testing
                 case .string("ai.done"): try roundTrips(payload, as: AIDonePayload.self, fixture.name)
                 case .string("ai.error"): try roundTrips(payload, as: AIErrorPayload.self, fixture.name)
                 case .string("ai.providersChanged"): try roundTrips(payload, as: [AIProviderInfo].self, fixture.name)
+                case .string("ai.turnState"): try roundTrips(payload, as: AITurnStatePayload.self, fixture.name)
+                case .string("ai.toolActivity"): try roundTrips(payload, as: AIToolActivityPayload.self, fixture.name)
+                case .string("ai.approvalRequested"): try roundTrips(payload, as: AIApprovalRequestedPayload.self, fixture.name)
+                case .string("ai.conversationChanged"): try roundTrips(payload, as: AIConversationChangedPayload.self, fixture.name)
                 case .string("github.authChanged"): try roundTrips(payload, as: GitHubAuthStatus.self, fixture.name)
                 case .string("voice.statusChanged"): _ = try payload.decode(VoiceStatus.self)
                 default: Issue.record("unhandled event fixture \(fixture.name)")

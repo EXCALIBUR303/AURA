@@ -27,6 +27,13 @@ public protocol GitHubService: AnyObject {
     func repository(fullName: String) async throws -> RepositoryDetail
     func listBranches(fullName: String, cursor: String?, perPage: Int) async throws -> Page<BranchSummary>
     func listCommits(fullName: String, branch: String?, limit: Int) async throws -> [CommitSummary]
+    /// Every path at the head of `ref` (default branch when nil), pinned to that commit.
+    func listTree(fullName: String, ref: String?) async throws -> RepositoryTree
+    /// One file's content at `ref` (a branch or commit SHA; default branch when nil).
+    func file(fullName: String, path: String, ref: String?) async throws -> RepositoryFile
+    func commit(fullName: String, sha: String) async throws -> CommitDetail
+    /// The README GitHub detects for `ref` (default branch when nil).
+    func readme(fullName: String, ref: String?) async throws -> RepositoryFile
 }
 
 /// Synthetic data identical in shape to shared/bridge/mock.ts. Owner is
@@ -141,6 +148,72 @@ public final class MockGitHubService: GitHubService {
                 htmlUrl: "\(repo.htmlUrl)/commit/\(i)"
             )
         }
+    }
+
+    // MARK: content (synthetic, labelled mock)
+
+    /// Extra or replaced files per repository, "owner/name" → path → text (tests).
+    public var fileOverrides: [String: [String: String]] = [:]
+    /// Errors the content reads throw instead of answering, by method: "listTree", "file", "commit" (tests).
+    public var contentFailures: [String: AuraError] = [:]
+    /// Paths of every file read, in order (tests).
+    public private(set) var fileReads: [String] = []
+
+    static let mockSha = String(repeating: "0", count: 39) + "0"
+
+    func files(of repo: RepositorySummary) -> [String: String] {
+        let language = repo.primaryLanguage ?? "Text"
+        let source: (String, String) = switch language {
+        case "C": ("src/main.c", "#include <stdio.h>\n\n// Mock firmware entry point.\nint main(void) {\n    printf(\"mock\\n\");\n    return 0;\n}\n")
+        case "Python": ("eval/run.py", "\"\"\"Mock evaluation script.\"\"\"\n\ndef main() -> None:\n    print(\"mock\")\n\nif __name__ == \"__main__\":\n    main()\n")
+        default: ("src/index.ts", "// Mock web app entry point.\nexport function main(): string {\n  return \"mock\";\n}\n")
+        }
+        var files = [
+            "README.md": "# \(repo.name)\n\n\(repo.description ?? "Mock repository.")\n\nThis is synthetic mock content.\n",
+            "docs/ARCHITECTURE.md": "# Architecture (mock)\n\nOne module: `\(source.0)`.\n",
+            source.0: source.1,
+        ]
+        for (path, text) in fileOverrides[repo.fullName] ?? [:] { files[path] = text }
+        return files
+    }
+
+    public func listTree(fullName: String, ref: String?) async throws -> RepositoryTree {
+        let repo = try requireRepository(fullName)
+        if let failure = contentFailures["listTree"] { throw failure }
+        let paths = files(of: repo).keys
+        var directories = Set<String>()
+        for path in paths {
+            var parts = path.split(separator: "/").dropLast()
+            while !parts.isEmpty { directories.insert(parts.joined(separator: "/")); parts = parts.dropLast() }
+        }
+        let entries = directories.map { RepositoryTreeEntry(path: $0, type: .directory, size: nil) }
+            + files(of: repo).map { RepositoryTreeEntry(path: $0.key, type: .file, size: $0.value.utf8.count) }
+        return RepositoryTree(fullName: fullName, ref: ref ?? repo.defaultBranch, commitSha: Self.mockSha, entries: entries.sorted { $0.path < $1.path }, truncated: false)
+    }
+
+    public func file(fullName: String, path: String, ref: String?) async throws -> RepositoryFile {
+        let repo = try requireRepository(fullName)
+        let path = try validatedRepositoryPath(path)
+        if let failure = contentFailures["file"] { throw failure }
+        guard let text = files(of: repo)[path] else { throw AuraError.notFound("no mock file \(path)") }
+        fileReads.append(path)
+        return RepositoryFile(fullName: fullName, path: path, ref: ref ?? repo.defaultBranch, sha: Self.mockSha, size: text.utf8.count, text: text)
+    }
+
+    public func readme(fullName: String, ref: String?) async throws -> RepositoryFile {
+        try await file(fullName: fullName, path: "README.md", ref: ref)
+    }
+
+    public func commit(fullName: String, sha: String) async throws -> CommitDetail {
+        let repo = try requireRepository(fullName)
+        if let failure = contentFailures["commit"] { throw failure }
+        guard let summary = try await listCommits(fullName: fullName, branch: nil, limit: 3).first(where: { $0.sha.hasPrefix(sha.lowercased()) }) else {
+            throw AuraError.notFound("no mock commit \(sha)")
+        }
+        let path = files(of: repo).keys.sorted().last ?? "README.md"
+        return CommitDetail(summary: summary, additions: 2, deletions: 1, files: [
+            CommitFileChange(path: path, status: "modified", additions: 2, deletions: 1, patch: "@@ -1,1 +1,2 @@\n-old mock line\n+new mock line\n+another mock line"),
+        ], filesTruncated: false)
     }
 }
 

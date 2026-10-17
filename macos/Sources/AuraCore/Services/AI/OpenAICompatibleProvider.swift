@@ -39,12 +39,14 @@ public struct OpenAICompatibleProvider: AIProvider {
                     }
                     var finish: FinishReason?
                     var sawDone = false
+                    var calls = ToolCallAssembler()
                     reading: for try await line in response.lines {
                         try Task.checkCancellation()
                         guard line.utf8.count <= Self.maxLineBytes else { throw AuraError.internal("the AI provider sent an oversized stream line") }
                         for event in try OpenAIStreamParser.parse(line) {
                             switch event {
                             case .delta(let text): continuation.yield(.delta(text))
+                            case .toolCallDelta(let delta): try calls.add(delta)
                             case .finish(let reason): finish = reason
                             case .done: sawDone = true; break reading
                             }
@@ -52,6 +54,8 @@ public struct OpenAICompatibleProvider: AIProvider {
                     }
                     try Task.checkCancellation()
                     guard finish != nil || sawDone else { throw AuraError.network("the AI provider closed the stream before finishing") }
+                    let proposed = calls.calls()
+                    if !proposed.isEmpty { continuation.yield(.toolCalls(proposed)) }
                     continuation.yield(.finished(finish ?? .stop))
                     continuation.finish()
                 } catch {
@@ -81,9 +85,15 @@ public struct OpenAICompatibleProvider: AIProvider {
         var body: [String: Any] = [
             "model": request.model,
             "stream": true,
-            "messages": request.messages.map { ["role": $0.role.rawValue, "content": $0.content] },
+            "messages": request.messages.map(Self.wire),
         ]
         if let max = request.maxOutputTokens { body["max_tokens"] = max }
+        if !request.tools.isEmpty {
+            body["tools"] = request.tools.map { tool in
+                ["type": "function", "function": ["name": tool.name, "description": tool.summary, "parameters": tool.jsonSchema]]
+            }
+            body["tool_choice"] = request.toolChoice.rawValue
+        }
         var urlRequest = URLRequest(url: baseURL.appending(path: "chat/completions"))
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -91,6 +101,24 @@ public struct OpenAICompatibleProvider: AIProvider {
         authorize(&urlRequest)
         urlRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
         return urlRequest
+    }
+
+    /// One message in the chat-completions wire format.
+    static func wire(_ message: AIMessage) -> [String: Any] {
+        switch message.role {
+        case .assistant where !message.toolCalls.isEmpty:
+            return [
+                "role": "assistant",
+                "content": message.content.isEmpty ? NSNull() : message.content,
+                "tool_calls": message.toolCalls.map { call in
+                    ["id": call.id, "type": "function", "function": ["name": call.name, "arguments": call.argumentsJSON]]
+                },
+            ]
+        case .tool:
+            return ["role": "tool", "tool_call_id": message.toolCallId ?? "", "content": message.content]
+        default:
+            return ["role": message.role.rawValue, "content": message.content]
+        }
     }
 
     private func authorize(_ request: inout URLRequest) {
@@ -122,9 +150,46 @@ public struct OpenAICompatibleProvider: AIProvider {
     }
 }
 
+/// Streamed tool calls arrive in pieces keyed by `index`: the id and name
+/// first, the argument JSON spread over many chunks. Bounded: a provider
+/// proposing more calls or longer arguments than AURA accepts is cut off.
+struct ToolCallAssembler {
+    struct Delta: Equatable { var index: Int; var id: String?; var name: String?; var arguments: String? }
+    static let maxCalls = 8
+    private var parts: [Int: (id: String, name: String, arguments: String)] = [:]
+    private var tooLong: Set<Int> = []
+
+    mutating func add(_ delta: Delta) throws {
+        guard (0..<64).contains(delta.index) else { throw AuraError.internal("the AI provider sent a malformed tool call") }
+        if parts[delta.index] == nil {
+            guard parts.count < Self.maxCalls else { return } // extra calls are dropped
+            parts[delta.index] = ("", "", "")
+        }
+        if let id = delta.id, !id.isEmpty { parts[delta.index]!.id = String(id.prefix(64)) }
+        if let name = delta.name, !name.isEmpty { parts[delta.index]!.name = String((parts[delta.index]!.name + name).prefix(64)) }
+        if let arguments = delta.arguments {
+            if parts[delta.index]!.arguments.utf8.count + arguments.utf8.count > AIToolPolicy.maxArgumentBytes { tooLong.insert(delta.index) } else {
+                parts[delta.index]!.arguments += arguments
+            }
+        }
+    }
+
+    /// Complete calls in index order. A call without an id gets one; arguments
+    /// that are too long or not a JSON object mark the call as malformed.
+    func calls() -> [AIToolCall] {
+        parts.keys.sorted().compactMap { index in
+            let part = parts[index]!
+            guard !part.name.isEmpty else { return nil }
+            let id = part.id.wholeMatch(of: /[A-Za-z0-9_.:\-]{1,64}/) != nil ? part.id : "call_\(index)"
+            if tooLong.contains(index) { return AIToolCall(id: id, name: part.name, arguments: [:], malformedArguments: true) }
+            return AIToolCall(id: id, name: part.name, rawArguments: part.arguments)
+        }
+    }
+}
+
 /// One line of an OpenAI-style SSE stream.
 enum OpenAIStreamParser {
-    enum Event: Equatable { case delta(String), finish(FinishReason), done }
+    enum Event: Equatable { case delta(String), toolCallDelta(ToolCallAssembler.Delta), finish(FinishReason), done }
 
     static func parse(_ rawLine: String) throws -> [Event] {
         let line = rawLine.trimmingCharacters(in: .whitespaces)
@@ -140,8 +205,24 @@ enum OpenAIStreamParser {
         }
         guard let choice = (object["choices"] as? [[String: Any]])?.first else { return [] }
         var events: [Event] = []
-        if let text = (choice["delta"] as? [String: Any])?["content"] as? String, !text.isEmpty {
+        let delta = choice["delta"] as? [String: Any]
+        if let text = delta?["content"] as? String, !text.isEmpty {
             events.append(.delta(text))
+        }
+        for call in delta?["tool_calls"] as? [[String: Any]] ?? [] {
+            let function = call["function"] as? [String: Any]
+            // Some runtimes send arguments as an object instead of a JSON string.
+            var arguments = function?["arguments"] as? String
+            if arguments == nil, let object = function?["arguments"], JSONSerialization.isValidJSONObject(object),
+               let data = try? JSONSerialization.data(withJSONObject: object) {
+                arguments = String(decoding: data, as: UTF8.self)
+            }
+            events.append(.toolCallDelta(.init(
+                index: (call["index"] as? NSNumber)?.intValue ?? 0,
+                id: call["id"] as? String,
+                name: function?["name"] as? String,
+                arguments: arguments
+            )))
         }
         if let reason = choice["finish_reason"] as? String {
             events.append(.finish(reason == "length" ? .length : .stop))

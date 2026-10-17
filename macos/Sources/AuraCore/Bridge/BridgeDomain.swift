@@ -725,24 +725,38 @@ public struct AIContextRequest: Codable, Equatable, Sendable {
         public var repository: Bool?
         public var commits: Bool?
         public var notes: Bool?
-        public init(repository: Bool? = nil, commits: Bool? = nil, notes: Bool? = nil) {
+        public var readme: Bool?
+        public init(repository: Bool? = nil, commits: Bool? = nil, notes: Bool? = nil, readme: Bool? = nil) {
             self.repository = repository
             self.commits = commits
             self.notes = notes
+            self.readme = readme
+        }
+    }
+    public struct FileSelection: Codable, Equatable, Sendable {
+        public var path: String
+        public var startLine: Int?
+        public var endLine: Int?
+        public init(path: String, startLine: Int? = nil, endLine: Int? = nil) {
+            self.path = path
+            self.startLine = startLine
+            self.endLine = endLine
         }
     }
     public var zone: ZoneID?
     public var repository: Repository?
     public var include: Include?
+    public var files: [FileSelection]?
 
-    public init(zone: ZoneID? = nil, repository: Repository? = nil, include: Include? = nil) {
+    public init(zone: ZoneID? = nil, repository: Repository? = nil, include: Include? = nil, files: [FileSelection]? = nil) {
         self.zone = zone
         self.repository = repository
         self.include = include
+        self.files = files
     }
 }
 
-public enum AIContextSectionID: String, Codable, Sendable, CaseIterable { case workspace, repository, commits, notes }
+public enum AIContextSectionID: String, Codable, Sendable, CaseIterable { case workspace, repository, commits, notes, readme, file }
 
 public struct AIContextSection: Codable, Equatable, Sendable {
     public enum Trust: String, Codable, Sendable { case app, untrusted }
@@ -751,6 +765,18 @@ public struct AIContextSection: Codable, Equatable, Sendable {
     public var trust: Trust
     public var text: String
     public var truncated: Bool
+    public var source: AISourceRef? = nil
+
+    enum Keys: String, CodingKey { case id, title, trust, text, truncated, source }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(title, forKey: .title)
+        try c.encode(trust, forKey: .trust)
+        try c.encode(text, forKey: .text)
+        try c.encode(truncated, forKey: .truncated)
+        try c.encode(source, forKey: .source)
+    }
 }
 
 public enum AIContextOmissionReason: String, Codable, Sendable {
@@ -758,13 +784,24 @@ public enum AIContextOmissionReason: String, Codable, Sendable {
     case privateRepository = "private_repository"
     case notConnected = "not_connected"
     case notFound = "not_found"
-    case unavailable, budget
+    case consentRequired = "consent_required"
+    case tooLarge = "too_large"
+    case unavailable, budget, binary
 }
 
 public struct AIContextSnapshot: Codable, Equatable, Sendable {
     public struct Omission: Codable, Equatable, Sendable {
         public var section: AIContextSectionID
         public var reason: AIContextOmissionReason
+        public var path: String? = nil
+
+        enum Keys: String, CodingKey { case section, reason, path }
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: Keys.self)
+            try c.encode(section, forKey: .section)
+            try c.encode(reason, forKey: .reason)
+            try c.encode(path, forKey: .path)
+        }
     }
     public var sections: [AIContextSection]
     public var omitted: [Omission]
@@ -774,6 +811,7 @@ public struct AIContextSnapshot: Codable, Equatable, Sendable {
 public struct PreviewContextParams: Codable, Sendable {
     public var context: AIContextRequest
     public var providerId: String?
+    public var conversationId: String?
 }
 
 public struct ChatParams: Codable, Sendable {
