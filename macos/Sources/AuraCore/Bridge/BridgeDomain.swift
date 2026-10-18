@@ -38,10 +38,14 @@ public struct Preferences: Codable, Equatable, Sendable {
         public var locale: String
         public var synthesisVoiceId: String?
         public var autoSpeakReplies: Bool
+        /// Pace relative to the voice's natural pace (see SpeechPace); 0.7–1.3.
         public var speechRate: Double
         public var allowServerRecognition: Bool
 
-        public init(enabled: Bool, locale: String, synthesisVoiceId: String?, autoSpeakReplies: Bool = false, speechRate: Double = 1, allowServerRecognition: Bool = false) {
+        public static let defaultSpeechRate = 0.85
+        public static let speechRateRange = 0.7...1.3
+
+        public init(enabled: Bool, locale: String, synthesisVoiceId: String?, autoSpeakReplies: Bool = false, speechRate: Double = Voice.defaultSpeechRate, allowServerRecognition: Bool = false) {
             self.enabled = enabled
             self.locale = locale
             self.synthesisVoiceId = synthesisVoiceId
@@ -111,11 +115,13 @@ extension Preferences.Voice {
         locale = try c.decode(String.self, forKey: .locale)
         synthesisVoiceId = try c.decodeIfPresent(String.self, forKey: .synthesisVoiceId)
         autoSpeakReplies = try c.decodeIfPresent(Bool.self, forKey: .autoSpeakReplies) ?? false
-        speechRate = Self.clampedRate(try c.decodeIfPresent(Double.self, forKey: .speechRate) ?? 1)
+        speechRate = Self.clampedRate(try c.decodeIfPresent(Double.self, forKey: .speechRate) ?? Self.defaultSpeechRate)
         allowServerRecognition = try c.decodeIfPresent(Bool.self, forKey: .allowServerRecognition) ?? false
     }
 
-    static func clampedRate(_ rate: Double) -> Double { rate.isFinite ? min(max(rate, 0.8), 1.2) : 1 }
+    static func clampedRate(_ rate: Double) -> Double {
+        rate.isFinite ? min(max(rate, speechRateRange.lowerBound), speechRateRange.upperBound) : defaultSpeechRate
+    }
 }
 
 extension Preferences.AI {

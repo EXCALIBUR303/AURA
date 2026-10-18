@@ -51,6 +51,17 @@ public protocol SpeechRecognitionEngine: Sendable {
     func installAssets(locale: String) async throws
 }
 
+/// Words the recogniser should expect in AURA (contextual strings). On the built-in
+/// microphone "GitHub" was heard as "guitar" and "Githav" without them (real-audio run, §2).
+public enum RecognitionVocabulary {
+    public static let terms = [
+        "AURA", "Astra", "GitHub", "Git", "repository", "repositories", "repo", "commit", "commits", "pull request", "pull requests",
+        "branch", "merge", "rebase", "issue", "Xcode", "Swift", "SwiftUI", "TypeScript", "JavaScript", "React", "three.js", "Vite",
+        "npm", "macOS", "API", "JSON", "README", "localhost", "WebKit", "Keychain", "Codex", "Claude", "workflow", "CI",
+        "Studio", "Hardware", "Software", "AI Lab", "Projects", "Companion",
+    ]
+}
+
 public enum SpeechRecognitionEngines {
     /// The best engine on this macOS version.
     public static func system() -> any SpeechRecognitionEngine {
@@ -63,7 +74,9 @@ public enum SpeechRecognitionEngines {
 
 @available(macOS 26, *)
 public struct AnalyzerRecognitionEngine: SpeechRecognitionEngine {
-    public init() {}
+    /// Bias recognition toward RecognitionVocabulary (off only for A/B measurements).
+    let useVocabulary: Bool
+    public init(useVocabulary: Bool = true) { self.useVocabulary = useVocabulary }
     public var engine: VoiceCapabilities.Engine { .speechAnalyzer }
     public var requiresSpeechPermission: Bool { false }
     public var liveTranscripts: Bool { true }
@@ -94,6 +107,13 @@ public struct AnalyzerRecognitionEngine: SpeechRecognitionEngine {
             try await analyzer.prepareToAnalyze(in: format)
         } catch {
             throw RecognitionError.failed("the recogniser could not start (\(Self.describe(error)))")
+        }
+        if useVocabulary {
+            let context = AnalysisContext()
+            context.contextualStrings[.general] = RecognitionVocabulary.terms
+            do { try await analyzer.setContext(context) } catch {
+                Log.voice.notice("recogniser vocabulary not applied (\(Self.describe(error), privacy: .public))")
+            }
         }
         let session = AnalyzerSession(analyzer: analyzer, transcriber: transcriber, format: format)
         try await session.begin()
@@ -262,6 +282,7 @@ final class LegacySession: RecognitionSession, @unchecked Sendable {
         (results, output) = AsyncThrowingStream<RecognitionResult, Error>.makeStream()
         request.shouldReportPartialResults = true
         request.requiresOnDeviceRecognition = onDevice
+        request.contextualStrings = RecognitionVocabulary.terms
         let output = output
         task = recognizer.recognitionTask(with: request) { @Sendable result, error in
             if let result {

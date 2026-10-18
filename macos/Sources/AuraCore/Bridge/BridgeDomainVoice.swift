@@ -98,6 +98,8 @@ public struct VoiceStatus: Codable, Equatable, Sendable {
     public var speechId: String?
     public var speakingStreamId: String?
     public var outputMuted: Bool
+    public var speechPaused: Bool
+    public var canReplay: Bool
     public var inputDevice: VoiceDevice?
     public var issue: VoiceIssue?
 
@@ -105,7 +107,8 @@ public struct VoiceStatus: Codable, Equatable, Sendable {
         microphone: PermissionState, speechRecognition: PermissionState, phase: VoicePhase,
         listening: Bool = false, speaking: Bool = false, revision: Int = 0, sessionActive: Bool = false,
         conversationId: String? = nil, mode: VoiceListenMode? = nil, utteranceId: String? = nil, speechId: String? = nil,
-        speakingStreamId: String? = nil, outputMuted: Bool = false, inputDevice: VoiceDevice? = nil, issue: VoiceIssue? = nil
+        speakingStreamId: String? = nil, outputMuted: Bool = false, speechPaused: Bool = false, canReplay: Bool = false,
+        inputDevice: VoiceDevice? = nil, issue: VoiceIssue? = nil
     ) {
         self.microphone = microphone
         self.speechRecognition = speechRecognition
@@ -120,6 +123,8 @@ public struct VoiceStatus: Codable, Equatable, Sendable {
         self.speechId = speechId
         self.speakingStreamId = speakingStreamId
         self.outputMuted = outputMuted
+        self.speechPaused = speechPaused
+        self.canReplay = canReplay
         self.inputDevice = inputDevice
         self.issue = issue
     }
@@ -136,7 +141,7 @@ public struct VoiceStatus: Codable, Equatable, Sendable {
 
     enum Keys: String, CodingKey {
         case microphone, speechRecognition, listening, speaking, phase, revision, sessionActive, conversationId, mode
-        case utteranceId, speechId, speakingStreamId, outputMuted, inputDevice, issue
+        case utteranceId, speechId, speakingStreamId, outputMuted, speechPaused, canReplay, inputDevice, issue
     }
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: Keys.self)
@@ -153,6 +158,8 @@ public struct VoiceStatus: Codable, Equatable, Sendable {
         try c.encode(speechId, forKey: .speechId)
         try c.encode(speakingStreamId, forKey: .speakingStreamId)
         try c.encode(outputMuted, forKey: .outputMuted)
+        try c.encode(speechPaused, forKey: .speechPaused)
+        try c.encode(canReplay, forKey: .canReplay)
         try c.encode(inputDevice, forKey: .inputDevice)
         try c.encode(issue, forKey: .issue)
     }

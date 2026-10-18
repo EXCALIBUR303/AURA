@@ -162,15 +162,22 @@ final class FakePlayback: AudioPlayback, @unchecked Sendable {
     private var _played = 0
     private var _terminated = 0
     private var _releases = 0
+    private var _pauses = 0
+    private var _resumes = 0
+    private var _durations: [Double] = []
     private var pending: AsyncThrowingStream<PlaybackEvent, Error>.Continuation?
     var played: Int { lock.withLock { _played } }
+    var pauses: Int { lock.withLock { _pauses } }
+    var resumes: Int { lock.withLock { _resumes } }
+    /// Seconds of audio (speech plus any trailing pause) per played sentence.
+    var durations: [Double] { lock.withLock { _durations } }
     var terminated: Int { lock.withLock { _terminated } }
     var releases: Int { lock.withLock { _releases } }
 
     func play(_ speech: SynthesizedSpeech) -> AsyncThrowingStream<PlaybackEvent, Error> {
         let mode = mode
         return AsyncThrowingStream { continuation in
-            self.lock.withLock { self._played += 1 }
+            self.lock.withLock { self._played += 1; self._durations.append(speech.duration) }
             continuation.onTermination = { @Sendable [weak self] _ in self?.lock.withLock { self?._terminated += 1 } }
             continuation.yield(.started)
             continuation.yield(.level(0.5))
@@ -195,6 +202,8 @@ final class FakePlayback: AudioPlayback, @unchecked Sendable {
         continuation?.finish()
     }
 
+    func pause() { lock.withLock { _pauses += 1 } }
+    func resume() { lock.withLock { _resumes += 1 } }
     func release() { lock.withLock { _releases += 1 } }
 }
 
@@ -1067,9 +1076,9 @@ final class VoiceHarness {
 
     @Test func preferencesKeepVoiceDefaultsForOlderStores() throws {
         let old = try JSONDecoder().decode(Preferences.Voice.self, from: Data(#"{"enabled":true,"locale":"en-US","synthesisVoiceId":null}"#.utf8))
-        #expect(!old.autoSpeakReplies && old.speechRate == 1 && !old.allowServerRecognition)
+        #expect(!old.autoSpeakReplies && old.speechRate == 0.85 && !old.allowServerRecognition)
         let patched = try JSONDecoder().decode(PreferencesPatch.self, from: Data(#"{"voice":{"speechRate":3,"autoSpeakReplies":true}}"#.utf8)).applied(to: .defaults)
-        #expect(patched.voice.speechRate == 1.2 && patched.voice.autoSpeakReplies)
+        #expect(patched.voice.speechRate == 1.3 && patched.voice.autoSpeakReplies)
     }
 }
 

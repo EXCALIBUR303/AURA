@@ -6,6 +6,10 @@ import type { VoiceController, VoiceView } from "./VoiceController.ts";
 export function VoiceIcon({ speaker = false, off = false }: { speaker?: boolean; off?: boolean }) {
   return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={speaker ? "m11 4-5 5H2v6h4l5 5V4Z" : "M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0V5ZM5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"} />{speaker && !off && <path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" />}{off && <path d="m3 3 18 18" />}</svg>;
 }
+function PlaybackIcon({ name }: { name: "pause" | "play" | "replay" }) {
+  const d = { pause: "M8 5v14M16 5v14", play: "M7 5v14l12-7Z", replay: "M3 11a9 9 0 1 1 3 8M3 5v6h6" }[name];
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
+}
 const recoveryLabels: Record<VoiceRecovery, string> = { retry: "Talk again", choose_input: "Choose microphone", open_microphone_settings: "Microphone settings", open_speech_settings: "Speech Recognition settings", install_speech_assets: "Download speech model" };
 export function voiceLabel(view: VoiceView) {
   const status = view.status, issue = status?.issue;
@@ -17,16 +21,17 @@ export function voiceLabel(view: VoiceView) {
   if (issue?.code === "time_limit") return "Listening limit reached";
   if (issue?.code === "conversation_ended") return "Voice conversation ended";
   if (!status || status.phase === "unavailable") return "Voice unavailable";
+  if (status.speaking && status.speechPaused) return "Speech paused";
   if (view.capabilities?.recognitionAssets === "downloadable" && view.capabilities.recognition === "unavailable") return "Speech model needed";
   if (view.capabilities?.input === "unavailable") return "Microphone unavailable";
   return ({ idle: "Ready when you are", needs_permission: "Microphone access needed", starting: "Starting microphone…", listening: "Listening", recognizing: "Finishing transcript…", thinking: "Preparing spoken reply", speaking: "Astra is speaking", interrupted: "Voice paused", error: "Voice needs attention" } as const)[status.phase];
 }
 function Level({ controller, reduced, view }: { controller: VoiceController; reduced: boolean; view: VoiceView }) {
   const level = useSyncExternalStore(controller.subscribeLevels, controller.levelSnapshot);
-  const phase = view.status?.phase, active = phase === "listening" || phase === "speaking";
+  const phase = view.status?.phase, active = phase === "listening" || phase === "speaking" && !view.status?.speechPaused;
   return <div className="voice-level-line"><div className="voice-level" aria-hidden="true" data-static={reduced}>
     {Array.from({ length: 20 }, (_, i) => <i key={i} data-on={active && (reduced || i / 20 < level)} />)}
-  </div><span>{active ? `${phase === "listening" ? "Input" : "Output"} ${reduced ? "active" : "level"}` : phase === "starting" ? "Waiting for audio" : "Microphone off"}</span></div>;
+  </div><span>{active ? `${phase === "listening" ? "Input" : "Output"} ${reduced ? "active" : "level"}` : phase === "starting" ? "Waiting for audio" : view.status?.speechPaused ? "Output paused" : "Microphone off"}</span></div>;
 }
 export function VoiceRail({ controller, view, enabled, disabled, reduced, settings }: { controller: VoiceController; view: VoiceView; enabled: boolean; disabled: boolean; reduced: boolean; settings: () => void }) {
   const status = view.status, capabilities = view.capabilities, label = voiceLabel(view);
@@ -66,6 +71,8 @@ export function VoiceRail({ controller, view, enabled, disabled, reduced, settin
     </div>
     <div className="voice-rail-actions">
       {output && <button type="button" className="voice-stop" onClick={(event) => void finishAction(event.currentTarget, controller.stopSpeaking)}><UiIcon name="stop" />Stop speaking</button>}
+      {output && <button type="button" className="voice-pause" onClick={() => void (status?.speechPaused ? controller.resumeSpeaking() : controller.pauseSpeaking())}><PlaybackIcon name={status?.speechPaused ? "play" : "pause"} />{status?.speechPaused ? "Resume" : "Pause"}</button>}
+      {!output && !capturing && !recognizing && enabled && status?.canReplay && !status.outputMuted && <button type="button" className="voice-replay" title="Speak Astra's last response again" onClick={() => void controller.replay()}><PlaybackIcon name="replay" />Replay</button>}
       {available && !denied && capabilities?.input !== "unavailable" && <button type="button" className="voice-talk" title={output ? "Stop speech and start listening" : capturing ? "Finish the current transcript" : "Talk, or hold ⌥Space"} disabled={view.busy || recognizing || !capturing && disabled} onClick={() => void (capturing ? controller.finish() : controller.start())}><VoiceIcon />{view.busy ? "Preparing…" : capturing ? "Finish listening" : recognizing ? "Finishing…" : "Talk with Astra"}</button>}
       {(capturing || recognizing || view.busy) && <button type="button" className="voice-cancel" onClick={(event) => void finishAction(event.currentTarget, controller.cancel)}>Cancel listening</button>}
       {status && status.phase !== "unavailable" && <button type="button" className="voice-icon-button" aria-label={status.outputMuted ? "Unmute speech" : "Mute speech"} aria-pressed={status.outputMuted} title={status.outputMuted ? "Unmute speech" : "Mute speech"} onClick={() => void controller.mute(!status.outputMuted)}><VoiceIcon speaker off={status.outputMuted} /></button>}

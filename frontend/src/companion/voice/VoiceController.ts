@@ -243,6 +243,24 @@ export class VoiceController {
     this.samples.output = 0; this.update({ caption: "" }); this.clearLevels();
     try { await this.host.call("voice.stopSpeaking", {}); await this.refresh(); } catch (error) { this.fail(error); }
   };
+  pauseSpeaking = async () => {
+    this.samples.output = 0; this.clearLevels();
+    try { this.status(await this.host.call("voice.pauseSpeaking", {})); } catch (error) { this.fail(error); }
+  };
+  resumeSpeaking = async () => {
+    try { this.status(await this.host.call("voice.resumeSpeaking", {})); } catch (error) { this.fail(error); }
+  };
+  /** Speaks the last spoken response again (status.canReplay). */
+  replay = async () => {
+    if (!this.options?.visible || !this.options.enabled) return;
+    this.closed = false; this.outputStopped = false;
+    try { this.status(await this.host.call("voice.replay", {})); } catch (error) { this.fail(error); }
+  };
+  /** Speaks a short sample with the current voice settings. */
+  preview = async (text: string) => {
+    this.outputStopped = false;
+    try { await this.host.call("voice.speak", { text, interrupt: true }); await this.refresh(); } catch (error) { this.fail(error); }
+  };
   mute = async (muted: boolean) => {
     if (muted) { this.outputStopped = true; this.clearLevels(); this.update({ caption: "" }); }
     try { this.status(await this.host.call("voice.setOutputMuted", { muted })); } catch (error) { this.fail(error); }

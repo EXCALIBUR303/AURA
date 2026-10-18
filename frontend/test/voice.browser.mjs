@@ -140,6 +140,13 @@ try {
     await held.getByRole('checkbox', { name: /Speak replies to spoken requests/ }).check();
     await held.waitForFunction(() => window.__voiceTest.calls.some(call => call.method === 'prefs.update' && call.params.voice?.autoSpeakReplies === true));
     assert.equal(await held.getByText('Allow Apple server recognition', { exact: true }).count(), 0);
+    const pace = held.getByRole('slider', { name: 'Speaking pace', exact: true });
+    assert.deepEqual(await pace.evaluate(node => [node.min, node.max, node.step, node.value]), ['0.7', '1.3', '0.05', '0.85']);
+    await pace.fill('1');
+    await held.waitForFunction(() => window.__voiceTest.calls.some(call => call.method === 'prefs.update' && call.params.voice?.speechRate === 1));
+    await held.getByRole('button', { name: 'Preview voice', exact: true }).click();
+    await held.waitForFunction(() => window.__voiceTest.calls.some(call => call.method === 'voice.speak' && call.params.text.startsWith("Hi, I'm Astra.")));
+    await held.evaluate(() => window.__voiceTest.request('voice.stopSpeaking'));
     await axe(held, 'settings'); await held.screenshot({ path: path.join(artifacts, 'settings.png') });
     await held.getByRole('button', { name: 'Done', exact: true }).click();
     assert.equal(await held.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Voice settings');
@@ -206,8 +213,9 @@ try {
     }
     assert.equal(await held.locator('.voice-level').getAttribute('data-static'), 'true');
   });
+  let captions;
   await check('Keyboard Cancel and long spoken captions stay usable in all three layouts and four desktop sizes', async () => {
-    const captions = await open({ interval: 1000 });
+    captions = await open({ interval: 1000 });
     await talk(captions);
     await captions.getByRole('button', { name: 'Cancel listening', exact: true }).focus();
     await captions.keyboard.press('Enter');
@@ -234,6 +242,23 @@ try {
       }
     }
     await captions.getByRole('button', { name: 'Stop speaking', exact: true }).click();
+    assert.equal((await calls(captions, 'ai.sendMessage')).length, 0);
+  });
+  await check('Pause holds speech, Resume continues it, and Replay speaks the last response again without sending anything', async () => {
+    const replay = captions.getByRole('button', { name: 'Replay', exact: true });
+    await replay.waitFor();
+    await replay.click();
+    await captions.getByRole('button', { name: 'Pause', exact: true }).click();
+    await captions.waitForFunction(() => document.querySelector('.voice-rail-heading strong')?.textContent === 'Speech paused');
+    assert.ok(await captions.getByRole('button', { name: 'Stop speaking', exact: true }).isVisible());
+    assert.equal(await captions.locator('.voice-level-line span').textContent(), 'Output paused');
+    await axe(captions, 'speech-paused'); await captions.screenshot({ path: path.join(artifacts, 'speech-paused.png') });
+    await captions.getByRole('button', { name: 'Resume', exact: true }).click();
+    await captions.waitForFunction(() => document.querySelector('.voice-rail-heading strong')?.textContent === 'Astra is speaking');
+    await captions.getByRole('button', { name: 'Stop speaking', exact: true }).click();
+    await replay.waitFor();
+    assert.equal((await calls(captions, 'voice.replay')).length, 1);
+    assert.equal((await calls(captions, 'voice.pauseSpeaking')).length, 1); assert.equal((await calls(captions, 'voice.resumeSpeaking')).length, 1);
     assert.equal((await calls(captions, 'ai.sendMessage')).length, 0);
   });
   const scene = await open({ scene: true, interval: 160 });

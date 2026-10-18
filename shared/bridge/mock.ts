@@ -39,7 +39,7 @@ import type { BridgeTransport } from "./transport.ts";
 export const DEFAULT_PREFERENCES: Preferences = {
   lastZone: "studio",
   reduceMotion: false,
-  voice: { enabled: true, locale: "en-US", synthesisVoiceId: null, autoSpeakReplies: false, speechRate: 1, allowServerRecognition: false },
+  voice: { enabled: true, locale: "en-US", synthesisVoiceId: null, autoSpeakReplies: false, speechRate: 0.85, allowServerRecognition: false },
   ai: { defaultProviderId: null, contextSharing: true, privateRepositoryContext: "never" },
   graphics: { quality: "high", maxPixelRatio: 2 },
 };
@@ -177,6 +177,8 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
     speechId: null,
     speakingStreamId: null,
     outputMuted: false,
+    speechPaused: false,
+    canReplay: false,
     inputDevice: { name: "Mock microphone (offline)", transport: "built_in" },
     issue: null,
   };
@@ -475,15 +477,20 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
   }
 
   /** Mock speech: one progress pair and a few levels per sentence. */
+  // The last spoken text, for voice.replay (cleared with its conversation).
+  let lastSpeech: { text: string; streamId: string | null } | null = null;
+
   async function mockSpeak(text: string, streamId: string | null): Promise<void> {
     const run = ++voiceRun;
     const speechId = `speech-mock-${++speechCounter}`;
-    setVoice({ phase: "speaking", speaking: true, listening: false, mode: null, speechId, speakingStreamId: streamId, issue: null });
+    lastSpeech = { text, streamId };
+    setVoice({ phase: "speaking", speaking: true, listening: false, mode: null, speechId, speakingStreamId: streamId, speechPaused: false, issue: null });
     const sentences = text.replace(/```[\s\S]*?```/g, " I've put the code on screen. ").split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
     for (const [segment, sentence] of sentences.entries()) {
       if (run !== voiceRun) return;
       emit("voice.speechProgress", { speechId, streamId, segment, text: sentence, state: "started" });
       for (let i = 0; i < 4 && run === voiceRun; i++) {
+        while (voice.speechPaused && run === voiceRun) await wait(streamIntervalMs);
         emit("voice.speechLevel", { level: Math.abs(Math.sin(i + segment)) });
         await wait(streamIntervalMs);
       }
@@ -491,14 +498,23 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
       emit("voice.speechProgress", { speechId, streamId, segment, text: sentence, state: "finished" });
     }
     emit("voice.speechLevel", { level: 0 });
-    setVoice({ phase: "idle", speaking: false, speechId: null, speakingStreamId: null });
+    setVoice({ phase: "idle", speaking: false, speechId: null, speakingStreamId: null, speechPaused: false, canReplay: true });
+  }
+
+  /** A reset or ended conversation's replies can no longer be replayed. */
+  function forgetSpokenReplies(turns: { streamId: string }[]): void {
+    const spoken = lastSpeech?.streamId;
+    if (!spoken || !turns.some((turn) => turn.streamId === spoken)) return;
+    if (voice.speakingStreamId === spoken) stopMockSpeech();
+    lastSpeech = null;
+    setVoice({ canReplay: false });
   }
 
   function stopMockSpeech(): void {
     if (!voice.speaking) return;
     voiceRun++;
     emit("voice.speechLevel", { level: 0 });
-    setVoice({ phase: "idle", speaking: false, speechId: null, speakingStreamId: null });
+    setVoice({ phase: "idle", speaking: false, speechId: null, speakingStreamId: null, speechPaused: false, canReplay: lastSpeech !== null });
   }
 
   const handlers: Handlers = {
@@ -749,6 +765,7 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
     "ai.resetConversation": ({ conversationId }) => {
       const conv = conversation(conversationId);
       if (conv.info.activeStreamId && activeStreams.delete(conv.info.activeStreamId)) cancelStream.get(conv.info.activeStreamId)?.();
+      forgetSpokenReplies(conv.turns);
       conv.turns = [];
       Object.assign(conv.info, { state: "idle", activeStreamId: null, carriesPrivateContext: false, sourceSharingAllowed: [] });
       const info = structuredClone({ ...conv.info, turnCount: 0 });
@@ -758,6 +775,7 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
     "ai.endConversation": ({ conversationId }) => {
       const conv = conversation(conversationId);
       if (conv.info.activeStreamId && activeStreams.delete(conv.info.activeStreamId)) cancelStream.get(conv.info.activeStreamId)?.();
+      forgetSpokenReplies(conv.turns);
       conversations.delete(conversationId);
       emit("ai.conversationChanged", { conversationId, reason: "ended", conversation: null });
       return {};
@@ -784,7 +802,7 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
     "voice.startSession": ({ conversationId }) => setVoice({ sessionActive: true, conversationId: conversationId ?? null, issue: null }),
     "voice.endSession": () => {
       voiceRun++;
-      return setVoice({ sessionActive: false, conversationId: null, listening: false, speaking: false, mode: null, speechId: null, speakingStreamId: null, outputMuted: false, issue: null, phase: voice.microphone === "granted" ? "idle" : "needs_permission" });
+      return setVoice({ sessionActive: false, conversationId: null, listening: false, speaking: false, mode: null, speechId: null, speakingStreamId: null, outputMuted: false, speechPaused: false, issue: null, phase: voice.microphone === "granted" ? "idle" : "needs_permission" });
     },
     "voice.startListening": ({ mode }) => {
       if (voice.microphone !== "granted") {
@@ -836,6 +854,18 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
     "voice.stopSpeaking": () => {
       stopMockSpeech();
       return {};
+    },
+    "voice.pauseSpeaking": () => {
+      if (!voice.speaking || voice.speechPaused) return voice;
+      emit("voice.speechLevel", { level: 0 });
+      return setVoice({ speechPaused: true });
+    },
+    "voice.resumeSpeaking": () => (voice.speaking && voice.speechPaused ? setVoice({ speechPaused: false }) : voice),
+    "voice.replay": () => {
+      if (!lastSpeech) throw notFound("nothing has been spoken yet");
+      if (voice.outputMuted) return voice;
+      void mockSpeak(lastSpeech.text, lastSpeech.streamId);
+      return voice;
     },
     "voice.setOutputMuted": ({ muted }) => {
       if (muted) stopMockSpeech();

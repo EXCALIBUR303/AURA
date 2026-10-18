@@ -104,7 +104,7 @@ Owner: Claude Code (native, contracts, mock). The voice UI is Codex's next step 
 - **Synthesis:**
   - One `AVSpeechSynthesizer.write` per sentence.
   - Voice: `Preferences.voice.synthesisVoiceId`, otherwise the best installed voice for the locale. This Mac has only default-quality en-US voices (D0).
-  - Rate: `speechRate` (0.8–1.2).
+  - Pace: `speechRate` (0.7–1.3, default 0.85; relative to the voice's natural pace, mapped to `AVSpeechUtterance.rate` through a measured curve in `SpeechPace`).
   - The next sentence renders while the current one plays.
 - **Playback:**
   - One `AVAudioEngine` + player node, kept up between the sentences of one speech and released when speech ends.
@@ -195,7 +195,7 @@ Owner: Claude Code (native, contracts, mock). The voice UI is Codex's next step 
 
 **Preferences** (`Preferences.voice`, new fields with defaults; older stores decode):
 - `autoSpeakReplies: false`
-- `speechRate: 1` (clamped to 0.8–1.2)
+- `speechRate: 0.85` (clamped to 0.7–1.3)
 - `allowServerRecognition: false`
 
 ## 7. Tests (run on this branch)

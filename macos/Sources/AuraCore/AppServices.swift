@@ -188,6 +188,9 @@ public final class AppServices {
             await voice.stopSpeaking()
             return Empty()
         }
+        router.register(.voicePauseSpeaking, Empty.self) { _ in await voice.pauseSpeaking() }
+        router.register(.voiceResumeSpeaking, Empty.self) { _ in await voice.resumeSpeaking() }
+        router.register(.voiceReplay, Empty.self) { _ in try await voice.replay() }
         router.register(.voiceSetOutputMuted, SetOutputMutedParams.self) { params in await voice.setOutputMuted(params.muted) }
         router.register(.voiceListVoices, ListVoicesParams.self) { params in await voice.voices(locale: params.locale) }
         router.register(.voiceOpenSettings, OpenVoiceSettingsParams.self) { params in

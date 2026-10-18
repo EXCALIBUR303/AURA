@@ -49,7 +49,11 @@ export interface Preferences {
     synthesisVoiceId: string | null;
     /** Speak replies automatically after a spoken request (default off). */
     autoSpeakReplies: boolean;
-    /** Speech rate multiplier, 0.8–1.2 (default 1). */
+    /**
+     * Speaking pace relative to the voice's natural pace, 0.7–1.3 (default 0.85).
+     * The host maps it to AVSpeechUtterance.rate through a measured words-per-minute
+     * curve (the native rate is not linear), so 0.85 is about 15% slower speech.
+     */
     speechRate: number;
     /**
      * Allow Apple's server-based recognition when on-device recognition is not
@@ -600,6 +604,10 @@ export interface VoiceStatus {
   speakingStreamId: string | null;
   /** Speech output is muted for this session: speak and speakReply do nothing. */
   outputMuted: boolean;
+  /** Speech is paused (voice.pauseSpeaking); phase stays "speaking" or "thinking". */
+  speechPaused: boolean;
+  /** The last spoken response can be spoken again (voice.replay). */
+  canReplay: boolean;
   /** The system default input device, null when there is none. */
   inputDevice: VoiceDevice | null;
   /** Why voice last stopped or failed; cleared by the next start. */

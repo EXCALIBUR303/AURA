@@ -19,6 +19,13 @@ public struct SynthesizedSpeech: @unchecked Sendable {
     }
 
     public var format: AVAudioFormat? { buffers.first?.format }
+
+    /// The same speech followed by `seconds` of silence (the pause after a sentence).
+    public func appendingSilence(_ seconds: Double) -> SynthesizedSpeech {
+        guard seconds > 0, let format, let silence = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(format.sampleRate * seconds)) else { return self }
+        silence.frameLength = silence.frameCapacity // zero-filled
+        return SynthesizedSpeech(buffers: buffers + [silence])
+    }
     public var duration: Double {
         guard let rate = format?.sampleRate, rate > 0 else { return 0 }
         return Double(buffers.reduce(0) { $0 + Int($1.frameLength) }) / rate
@@ -53,7 +60,7 @@ public struct SynthesizedSpeech: @unchecked Sendable {
 public struct SpeechVoiceRequest: Equatable, Sendable {
     public var locale: String
     public var voiceId: String?
-    /// Multiplier on the default rate, 0.8–1.2.
+    /// Pace relative to the voice's natural pace, 0.7–1.3 (SpeechPace maps it to the native rate).
     public var rate: Double
     public init(locale: String, voiceId: String?, rate: Double) {
         self.locale = locale
@@ -77,8 +84,10 @@ public struct SystemSpeechSynthesis: SpeechSynthesisEngine {
 
     public func render(_ text: String, voice request: SpeechVoiceRequest) async throws -> SynthesizedSpeech {
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = Self.voice(for: request)
-        utterance.rate = Float(Double(AVSpeechUtteranceDefaultSpeechRate) * request.rate)
+        let voice = Self.voice(for: request)
+        utterance.voice = voice
+        utterance.rate = SpeechPace.utteranceRate(pace: request.rate, voiceIdentifier: voice?.identifier)
+        Log.voice.info("speech voice \(voice?.identifier ?? "system", privacy: .public) quality \(voice?.quality.rawValue ?? 0, privacy: .public) pace \(request.rate, privacy: .public) native rate \(utterance.rate, privacy: .public)")
         // A synthesizer per sentence keeps concurrent renders independent; D0 showed
         // warm renders stay ~300 ms with fresh instances (the cost is per process).
         let synthesizer = AVSpeechSynthesizer()
@@ -97,16 +106,33 @@ public struct SystemSpeechSynthesis: SpeechSynthesisEngine {
     }
 
     public func voices(locale: String) -> [VoiceOption] {
-        AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language == locale }
+        let all = AVSpeechSynthesisVoice.speechVoices()
+        Log.voice.info("installed voices: \(all.count, privacy: .public) total, \(all.filter { $0.quality != .default }.count, privacy: .public) enhanced or premium (\(all.filter { $0.quality != .default }.map(\.identifier).joined(separator: ", "), privacy: .public))")
+        return Self.usable(locale: locale)
             .map { VoiceOption(id: $0.identifier, name: $0.name, locale: $0.language, quality: Self.quality($0.quality)) }
             .sorted { Self.rank($0.quality) == Self.rank($1.quality) ? $0.name < $1.name : Self.rank($0.quality) > Self.rank($1.quality) }
     }
 
+    /// Installed voices for the locale, without novelty voices (Bells, Bubbles…) or the user's Personal Voice.
+    static func usable(locale: String) -> [AVSpeechSynthesisVoice] {
+        AVSpeechSynthesisVoice.speechVoices().filter {
+            $0.language == locale && !$0.voiceTraits.contains(.isNoveltyVoice) && !$0.voiceTraits.contains(.isPersonalVoice)
+        }
+    }
+
+    /// The chosen voice if it is still installed; otherwise the best installed one
+    /// (premium, then enhanced, then the system's default voice for the locale).
     static func voice(for request: SpeechVoiceRequest) -> AVSpeechSynthesisVoice? {
-        if let id = request.voiceId, let voice = AVSpeechSynthesisVoice(identifier: id) { return voice }
-        let candidates = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == request.locale }
-        return candidates.max { $0.quality.rawValue < $1.quality.rawValue } ?? AVSpeechSynthesisVoice(language: request.locale)
+        if let id = request.voiceId {
+            if let voice = AVSpeechSynthesisVoice(identifier: id) { return voice }
+            Log.voice.notice("saved speech voice is not installed; using the default voice")
+        }
+        let candidates = usable(locale: request.locale)
+        let systemDefault = AVSpeechSynthesisVoice(language: request.locale)
+        let best = candidates.filter { $0.quality != .default }.max { a, b in
+            a.quality.rawValue != b.quality.rawValue ? a.quality.rawValue < b.quality.rawValue : a.name > b.name
+        }
+        return best ?? systemDefault ?? candidates.first
     }
 
     static func quality(_ quality: AVSpeechSynthesisVoiceQuality) -> VoiceOption.Quality {
@@ -189,6 +215,9 @@ public enum PlaybackError: Error, Equatable, Sendable {
 public protocol AudioPlayback: Sendable {
     /// Plays one sentence. Cancelling the consuming task stops it at once.
     func play(_ speech: SynthesizedSpeech) -> AsyncThrowingStream<PlaybackEvent, Error>
+    /// Holds the current sentence where it is; `resume()` continues from that point.
+    func pause()
+    func resume()
     /// Stops playback and releases the output engine (idle: no audio running).
     func release()
 }
@@ -203,8 +232,25 @@ public final class EnginePlayback: AudioPlayback, @unchecked Sendable {
     private var format: AVAudioFormat?
     private var configurationObserver: NSObjectProtocol?
     private var onConfigurationChange: (@Sendable () -> Void)?
+    private var paused = false
 
     public init() {}
+
+    public func pause() {
+        lock.lock()
+        defer { lock.unlock() }
+        paused = true
+        player?.pause()
+        engine?.pause() // releases the output hardware while held
+    }
+
+    public func resume() {
+        lock.lock()
+        defer { lock.unlock() }
+        paused = false
+        if let engine, !engine.isRunning { try? engine.start() }
+        if engine?.isRunning == true { player?.play() }
+    }
 
     public func play(_ speech: SynthesizedSpeech) -> AsyncThrowingStream<PlaybackEvent, Error> {
         AsyncThrowingStream { continuation in
@@ -237,9 +283,10 @@ public final class EnginePlayback: AudioPlayback, @unchecked Sendable {
             }
             player.play()
             continuation.yield(.started)
-            let meter = Task.detached {
+            let meter = Task.detached { [weak self] in
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .milliseconds(33))
+                    if self?.isPaused == true { continue }
                     guard let renderTime = player.lastRenderTime, let time = player.playerTime(forNodeTime: renderTime) else { continue }
                     let index = Int(Double(time.sampleTime) / sampleRate / SynthesizedSpeech.envelopeInterval)
                     if index >= 0, index < envelope.count { continuation.yield(.level(envelope[index])) }
@@ -274,6 +321,12 @@ public final class EnginePlayback: AudioPlayback, @unchecked Sendable {
         return player
     }
 
+    private var isPaused: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return paused
+    }
+
     private func configurationChanged() {
         lock.lock()
         let notify = onConfigurationChange
@@ -292,6 +345,7 @@ public final class EnginePlayback: AudioPlayback, @unchecked Sendable {
         if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
         configurationObserver = nil
         onConfigurationChange = nil
+        paused = false
         player?.stop()
         engine?.stop()
         engine = nil

@@ -346,6 +346,33 @@ test("mock voice: an issue scenario ends listening with recovery options", async
   bridge.dispose();
 });
 
+test("mock voice: pause holds speech, resume continues, replay repeats the last speech until its conversation resets", async () => {
+  const bridge = createBridgeClient(createMockTransport({ streamIntervalMs: 2, voiceGranted: true }));
+  const progress: string[] = [];
+  bridge.on("voice.speechProgress", ({ text, state }) => progress.push(`${state}:${text}`));
+  await assert.rejects(bridge.call("voice.replay", {}), (error: unknown) => error instanceof BridgeCallError && error.code === "not_found");
+  const { conversationId } = await bridge.call("ai.startConversation", {});
+  const { streamId } = await bridge.call("ai.sendMessage", { conversationId, text: "One. Two." });
+  for (let i = 0; i < 400 && !(await bridge.call("ai.getConversation", { conversationId })).turns.at(-1)?.finishReason; i++) await new Promise((resolve) => setTimeout(resolve, 5));
+  await bridge.call("voice.speakReply", { conversationId, streamId });
+  for (let i = 0; i < 200 && (await bridge.call("voice.getStatus", {})).phase !== "speaking"; i++) await new Promise((resolve) => setTimeout(resolve, 2));
+  const paused = await bridge.call("voice.pauseSpeaking", {});
+  assert.equal(paused.speechPaused, true); assert.equal(paused.speaking, true);
+  const heard = progress.length;
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.equal(progress.length, heard, "nothing advances while paused");
+  assert.equal((await bridge.call("voice.resumeSpeaking", {})).speechPaused, false);
+  for (let i = 0; i < 400 && (await bridge.call("voice.getStatus", {})).speaking; i++) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal((await bridge.call("voice.getStatus", {})).canReplay, true);
+  const before = progress.length;
+  await bridge.call("voice.replay", {});
+  for (let i = 0; i < 400 && (await bridge.call("voice.getStatus", {})).speaking; i++) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.ok(progress.length > before);
+  await bridge.call("ai.resetConversation", { conversationId });
+  assert.equal((await bridge.call("voice.getStatus", {})).canReplay, false);
+  bridge.dispose();
+});
+
 test("mock voice: a reply is spoken sentence by sentence and can be stopped", async () => {
   const bridge = createBridgeClient(createMockTransport({ streamIntervalMs: 2, voiceGranted: true }));
   const progress: string[] = [];

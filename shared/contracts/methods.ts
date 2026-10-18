@@ -194,6 +194,11 @@ export interface BridgeMethods {
    */
   "voice.speakReply": { params: { conversationId: string; streamId: string }; result: VoiceStatus };
   "voice.stopSpeaking": { params: Empty; result: Empty };
+  /** Pauses speech mid-sentence; voice.resumeSpeaking continues from the same point. Listening, sleep or leaving AURA stop it instead. */
+  "voice.pauseSpeaking": { params: Empty; result: VoiceStatus };
+  "voice.resumeSpeaking": { params: Empty; result: VoiceStatus };
+  /** Speaks the last spoken response again from its first sentence (status.canReplay). Does nothing while muted. */
+  "voice.replay": { params: Empty; result: VoiceStatus };
   /** Mutes or unmutes speech output for the session; muting stops current speech. */
   "voice.setOutputMuted": { params: { muted: boolean }; result: VoiceStatus };
   /** Installed system voices for the locale (default: the preference locale), best quality first. */

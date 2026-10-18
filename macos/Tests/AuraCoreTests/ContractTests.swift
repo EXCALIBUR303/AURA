@@ -48,7 +48,7 @@ import Testing
         let encoded = try JSONValue(encoding: Preferences.defaults)
         let expected = try JSONDecoder().decode(JSONValue.self, from: Data(#"""
             {"lastZone":"studio","reduceMotion":false,
-             "voice":{"enabled":true,"locale":"en-US","synthesisVoiceId":null,"autoSpeakReplies":false,"speechRate":1,"allowServerRecognition":false},
+             "voice":{"enabled":true,"locale":"en-US","synthesisVoiceId":null,"autoSpeakReplies":false,"speechRate":0.85,"allowServerRecognition":false},
              "ai":{"defaultProviderId":null,"contextSharing":true,"privateRepositoryContext":"never"},
              "graphics":{"quality":"high","maxPixelRatio":2}}
             """#.utf8))

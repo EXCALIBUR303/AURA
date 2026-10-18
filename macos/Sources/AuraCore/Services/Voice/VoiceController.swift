@@ -76,6 +76,8 @@ public final class VoiceController: VoiceService, AIReplyObserver {
     private var deviceTask: Task<Void, Never>?
     private var listening: ListeningRun?
     private var speaking: SpeakingRun?
+    /// The last speech that played, for voice.replay (cleared with its conversation).
+    private var lastSpeech: LastSpeech?
     private var installingAssets = false
     /// Recent conversation replies, so voice.speakReply can start from the beginning
     /// even when the page asks after the first text arrived. Same text the page shows.
@@ -163,7 +165,7 @@ public final class VoiceController: VoiceService, AIReplyObserver {
         let needsSpeech = engines.recognition.requiresSpeechPermission
         update {
             $0 = VoiceStatus(microphone: permissions.microphone, speechRecognition: permissions.speechRecognition,
-                             phase: Self.restingPhase(permissions, needsSpeech: needsSpeech), revision: $0.revision)
+                             phase: Self.restingPhase(permissions, needsSpeech: needsSpeech), revision: $0.revision, canReplay: lastSpeech != nil)
         }
         return status
     }
@@ -247,6 +249,44 @@ public final class VoiceController: VoiceService, AIReplyObserver {
         stopSpeech()
     }
 
+    /// Holds speech where it is (mid-sentence). Nothing else changes until resume or stop.
+    public func pauseSpeaking() async -> VoiceStatus {
+        guard let run = speaking, !run.paused else { return status }
+        run.paused = true
+        engines.playback.pause()
+        events.emit(.voiceSpeechLevel, VoiceSpeechLevelPayload(level: 0))
+        Log.voice.notice("speech \(run.id, privacy: .public) paused")
+        update { $0.speechPaused = true }
+        return status
+    }
+
+    public func resumeSpeaking() async -> VoiceStatus {
+        guard let run = speaking, run.paused else { return status }
+        run.paused = false
+        engines.playback.resume()
+        run.wake()
+        Log.voice.notice("speech \(run.id, privacy: .public) resumed")
+        update { $0.speechPaused = false }
+        return status
+    }
+
+    /// Speaks the last spoken response again from the start. A reply that has since
+    /// finished streaming is replayed in full, even if its first speech was stopped early.
+    public func replay() async throws -> VoiceStatus {
+        try ensureRunning()
+        guard let last = lastSpeech else { throw AuraError.notFound("nothing has been spoken yet") }
+        guard !status.outputMuted else { return status }
+        var segments = last.segments
+        if let streamId = last.streamId, let record = replies[streamId], record.ended == .stop || record.ended == .length {
+            var planner = SpokenReplyPlanner()
+            segments = planner.append(record.text) + planner.finish()
+        }
+        guard !segments.isEmpty else { throw AuraError.notFound("nothing has been spoken yet") }
+        stopListeningRun()
+        startSpeech(streamId: last.streamId, conversationId: last.conversationId, text: "", ended: true, segments: segments)
+        return status
+    }
+
     public func setOutputMuted(_ muted: Bool) async -> VoiceStatus {
         if muted { stopSpeech() }
         update { $0.outputMuted = muted }
@@ -313,6 +353,7 @@ public final class VoiceController: VoiceService, AIReplyObserver {
         deviceTask = nil
         replies.removeAll()
         replyOrder.removeAll()
+        lastSpeech = nil
         isShutDown = true
         Log.voice.notice("voice shut down")
     }
@@ -532,10 +573,11 @@ public final class VoiceController: VoiceService, AIReplyObserver {
 
     // MARK: speaking
 
-    private func startSpeech(streamId: String?, conversationId: String?, text: String, ended: Bool) {
+    private func startSpeech(streamId: String?, conversationId: String?, text: String, ended: Bool, segments: [SpokenSegment] = []) {
         stopSpeech()
         let run = SpeakingRun(streamId: streamId, conversationId: conversationId)
         speaking = run
+        run.enqueue(segments)
         run.enqueue(run.planner.append(text))
         if ended {
             run.enqueue(run.planner.finish())
@@ -547,6 +589,7 @@ public final class VoiceController: VoiceService, AIReplyObserver {
             $0.phase = run.segments.isEmpty && !run.ended ? .thinking : .speaking
             $0.speechId = run.id
             $0.speakingStreamId = streamId
+            $0.speechPaused = false
             $0.issue = nil
         }
         Log.voice.notice("speech \(run.id, privacy: .public) started\(streamId == nil ? "" : " for a reply", privacy: .public)")
@@ -558,6 +601,10 @@ public final class VoiceController: VoiceService, AIReplyObserver {
         let voice = SpeechVoiceRequest(locale: prefs.voice.locale, voiceId: prefs.voice.synthesisVoiceId, rate: prefs.voice.speechRate)
         let synthesis = engines.synthesis, playback = engines.playback
         while isCurrent(run), !Task.isCancelled {
+            if run.paused {
+                await run.waitForMore()
+                continue
+            }
             guard run.played < run.segments.count else {
                 if run.ended { return finishSpeech(run) }
                 if status.phase == .speaking { events.emit(.voiceSpeechLevel, VoiceSpeechLevelPayload(level: 0)) }
@@ -568,7 +615,7 @@ public final class VoiceController: VoiceService, AIReplyObserver {
             let index = run.played
             let render = run.render(index, synthesis, voice)
             if index + 1 < run.segments.count { _ = run.render(index + 1, synthesis, voice) } // prefetch the next sentence
-            let speech: SynthesizedSpeech
+            var speech: SynthesizedSpeech
             do {
                 speech = try await render.value
             } catch {
@@ -577,14 +624,22 @@ public final class VoiceController: VoiceService, AIReplyObserver {
                 return stopSpeech(phase: .error, issue: VoiceIssue(.synthesisFailed, "Astra's voice could not be produced. Try again.", recovery: [.retry]))
             }
             guard isCurrent(run) else { return }
+            while run.paused, isCurrent(run) { await run.waitForMore() } // paused while this sentence rendered
+            guard isCurrent(run), !Task.isCancelled else { return }
             run.renders[index] = nil
-            let text = run.segments[index].text
-            events.emit(.voiceSpeechProgress, VoiceSpeechProgressPayload(speechId: run.id, streamId: run.streamId, segment: index, text: text, state: .started))
+            let segment = run.segments[index]
+            let text = segment.text
+            // The pause a single utterance would have had between sentences (none after the last).
+            let isLast = run.ended && index == run.segments.count - 1
+            speech = speech.appendingSilence(isLast ? 0 : SpeechPace.pause(after: segment.pause, pace: voice.rate))
             do {
                 for try await event in playback.play(speech) {
                     guard isCurrent(run) else { return }
                     switch event {
-                    case .started: update { $0.phase = .speaking }
+                    case .started:
+                        // The caption starts with the audio, not when rendering finished.
+                        events.emit(.voiceSpeechProgress, VoiceSpeechProgressPayload(speechId: run.id, streamId: run.streamId, segment: index, text: text, state: .started))
+                        update { $0.phase = .speaking }
                     case .level(let level): events.emit(.voiceSpeechLevel, VoiceSpeechLevelPayload(level: level))
                     case .finished: break
                     }
@@ -609,6 +664,7 @@ public final class VoiceController: VoiceService, AIReplyObserver {
     private func finishSpeech(_ run: SpeakingRun) {
         guard isCurrent(run) else { return }
         speaking = nil
+        remember(run)
         run.tearDown()
         engines.playback.release()
         events.emit(.voiceSpeechLevel, VoiceSpeechLevelPayload(level: 0))
@@ -617,6 +673,8 @@ public final class VoiceController: VoiceService, AIReplyObserver {
             $0.speaking = false
             $0.speechId = nil
             $0.speakingStreamId = nil
+            $0.speechPaused = false
+            $0.canReplay = lastSpeech != nil
             if !$0.listening { $0.phase = .idle }
         }
     }
@@ -625,6 +683,7 @@ public final class VoiceController: VoiceService, AIReplyObserver {
     private func stopSpeech(phase: VoicePhase = .idle, issue: VoiceIssue? = nil) {
         guard let run = speaking else { return }
         speaking = nil
+        remember(run)
         run.tearDown()
         engines.playback.release()
         if !isShutDown { events.emit(.voiceSpeechLevel, VoiceSpeechLevelPayload(level: 0)) }
@@ -632,12 +691,20 @@ public final class VoiceController: VoiceService, AIReplyObserver {
             $0.speaking = false
             $0.speechId = nil
             $0.speakingStreamId = nil
+            $0.speechPaused = false
+            $0.canReplay = lastSpeech != nil
             if !$0.listening { $0.phase = phase }
             if issue != nil || phase == .idle { $0.issue = issue }
         }
     }
 
     private func isCurrent(_ run: SpeakingRun) -> Bool { speaking === run }
+
+    /// Keeps a speech for voice.replay once it has something to say again.
+    private func remember(_ run: SpeakingRun) {
+        guard !isShutDown, !run.segments.isEmpty else { return }
+        lastSpeech = LastSpeech(segments: run.segments, streamId: run.streamId, conversationId: run.conversationId)
+    }
 
     private func announceApproval(_ run: SpeakingRun) {
         guard !run.announcedApproval else { return }
@@ -693,6 +760,10 @@ public final class VoiceController: VoiceService, AIReplyObserver {
         for (id, record) in replies where record.conversationId == conversationId { replies[id] = nil }
         replyOrder.removeAll { replies[$0] == nil }
         if let run = speaking, run.conversationId == conversationId { stopSpeech() }
+        if lastSpeech?.conversationId == conversationId {
+            lastSpeech = nil
+            update { $0.canReplay = false }
+        }
         if status.conversationId == conversationId, reason == .ended || reason == .evicted {
             update {
                 $0.conversationId = nil
@@ -930,6 +1001,7 @@ final class SpeakingRun {
     var segments: [SpokenSegment] = []
     var played = 0
     var ended = false
+    var paused = false
     var announcedApproval = false
     var renders: [Int: Task<SynthesizedSpeech, Error>] = [:]
     var pump: Task<Void, Never>?
@@ -951,7 +1023,7 @@ final class SpeakingRun {
 
     func render(_ index: Int, _ synthesis: any SpeechSynthesisEngine, _ voice: SpeechVoiceRequest) -> Task<SynthesizedSpeech, Error> {
         if let existing = renders[index] { return existing }
-        let text = segments[index].text
+        let text = SpeechPronunciation.spoken(segments[index].text) // captions keep the original text
         let task = Task.detached { try await synthesis.render(text, voice: voice) }
         renders[index] = task
         return task
@@ -972,6 +1044,12 @@ final class SpeakingRun {
         renders.removeAll()
         wake()
     }
+}
+
+struct LastSpeech {
+    let segments: [SpokenSegment]
+    let streamId: String?
+    let conversationId: String?
 }
 
 @MainActor

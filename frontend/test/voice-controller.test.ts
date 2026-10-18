@@ -225,3 +225,22 @@ test("automatic binding failure waits for explicit action instead of retrying on
     assert.equal(s.calls.filter((m) => m === "voice.startListening").length, 0);
   } finally { s.close(); }
 });
+
+test("pause, resume and replay call the host and follow its status", async () => {
+  const s = await setup();
+  try {
+    await s.controller.preview("One. Two. Three. Four.");
+    await until(() => !!s.controller.snapshot().status?.speaking);
+    await s.controller.pauseSpeaking();
+    assert.equal(s.controller.snapshot().status?.speechPaused, true); assert.equal(s.samples.output, 0);
+    await s.controller.resumeSpeaking();
+    assert.equal(s.controller.snapshot().status?.speechPaused, false);
+    await s.controller.stopSpeaking();
+    await until(() => !!s.controller.snapshot().status?.canReplay);
+    await s.controller.replay();
+    await until(() => !!s.controller.snapshot().status?.speaking);
+    assert.deepEqual(s.calls.filter((call) => ["voice.speak", "voice.pauseSpeaking", "voice.resumeSpeaking", "voice.replay"].includes(call)), ["voice.speak", "voice.pauseSpeaking", "voice.resumeSpeaking", "voice.replay"]);
+    assert.equal(s.calls.includes("ai.sendMessage"), false);
+    await s.controller.stopSpeaking();
+  } finally { s.close(); }
+});

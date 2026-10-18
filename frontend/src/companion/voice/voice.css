@@ -81,3 +81,4 @@
   .voice-caption { max-height: 76px; }
   .voice-level-line { margin: 5px 0; }
 }
+.voice-pause, .voice-replay { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 8px; font-size: 12px; font-weight: 550; color: var(--voice-ink); border-radius: 7px; }

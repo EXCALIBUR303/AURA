@@ -1,9 +1,24 @@
 import Foundation
 
+/// The pause after a spoken sentence (SpeechPace.pause gives its length).
+public enum SpokenPause: Equatable, Sendable {
+    case none
+    /// Between sentences of one paragraph.
+    case sentence
+    /// After a paragraph, heading, list item or on-screen notice.
+    case paragraph
+}
+
 /// A sentence ready to be spoken.
 public struct SpokenSegment: Equatable, Sendable {
     public var text: String
-    public init(_ text: String) { self.text = text }
+    public var pause: SpokenPause
+    public init(_ text: String, pause: SpokenPause = .sentence) {
+        self.text = text
+        self.pause = pause
+    }
+    /// Segments are the same sentence when their text is; the pause is presentation.
+    public static func == (a: SpokenSegment, b: SpokenSegment) -> Bool { a.text == b.text }
 }
 
 /// Turns streamed Markdown into complete, speakable sentences. Pure: fed the
@@ -70,7 +85,8 @@ public struct SpokenReplyPlanner: Sendable {
         lineContinues = false
         let (ready, rest) = Self.splitSentences(sentenceBuffer, final: true)
         sentenceBuffer = ""
-        out += emit(ready + (rest.isEmpty ? [] : [rest]))
+        let last = ready + (rest.isEmpty ? [] : [rest])
+        out += emit(Array(last.dropLast())) + emit(Array(last.suffix(1)), pause: .paragraph)
         return out
     }
 
@@ -86,7 +102,7 @@ public struct SpokenReplyPlanner: Sendable {
             inFence.toggle()
             if inFence, !announcedCode {
                 announcedCode = true
-                return flushSentence() + emit(["I've put the code on screen."])
+                return flushSentence() + emit(["I've put the code on screen."], pause: .paragraph)
             }
             return []
         }
@@ -94,7 +110,7 @@ public struct SpokenReplyPlanner: Sendable {
         if line.hasPrefix("|") || line.range(of: #"^:?-{3,}:?(\s*\|\s*:?-{3,}:?)*\s*\|?$"#, options: .regularExpression) != nil, line.contains("|") {
             guard !announcedTable else { return [] }
             announcedTable = true
-            return flushSentence() + emit(["There's a table on screen."])
+            return flushSentence() + emit(["There's a table on screen."], pause: .paragraph)
         }
         if line.isEmpty { return flushSentence() }
         if line.range(of: #"^(-{3,}|\*{3,}|_{3,})$"#, options: .regularExpression) != nil { return flushSentence() }
@@ -133,21 +149,21 @@ public struct SpokenReplyPlanner: Sendable {
     private mutating func flushSentence() -> [SpokenSegment] {
         let rest = sentenceBuffer.trimmingCharacters(in: .whitespaces)
         sentenceBuffer = ""
-        return rest.isEmpty ? [] : emit([rest])
+        return rest.isEmpty ? [] : emit([rest], pause: .paragraph)
     }
 
-    private mutating func emit(_ sentences: [String]) -> [SpokenSegment] {
+    private mutating func emit(_ sentences: [String], pause: SpokenPause = .sentence) -> [SpokenSegment] {
         var out: [SpokenSegment] = []
         for sentence in sentences {
             let text = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty, text.contains(where: { $0.isLetter || $0.isNumber }), !truncated else { continue }
             if spokenCharacters + text.count > Self.maxSpokenCharacters {
                 truncated = true
-                out.append(SpokenSegment("The rest is on screen."))
+                out.append(SpokenSegment("The rest is on screen.", pause: .paragraph))
                 break
             }
             spokenCharacters += text.count
-            out.append(SpokenSegment(text))
+            out.append(SpokenSegment(text, pause: pause))
         }
         return out
     }

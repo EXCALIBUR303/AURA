@@ -151,12 +151,18 @@ final class FixtureCapture: AudioCapture, @unchecked Sendable {
 
 /// Plays nothing; reports start, ~30 Hz levels from the envelope and completion in real time.
 final class SilentPlayback: AudioPlayback, @unchecked Sendable {
+    private let lock = NSLock()
+    private var paused = false
+    private var isPaused: Bool { lock.withLock { paused } }
+    func pause() { lock.withLock { paused = true } }
+    func resume() { lock.withLock { paused = false } }
     func play(_ speech: SynthesizedSpeech) -> AsyncThrowingStream<PlaybackEvent, Error> {
         AsyncThrowingStream { continuation in
             let envelope = speech.envelope
-            let task = Task.detached {
+            let task = Task.detached { [weak self] in
                 continuation.yield(.started)
                 for level in envelope {
+                    while self?.isPaused == true, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(33)) }
                     if Task.isCancelled { return }
                     continuation.yield(.level(level))
                     try? await Task.sleep(for: .milliseconds(33))
@@ -168,7 +174,7 @@ final class SilentPlayback: AudioPlayback, @unchecked Sendable {
             continuation.onTermination = { @Sendable _ in task.cancel() }
         }
     }
-    func release() {}
+    func release() { lock.withLock { paused = false } }
 }
 
 /// Missing-model scenario: the first start reports the model missing until "installed".

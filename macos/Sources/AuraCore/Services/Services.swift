@@ -236,6 +236,9 @@ public protocol VoiceService: Sendable {
     func speak(_ text: String, interrupt: Bool) async throws
     func speakReply(conversationId: String, streamId: String) async throws -> VoiceStatus
     func stopSpeaking() async
+    func pauseSpeaking() async -> VoiceStatus
+    func resumeSpeaking() async -> VoiceStatus
+    func replay() async throws -> VoiceStatus
     func setOutputMuted(_ muted: Bool) async -> VoiceStatus
     func voices(locale: String?) async -> [VoiceOption]
     func openSettings(_ target: OpenVoiceSettingsParams.Target) async throws
@@ -261,6 +264,9 @@ public struct UnavailableVoiceService: VoiceService {
     public func speak(_ text: String, interrupt: Bool) async throws { throw AuraError.unavailable(Self.reason) }
     public func speakReply(conversationId: String, streamId: String) async throws -> VoiceStatus { throw AuraError.unavailable(Self.reason) }
     public func stopSpeaking() async {}
+    public func pauseSpeaking() async -> VoiceStatus { .unavailable }
+    public func resumeSpeaking() async -> VoiceStatus { .unavailable }
+    public func replay() async throws -> VoiceStatus { throw AuraError.unavailable(Self.reason) }
     public func setOutputMuted(_ muted: Bool) async -> VoiceStatus { .unavailable }
     public func voices(locale: String?) async -> [VoiceOption] { [] }
     public func openSettings(_ target: OpenVoiceSettingsParams.Target) async throws { throw AuraError.unavailable(Self.reason) }
