@@ -2,9 +2,8 @@ import Foundation
 import Testing
 @testable import AuraCore
 
-// Phase 3C-A contracts for later phases: the AI tool permission boundary
-// (3C-B executes tools) and voice route/interruption handling (3C-D wires
-// real audio). Decisions only; nothing executes or records here.
+// Phase 3C-A contracts: the AI tool permission boundary (3C-B executes tools).
+// Decisions only; nothing executes here. Voice tests are in VoiceTests.swift.
 
 @Suite struct AIToolPolicyTests {
     let policy = AIToolPolicy()
@@ -115,58 +114,5 @@ import Testing
             "get_active_workspace", "list_repositories", "get_repository_metadata", "list_recent_commits", "get_commit_details",
             "list_repository_files", "search_repository_paths", "read_repository_file", "navigate_to_zone",
         ])
-    }
-}
-
-struct FakeRouteMonitor: AudioRouteMonitor {
-    let stream: AsyncStream<AudioRouteChange>
-    let continuation: AsyncStream<AudioRouteChange>.Continuation
-    init() { (stream, continuation) = AsyncStream<AudioRouteChange>.makeStream() }
-    func changes() -> AsyncStream<AudioRouteChange> { stream }
-}
-
-@Suite @MainActor struct VoiceRouteTests {
-    func make() -> (VoiceSession, FakeSpeech) {
-        let permissions = FakeVoicePermissions()
-        permissions.current = (.granted, .granted)
-        let speech = FakeSpeech()
-        return (VoiceSession(permissions: permissions, input: speech, output: speech, locale: "en-US"), speech)
-    }
-
-    @Test func aRouteChangeStopsListeningAndReportsIt() async throws {
-        let (session, _) = make()
-        var interruptions: [VoiceInterruption] = []
-        session.onInterruption = { interruptions.append($0) }
-        let monitor = FakeRouteMonitor()
-        session.observeRoutes(monitor)
-
-        try session.startListening()
-        monitor.continuation.yield(AudioRouteChange(direction: .input, deviceName: "AirPods"))
-        for _ in 0..<100 where session.status.listening { try await Task.sleep(for: .milliseconds(5)) }
-        #expect(!session.status.listening)
-        #expect(interruptions == [.audioRouteChanged])
-
-        // Idle sessions ignore route changes, and nothing restarts by itself.
-        monitor.continuation.yield(AudioRouteChange(direction: .output, deviceName: nil))
-        try await Task.sleep(for: .milliseconds(30))
-        #expect(interruptions == [.audioRouteChanged])
-        #expect(!session.status.listening && !session.status.speaking)
-        session.stopObservingRoutes()
-    }
-
-    @Test func goingInactiveStopsSpeechAndListening() throws {
-        let (session, _) = make()
-        try session.speak("hello")
-        session.handle(.appInactive)
-        #expect(!session.status.speaking)
-        try session.startListening()
-        session.handle(.appInactive)
-        #expect(!session.status.listening)
-    }
-
-    @Test func nothingListensUntilAsked() {
-        let (session, _) = make()
-        #expect(!session.status.listening)
-        #expect(!session.status.speaking)
     }
 }

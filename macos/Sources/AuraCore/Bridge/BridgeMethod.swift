@@ -42,11 +42,23 @@ public enum BridgeMethod: String, CaseIterable, Sendable {
     case aiRespondToApproval = "ai.respondToApproval"
 
     case voiceGetStatus = "voice.getStatus"
+    case voiceGetCapabilities = "voice.getCapabilities"
     case voiceRequestPermissions = "voice.requestPermissions"
+    case voiceStartSession = "voice.startSession"
+    case voiceEndSession = "voice.endSession"
     case voiceStartListening = "voice.startListening"
     case voiceStopListening = "voice.stopListening"
+    case voiceCancelListening = "voice.cancelListening"
     case voiceSpeak = "voice.speak"
+    case voiceSpeakReply = "voice.speakReply"
     case voiceStopSpeaking = "voice.stopSpeaking"
+    case voicePauseSpeaking = "voice.pauseSpeaking"
+    case voiceResumeSpeaking = "voice.resumeSpeaking"
+    case voiceReplay = "voice.replay"
+    case voiceSetOutputMuted = "voice.setOutputMuted"
+    case voiceListVoices = "voice.listVoices"
+    case voiceOpenSettings = "voice.openSettings"
+    case voiceInstallRecognitionAssets = "voice.installRecognitionAssets"
 
     case logWrite = "log.write"
 }
@@ -65,6 +77,9 @@ public enum BridgeEventName: String, CaseIterable, Sendable {
     case aiConversationChanged = "ai.conversationChanged"
     case aiProvidersChanged = "ai.providersChanged"
     case voiceStatusChanged = "voice.statusChanged"
+    case voiceCapabilitiesChanged = "voice.capabilitiesChanged"
     case voiceTranscript = "voice.transcript"
+    case voiceInputLevel = "voice.inputLevel"
     case voiceSpeechLevel = "voice.speechLevel"
+    case voiceSpeechProgress = "voice.speechProgress"
 }

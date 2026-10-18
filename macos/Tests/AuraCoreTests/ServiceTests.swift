@@ -148,6 +148,9 @@ import Testing
         let services = try await makeServices(recorder: EventRecorder())
         let status = try await call(services, "voice.getStatus")
         #expect(status["result"]?["microphone"] == .string("not_determined"))
+        #expect(status["result"]?["phase"] == .string("unavailable"))
+        let listen = try await call(services, "voice.startListening")
+        #expect(listen["error"]?["code"] == .string("unavailable"))
         let speak = try await call(services, "voice.speak", #"{"text":"hi"}"#)
         #expect(speak["error"]?["code"] == .string("unavailable"))
     }

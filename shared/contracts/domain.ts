@@ -47,6 +47,19 @@ export interface Preferences {
     locale: string;
     /** AVSpeechSynthesisVoice identifier; null = system default. */
     synthesisVoiceId: string | null;
+    /** Speak replies automatically after a spoken request (default off). */
+    autoSpeakReplies: boolean;
+    /**
+     * Speaking pace relative to the voice's natural pace, 0.7–1.3 (default 0.85).
+     * The host maps it to AVSpeechUtterance.rate through a measured words-per-minute
+     * curve (the native rate is not linear), so 0.85 is about 15% slower speech.
+     */
+    speechRate: number;
+    /**
+     * Allow Apple's server-based recognition when on-device recognition is not
+     * available for the locale (macOS 15–25 only; default off). Sends audio to Apple.
+     */
+    allowServerRecognition: boolean;
   };
   ai: {
     /** Provider id from ai.listProviders; null until the user picks one. */
@@ -490,11 +503,143 @@ export interface RepositoryTree {
 
 export type PermissionState = "not_determined" | "granted" | "denied" | "restricted";
 
+/**
+ * What the voice host is doing. The page combines it with the conversation's
+ * AITurnState for Astra (see docs/PHASE3C_D_VOICE.md):
+ * - unavailable: no voice in this build (for example `swift run`, or an old macOS without on-device recognition)
+ * - needs_permission: microphone access is not granted yet (or was denied; see `issue`)
+ * - idle: nothing is captured or spoken
+ * - starting: the microphone and recogniser are starting (no usable audio yet)
+ * - listening: audio is arriving and being transcribed
+ * - recognizing: the microphone is closed; the final transcript is being produced
+ * - thinking: a reply is being spoken (voice.speakReply) but has no speakable sentence yet
+ * - speaking: Astra is speaking
+ * - interrupted: the system or a device stopped voice (`issue` says why); nothing restarts by itself
+ * - error: listening or speaking failed (`issue` says why and how to recover)
+ */
+export type VoicePhase =
+  | "unavailable"
+  | "needs_permission"
+  | "idle"
+  | "starting"
+  | "listening"
+  | "recognizing"
+  | "thinking"
+  | "speaking"
+  | "interrupted"
+  | "error";
+
+/** push_to_talk: listens until voice.stopListening. auto_end: also ends after a pause in speech. */
+export type VoiceListenMode = "push_to_talk" | "auto_end";
+
+export type VoiceTransport = "built_in" | "bluetooth" | "usb" | "other";
+
+export interface VoiceDevice {
+  /** The system's name for the device, for display only. */
+  name: string;
+  transport: VoiceTransport;
+}
+
+export type VoiceIssueCode =
+  | "permission_denied"
+  | "permission_restricted"
+  | "no_input_device"
+  /** The audio engine could not start on the input device (common with some Bluetooth headsets). */
+  | "input_failed"
+  /** Started, but the device delivered no audio, or only digital silence, past its startup allowance. */
+  | "no_audio"
+  /** Audio stopped arriving during listening (the device was probably disconnected). */
+  | "input_lost"
+  /** The input or output device changed while voice was active. */
+  | "device_changed"
+  /** Audio arrived but no speech was heard in time. */
+  | "no_speech"
+  /** The utterance reached the time limit; what was heard was still transcribed. */
+  | "time_limit"
+  | "recognition_unavailable"
+  | "recognition_failed"
+  | "synthesis_failed"
+  | "playback_failed"
+  | "app_inactive"
+  | "system_sleep"
+  | "conversation_ended";
+
+export type VoiceRecovery =
+  | "retry"
+  /** Pick another microphone (voice.openSettings target "sound_input"). */
+  | "choose_input"
+  | "open_microphone_settings"
+  | "open_speech_settings"
+  | "install_speech_assets";
+
+export interface VoiceIssue {
+  code: VoiceIssueCode;
+  /** Short, user-facing, no personal data beyond the device name. */
+  message: string;
+  recovery: VoiceRecovery[];
+  /** The input device's transport when the issue concerns it. */
+  transport: VoiceTransport | null;
+}
+
 export interface VoiceStatus {
   microphone: PermissionState;
+  /** Only needed by the macOS 15–25 recogniser; see VoiceCapabilities.requiresSpeechRecognitionPermission. */
   speechRecognition: PermissionState;
   listening: boolean;
   speaking: boolean;
+  phase: VoicePhase;
+  /** Increases with every status change. Ignore a status whose revision is not higher than the last one applied. */
+  revision: number;
+  /** A voice session is open (voice.startSession, or implicitly by voice.startListening). */
+  sessionActive: boolean;
+  /** The conversation the session is bound to, if any. */
+  conversationId: string | null;
+  /** The listening mode while starting/listening/recognizing. */
+  mode: VoiceListenMode | null;
+  /** The current or most recent utterance (matches voice.transcript). */
+  utteranceId: string | null;
+  /** The current speech (matches voice.speechProgress). */
+  speechId: string | null;
+  /** The conversation reply being spoken (voice.speakReply), if any. */
+  speakingStreamId: string | null;
+  /** Speech output is muted for this session: speak and speakReply do nothing. */
+  outputMuted: boolean;
+  /** Speech is paused (voice.pauseSpeaking); phase stays "speaking" or "thinking". */
+  speechPaused: boolean;
+  /** The last spoken response can be spoken again (voice.replay). */
+  canReplay: boolean;
+  /** The system default input device, null when there is none. */
+  inputDevice: VoiceDevice | null;
+  /** Why voice last stopped or failed; cleared by the next start. */
+  issue: VoiceIssue | null;
+}
+
+export interface VoiceCapabilities {
+  /** Microphone readiness: needs_permission until granted; unavailable without an input device. */
+  input: "available" | "needs_permission" | "unavailable";
+  /** on_device: never leaves the Mac. server_opt_in: only Apple's server recogniser, used only if allowServerRecognition is on. */
+  recognition: "on_device" | "server_opt_in" | "unavailable";
+  engine: "speech_analyzer" | "sf_speech_recognizer" | "none";
+  /** False on macOS 26+ (SpeechAnalyzer needs only the microphone). */
+  requiresSpeechRecognitionPermission: boolean;
+  /** Whether the on-device model for the locale is present ("downloadable": voice.installRecognitionAssets). */
+  recognitionAssets: "installed" | "downloadable" | "unsupported" | "unknown";
+  locale: string;
+  /** voice.transcript sends non-final text while listening. */
+  liveTranscripts: boolean;
+  /** "auto_end" mode is supported. */
+  autoEndOfUtterance: boolean;
+  /** Listening while Astra speaks. Always false until echo cancellation is validated on real devices. */
+  handsFreeBargeIn: boolean;
+  maxUtteranceSeconds: number;
+}
+
+export interface VoiceOption {
+  /** AVSpeechSynthesisVoice identifier (Preferences.voice.synthesisVoiceId). */
+  id: string;
+  name: string;
+  locale: string;
+  quality: "default" | "enhanced" | "premium";
 }
 
 // ---------------------------------------------------------------- logging

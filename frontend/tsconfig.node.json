@@ -10,7 +10,8 @@
     "erasableSyntaxOnly": true,
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "paths": { "@aura/contracts": ["../shared/contracts/index.ts"] }
   },
-  "include": ["vite.config.ts", "../shared/test"]
+  "include": ["vite.config.ts", "../shared/test", "test/*.test.ts"]
 }

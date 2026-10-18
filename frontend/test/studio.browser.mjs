@@ -211,13 +211,13 @@ try {
     await page.getByRole('button', { name: 'Stop reply', exact: true }).click();
     await page.getByRole('button', { name: 'Send message', exact: true }).waitFor();
   });
-  await check('Text replies keep voice unavailable and do not invent speech metering', async () => {
+  await check('Typed replies stay silent and do not invent speech metering', async () => {
     await page.getByLabel('Message Astra').fill('Text response check');
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
     await page.locator('.assistant-markdown').filter({ hasText: '[mock] You said: Text response check' }).waitFor();
     assert.equal(await page.evaluate(() => window.__AURA_DIAGNOSTICS__.rig.jawAngle), 0);
-    assert.equal(await page.getByRole('button', { name: /Talk with Astra|Start listening|Animate mock speech/ }).count(), 0);
-    assert.ok(await page.getByText('Text conversation · Voice unavailable', { exact: true }).isVisible());
+    assert.ok(await page.getByRole('button', { name: 'Talk with Astra', exact: true }).isVisible());
+    assert.ok(await page.getByText('Microphone access needed', { exact: true }).isVisible());
   });
   await check('Project notes, pinning, and zone assignment round-trip through the bridge', async () => {
     await page.getByRole('button', { name: 'Project inspector', exact: true }).click();
@@ -368,7 +368,8 @@ try {
     await native.locator('canvas').click({ position: { x: 8, y: 8 } }); await native.keyboard.press('Control+2');
     assert.equal(await native.evaluate(() => window.__AURA_DIAGNOSTICS__.zone), 'companion');
     assert.equal(await native.getByRole('button', { name: /Talk with Astra|Start listening/ }).count(), 0);
-    assert.ok(await native.getByText('Text conversation · Voice unavailable', { exact: true }).isVisible());
+    await native.getByText('Voice unavailable', { exact: true }).waitFor();
+    assert.equal(await native.getByRole('button', { name: 'Talk with Astra', exact: true }).count(), 0);
   });
   await check('AI start failures and streamed errors show recoverable companion state', async () => {
     await native.evaluate(() => window.__testHost.failNext('ai.sendMessage', { code: 'unavailable', message: 'Intentional test failure', retryable: true }));

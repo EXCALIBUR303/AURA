@@ -181,6 +181,14 @@ export function useConversation(zone: ZoneId) {
     catch (error) { setIssue(errorText(error)); }
     finally { locked.current = false; if (alive.current) setWorking(false); }
   }
+  async function ensureConversation() {
+    if (loading || locked.current || stream.current || invalidProvider || !providers.find((item) => item.id === providerId)?.available) return null;
+    if (current.current) return current.current;
+    locked.current = true; setWorking(true);
+    try { return await create(); }
+    catch (error) { setIssue(errorText(error)); return null; }
+    finally { locked.current = false; if (alive.current) setWorking(false); }
+  }
   async function send(text: string) {
     if (!text.trim() || text.length > 32000 || locked.current || stream.current || invalidProvider) return false;
     locked.current = true; cancelWanted.current = false; setWorking(true); setIssue(null); setNotice("");
@@ -197,7 +205,7 @@ export function useConversation(zone: ZoneId) {
       const buffer = early.current; early.current = []; buffer.forEach(receive);
       if (lostEarly.current) setRestoring(true);
       if (cancelWanted.current) await cancel();
-      return true;
+      return { conversationId: info.conversationId, streamId: result.streamId };
     } catch (error) { if (alive.current) { setIssue(errorText(error)); await refresh(); } return false; }
     finally { starting.current = false; locked.current = false; if (alive.current) { setWorking(false); if (!stream.current) setStopping(false); } }
   }
@@ -239,7 +247,7 @@ export function useConversation(zone: ZoneId) {
   const active = !!conversation?.activeStreamId && !activeView?.ended;
   const state = active ? activeView?.state === "idle" || restoring ? conversation?.state ?? "preparing_context" : activeView?.state ?? conversation?.state ?? "idle" : issue ? "error" : visibleTurns.at(-1)?.state ?? "idle";
   return { providers, providerId, model, setProviderId, setModel, sessions, conversation, turns: visibleTurns, view: activeView, context, setContext, prefs, loading, working, stopping, restoring,
-    active, state, issue, setIssue, notice, setNotice, invalidProvider, newConversation, send, cancel, bindRepository, reset, approve, restore, refresh, retry, list };
+    active, state, issue, setIssue, notice, setNotice, invalidProvider, newConversation, ensureConversation, send, cancel, bindRepository, reset, approve, restore, refresh, retry, list };
 }
 
 export type ConversationController = ReturnType<typeof useConversation>;

@@ -12,6 +12,7 @@ import type { FrameSample, Report } from "./diagnostics.ts";
 import { bridge, useBridgeEvent } from "../platform/bridge.ts";
 import { ArrowIcon } from "../components/Icon.tsx";
 import { ZoneIcon } from "../components/ZoneIcon.tsx";
+import type { VoiceSamples } from "../companion/voice/VoiceController.ts";
 
 class SceneBoundary extends Component<{ children: ReactNode; onError: () => void }, { failed: boolean }> {
   override state = { failed: false };
@@ -207,10 +208,22 @@ function BackgroundFrames({ enabled }: { enabled: boolean }) {
   return null;
 }
 
-export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart, focusCompanion, restorePose, cameraHandle }: {
+function CompanionRing({ state, samples, reduced }: { state: CompanionState; samples?: VoiceSamples; reduced: boolean }) {
+  const material = useRef<THREE.MeshBasicMaterial>(null);
+  const color = state === "error" ? "#a15c55" : state === "thinking" ? "#887b9b" : state === "speaking" ? "#6685ad" : state === "listening" ? "#56888c" : "#a2b1ad";
+  useFrame(() => {
+    if (!material.current) return;
+    material.current.color.set(color);
+    if (!reduced && samples?.phase === "listening") material.current.color.multiplyScalar(1 + samples.input * 0.12);
+  });
+  return <mesh position={[0, 0.132, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.17, 1.21, 64]} /><meshBasicMaterial ref={material} color={color} /></mesh>;
+}
+
+export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart, focusCompanion, restorePose, cameraHandle, voiceSamples }: {
   zone: ZoneId; revision: number; reducedMotion: boolean; maxDpr: number; state: CompanionState; speechLevel: number;
   report: Report; navigate: (zone: ZoneId) => void; restart: () => void; focusCompanion: () => void;
   restorePose?: CameraPose | null; cameraHandle?: Ref<StudioCameraHandle>;
+  voiceSamples?: VoiceSamples;
 }) {
   const buttons = useRef(new Map<ZoneId, HTMLButtonElement>());
   const startedAt = useRef(performance.now());
@@ -248,12 +261,9 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
           shadow-camera-left={-8} shadow-camera-right={8} shadow-camera-top={6} shadow-camera-bottom={-6} shadow-bias={-0.001} />
         <directionalLight position={[5, 5, -3]} intensity={1.1} color="#d7e5ef" />
         <World zone={zone} navigate={navigate} focusCompanion={focusCompanion} />
-        <mesh position={[0, 0.132, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[1.17, 1.21, 64]} />
-          <meshBasicMaterial color={state === "error" ? "#a15c55" : state === "thinking" ? "#887b9b" : state === "speaking" || state === "listening" ? "#56888c" : "#a2b1ad"} />
-        </mesh>
+        <CompanionRing state={state} samples={voiceSamples} reduced={reducedMotion} />
         <SceneBoundary onError={() => report({ status: "error", error: "Astra could not load. Check the model file and retry the scene." })}>
-          <Suspense fallback={null}><Astra startedAt={startedAt.current} state={state} speechLevel={speechLevel} reducedMotion={reducedMotion} report={report} /></Suspense>
+          <Suspense fallback={null}><Astra startedAt={startedAt.current} state={state} speechLevel={speechLevel} voiceSamples={voiceSamples} reducedMotion={reducedMotion} report={report} /></Suspense>
         </SceneBoundary>
         <CameraRig zone={zone} revision={revision} reducedMotion={reducedMotion} report={report} restorePose={restorePose} cameraHandle={cameraHandle} />
         <BackgroundFrames enabled={throttled} />

@@ -149,6 +149,16 @@ struct StudioWebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             (webView as? AuraWebView)?.takeKeyboardFocus()
+            if LiveVoiceObserver.isEnabled, !probeStarted {
+                probeStarted = true
+                Task { await LiveVoiceObserver.run(webView: webView) }
+                return
+            }
+            if VoiceProbe.isEnabled, !probeStarted {
+                probeStarted = true
+                Task { await VoiceProbe.run(webView: webView) }
+                return
+            }
             if AIProbe.isEnabled, !probeStarted {
                 probeStarted = true
                 Task { await AIProbe.run(webView: webView) }

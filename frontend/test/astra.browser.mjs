@@ -65,10 +65,11 @@ async function chooseRepository(page, fullName) {
 }
 try {
   const page = await open({ delaySend: 180, interval: 10 });
-  await check('Empty conversation is useful, accessible, and truthful about unavailable voice', async () => {
+  await check('Empty conversation is useful, accessible, and voice waits for explicit permission', async () => {
     await page.getByText('Start with the work', { exact: false }).waitFor();
-    assert.ok(await page.getByText('Text conversation · Voice unavailable', { exact: true }).isVisible());
-    assert.equal(await page.getByRole('button', { name: /start listening|talk with astra|microphone/i }).count(), 0);
+    await page.getByRole('button', { name: 'Talk with Astra', exact: true }).waitFor();
+    assert.ok(await page.getByText('Microphone access needed', { exact: true }).isVisible());
+    assert.equal(await page.evaluate(() => window.__astraTest.calls.filter(call => ['voice.startListening', 'voice.requestPermissions'].includes(call.method)).length), 0);
     await page.setViewportSize({ width: 1100, height: 700 });
     const transcript = page.locator('.conversation-transcript');
     assert.equal(await transcript.evaluate((node) => node.scrollTop), 0, 'the welcome view must start at its heading');

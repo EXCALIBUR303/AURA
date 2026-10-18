@@ -37,6 +37,22 @@ public struct Preferences: Codable, Equatable, Sendable {
         public var enabled: Bool
         public var locale: String
         public var synthesisVoiceId: String?
+        public var autoSpeakReplies: Bool
+        /// Pace relative to the voice's natural pace (see SpeechPace); 0.7–1.3.
+        public var speechRate: Double
+        public var allowServerRecognition: Bool
+
+        public static let defaultSpeechRate = 0.85
+        public static let speechRateRange = 0.7...1.3
+
+        public init(enabled: Bool, locale: String, synthesisVoiceId: String?, autoSpeakReplies: Bool = false, speechRate: Double = Voice.defaultSpeechRate, allowServerRecognition: Bool = false) {
+            self.enabled = enabled
+            self.locale = locale
+            self.synthesisVoiceId = synthesisVoiceId
+            self.autoSpeakReplies = autoSpeakReplies
+            self.speechRate = speechRate
+            self.allowServerRecognition = allowServerRecognition
+        }
     }
 
     public struct AI: Codable, Equatable, Sendable {
@@ -78,7 +94,7 @@ public struct Preferences: Codable, Equatable, Sendable {
     )
 
     // Optionals must encode as explicit `null` to match the TS types.
-    enum VoiceKeys: String, CodingKey { case enabled, locale, synthesisVoiceId }
+    enum VoiceKeys: String, CodingKey { case enabled, locale, synthesisVoiceId, autoSpeakReplies, speechRate, allowServerRecognition }
 }
 
 extension Preferences.Voice {
@@ -87,6 +103,24 @@ extension Preferences.Voice {
         try c.encode(enabled, forKey: .enabled)
         try c.encode(locale, forKey: .locale)
         try c.encode(synthesisVoiceId, forKey: .synthesisVoiceId)
+        try c.encode(autoSpeakReplies, forKey: .autoSpeakReplies)
+        try c.encode(speechRate, forKey: .speechRate)
+        try c.encode(allowServerRecognition, forKey: .allowServerRecognition)
+    }
+
+    /// Preferences stored before Phase 3C-D lack the speech fields; they get the defaults.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Preferences.VoiceKeys.self)
+        enabled = try c.decode(Bool.self, forKey: .enabled)
+        locale = try c.decode(String.self, forKey: .locale)
+        synthesisVoiceId = try c.decodeIfPresent(String.self, forKey: .synthesisVoiceId)
+        autoSpeakReplies = try c.decodeIfPresent(Bool.self, forKey: .autoSpeakReplies) ?? false
+        speechRate = Self.clampedRate(try c.decodeIfPresent(Double.self, forKey: .speechRate) ?? Self.defaultSpeechRate)
+        allowServerRecognition = try c.decodeIfPresent(Bool.self, forKey: .allowServerRecognition) ?? false
+    }
+
+    static func clampedRate(_ rate: Double) -> Double {
+        rate.isFinite ? min(max(rate, speechRateRange.lowerBound), speechRateRange.upperBound) : defaultSpeechRate
     }
 }
 
@@ -114,6 +148,9 @@ public struct PreferencesPatch: Codable, Equatable, Sendable {
         public var enabled: Bool?
         public var locale: String?
         public var synthesisVoiceId: String??
+        public var autoSpeakReplies: Bool?
+        public var speechRate: Double?
+        public var allowServerRecognition: Bool?
     }
 
     public struct AI: Codable, Equatable, Sendable {
@@ -149,6 +186,9 @@ public struct PreferencesPatch: Codable, Equatable, Sendable {
             if let enabled = voice.enabled { next.voice.enabled = enabled }
             if let locale = voice.locale { next.voice.locale = locale }
             if let id = voice.synthesisVoiceId { next.voice.synthesisVoiceId = id }
+            if let auto = voice.autoSpeakReplies { next.voice.autoSpeakReplies = auto }
+            if let rate = voice.speechRate { next.voice.speechRate = Preferences.Voice.clampedRate(rate) }
+            if let server = voice.allowServerRecognition { next.voice.allowServerRecognition = server }
         }
         if let ai {
             if let id = ai.defaultProviderId { next.ai.defaultProviderId = id }
@@ -165,12 +205,15 @@ public struct PreferencesPatch: Codable, Equatable, Sendable {
 
 // Double-optional decoding: absent key → nil (leave unchanged), explicit null → .some(nil) (clear).
 extension PreferencesPatch.Voice {
-    enum Keys: String, CodingKey { case enabled, locale, synthesisVoiceId }
+    enum Keys: String, CodingKey { case enabled, locale, synthesisVoiceId, autoSpeakReplies, speechRate, allowServerRecognition }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled)
         locale = try c.decodeIfPresent(String.self, forKey: .locale)
         synthesisVoiceId = c.contains(.synthesisVoiceId) ? .some(try c.decodeIfPresent(String.self, forKey: .synthesisVoiceId)) : nil
+        autoSpeakReplies = try c.decodeIfPresent(Bool.self, forKey: .autoSpeakReplies)
+        speechRate = try c.decodeIfPresent(Double.self, forKey: .speechRate)
+        allowServerRecognition = try c.decodeIfPresent(Bool.self, forKey: .allowServerRecognition)
     }
 }
 
@@ -856,24 +899,7 @@ public struct AIErrorPayload: Codable, Equatable, Sendable {
 
 // MARK: voice
 
-public enum PermissionState: String, Codable, Sendable {
-    case notDetermined = "not_determined"
-    case granted, denied, restricted
-}
-
-public struct VoiceStatus: Codable, Equatable, Sendable {
-    public var microphone: PermissionState
-    public var speechRecognition: PermissionState
-    public var listening: Bool
-    public var speaking: Bool
-
-    public static let initial = VoiceStatus(microphone: .notDetermined, speechRecognition: .notDetermined, listening: false, speaking: false)
-}
-
-public struct SpeakParams: Codable, Sendable {
-    public var text: String
-    public var interrupt: Bool?
-}
+// Voice types live in BridgeDomainVoice.swift.
 
 // MARK: app events
 

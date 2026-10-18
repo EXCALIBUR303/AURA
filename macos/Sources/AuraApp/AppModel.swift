@@ -16,6 +16,7 @@ final class AppModel {
     private(set) var currentZone: ZoneID?
     /// Set by the web view once it exists; events before that are dropped.
     @ObservationIgnored var deliverToWeb: ((String) -> Void)?
+    @ObservationIgnored private var voiceObservers: [NSObjectProtocol] = []
 
     var services: AppServices? {
         if case .ready(let services) = state { services } else { nil }
@@ -41,13 +42,16 @@ final class AppModel {
                 secrets: secrets,
                 github: LiveGitHubService(clientID: configuration.gitHubClientID, secrets: secrets),
                 credentialPrompt: { await CredentialPrompt.ask($0) },
+                voice: VoiceSystem.engines(),
                 deliverEvent: { [weak self] json in self?.deliverToWeb?(json) }
             )
             services.preferencesDidChange = { [weak self] prefs in self?.currentZone = prefs.lastZone }
+            if let controller = services.voiceController { voiceObservers = VoiceSystem.observeSleep(controller) }
             currentZone = try? await store.loadPreferences().lastZone
             Log.app.notice("started (\(configuration.environment.rawValue, privacy: .public))")
             state = .ready(services)
-            await services.github.restore()
+            // The voice probe and live observer skip the GitHub Keychain read so repeated launches need no Keychain prompt.
+            if !VoiceProbe.isEnabled, !LiveVoiceObserver.isEnabled { await services.github.restore() }
             if GitHubProbe.isEnabled { Task { await GitHubProbe.run(services.github) } }
         } catch {
             Log.app.fault("startup failed: \(String(describing: error), privacy: .public)")

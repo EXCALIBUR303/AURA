@@ -13,6 +13,8 @@ public final class AppServices {
     public let github: any GitHubService
     public let ai: AIService
     public let voice: any VoiceService
+    /// The live voice host when this build has voice (nil: `voice` is unavailable).
+    public let voiceController: VoiceController?
     /// Native secure prompt for API keys (AuraApp). Without one, ai.requestCredential is unavailable.
     public var credentialPrompt: AICredentialPrompt?
     /// Called after the page changes preferences, so native UI (menus) can follow.
@@ -27,14 +29,13 @@ public final class AppServices {
         aiProviderFactory: AIProviderRegistry.ProviderFactory? = nil,
         aiLimits: AIService.Limits = AIService.Limits(),
         credentialPrompt: AICredentialPrompt? = nil,
-        voice: any VoiceService = UnavailableVoiceService(),
+        voice voiceEngines: VoiceEngines? = nil,
         deliverEvent: @escaping @MainActor (String) -> Void
     ) {
         self.configuration = configuration
         self.store = store
         self.secrets = secrets
         self.github = github
-        self.voice = voice
         events = BridgeEventEmitter(deliver: deliverEvent)
         windowState = WindowStateStore(events: events)
         self.credentialPrompt = credentialPrompt
@@ -49,6 +50,18 @@ public final class AppServices {
             limits: aiLimits,
             tools: tools
         )
+        if let voiceEngines {
+            let controller = VoiceController(engines: voiceEngines, events: events, preferences: { (try? await store.loadPreferences()) ?? .defaults })
+            ai.replyObserver = controller
+            windowState.onChange = { [weak controller] state in
+                if !state.active || !state.visible { controller?.handle(.appInactive) }
+            }
+            voiceController = controller
+            voice = controller
+        } else {
+            voiceController = nil
+            voice = UnavailableVoiceService()
+        }
         registry.onChange = { [events, ai] infos in
             events.emit(.aiProvidersChanged, infos)
             ai.providersChanged(infos)
@@ -157,15 +170,35 @@ public final class AppServices {
         }
 
         router.register(.voiceGetStatus, Empty.self) { _ in await voice.status() }
+        router.register(.voiceGetCapabilities, Empty.self) { _ in await voice.capabilities() }
         router.register(.voiceRequestPermissions, Empty.self) { _ in try await voice.requestPermissions() }
-        router.register(.voiceStartListening, Empty.self) { _ in try await voice.startListening() }
-        router.register(.voiceStopListening, Empty.self) { _ in try await voice.stopListening() }
+        router.register(.voiceStartSession, StartVoiceSessionParams.self) { params in try await voice.startSession(conversationId: params.conversationId) }
+        router.register(.voiceEndSession, Empty.self) { _ in await voice.endSession() }
+        router.register(.voiceStartListening, StartListeningParams.self) { params in try await voice.startListening(mode: params.mode ?? .autoEnd) }
+        router.register(.voiceStopListening, Empty.self) { _ in await voice.stopListening() }
+        router.register(.voiceCancelListening, Empty.self) { _ in await voice.cancelListening() }
         router.register(.voiceSpeak, SpeakParams.self) { params in
             try await voice.speak(params.text, interrupt: params.interrupt ?? true)
             return Empty()
         }
+        router.register(.voiceSpeakReply, SpeakReplyParams.self) { params in
+            try await voice.speakReply(conversationId: params.conversationId, streamId: params.streamId)
+        }
         router.register(.voiceStopSpeaking, Empty.self) { _ in
-            try await voice.stopSpeaking()
+            await voice.stopSpeaking()
+            return Empty()
+        }
+        router.register(.voicePauseSpeaking, Empty.self) { _ in await voice.pauseSpeaking() }
+        router.register(.voiceResumeSpeaking, Empty.self) { _ in await voice.resumeSpeaking() }
+        router.register(.voiceReplay, Empty.self) { _ in try await voice.replay() }
+        router.register(.voiceSetOutputMuted, SetOutputMutedParams.self) { params in await voice.setOutputMuted(params.muted) }
+        router.register(.voiceListVoices, ListVoicesParams.self) { params in await voice.voices(locale: params.locale) }
+        router.register(.voiceOpenSettings, OpenVoiceSettingsParams.self) { params in
+            try await voice.openSettings(params.target)
+            return Empty()
+        }
+        router.register(.voiceInstallRecognitionAssets, Empty.self) { _ in
+            try await voice.installRecognitionAssets()
             return Empty()
         }
 

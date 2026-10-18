@@ -6,9 +6,11 @@ import * as THREE from "three";
 import type { CompanionState } from "@aura/contracts";
 import { AVATAR_URL } from "../validation/AvatarProbe.tsx";
 import type { Report } from "./diagnostics.ts";
+import type { VoiceSamples } from "../companion/voice/VoiceController.ts";
 
-export function Astra({ state, speechLevel, reducedMotion, report, startedAt }: {
+export function Astra({ state, speechLevel, reducedMotion, report, startedAt, voiceSamples }: {
   state: CompanionState; speechLevel: number; reducedMotion: boolean; report: Report; startedAt: number;
+  voiceSamples?: VoiceSamples;
 }) {
   // Both decoder flags are explicit: no remote Draco or Meshopt assets.
   const gltf = useGLTF(AVATAR_URL, false, false);
@@ -97,7 +99,8 @@ export function Astra({ state, speechLevel, reducedMotion, report, startedAt }: 
       rig.head.quaternion.multiply(rig.delta);
       rig.eyes.forEach((eye) => { if (eye) { rig.look.set(pitch * 0.3, yaw * 0.25, 0); eye.quaternion.multiply(rig.delta.setFromEuler(rig.look)); } });
     }
-    jawLevel.current = THREE.MathUtils.damp(jawLevel.current, speechLevel, 18, delta);
+    const level = voiceSamples ? voiceSamples.phase === "speaking" ? voiceSamples.output : 0 : speechLevel;
+    jawLevel.current = reducedMotion ? 0 : THREE.MathUtils.damp(jawLevel.current, level, 18, delta);
     if (rig.jaw) {
       rig.look.set(jawLevel.current * 0.18, 0, 0);
       rig.jaw.quaternion.multiply(rig.delta.setFromEuler(rig.look));
