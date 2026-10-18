@@ -1,12 +1,13 @@
 # Phase 3C-D — Astra voice frontend
 
-## Current checkpoint: Phase 5 visual and interaction audit
+## Current checkpoint: Phase 6 full frontend QA
 
-Phases 0–5 are complete. The running production voice frontend has been visually
-audited and refined from implementation commit
-`bc9f92c6b940c213abedb17e4d090e196b6d148f`. The owner's required **Phase 6 full QA**
-and **Phase 7 engineering handoff** are still pending. This is not a release or
-native hardware acceptance report. The earlier design checkpoint is
+Phases 0–6 are complete. The frontend regression matrix passes on the
+`codex/phase3c-d-voice-experience` branch through Phase 5 commit
+`55914f157b99c5373939187f701c477552d9e933`. The required **Phase 7 final engineering
+review and Claude handoff** are pending. Browser checks use the shared native-shaped
+mock in Chromium on Linux; they do not establish AURA.app, microphone, accessibility
+service or Mac hardware acceptance. The earlier design checkpoint is
 `ce0fa3eef6a3690e66b6670473115506bcc1a3e1`; completed work was not restarted.
 
 - Branch: `codex/phase3c-d-voice-experience`, created directly from remote
@@ -17,6 +18,48 @@ native hardware acceptance report. The earlier design checkpoint is
   those changes was performed.
 - No push, merge, native service edit, platform edit or contract change.
 - `/Applications/AURA.app` has not been touched.
+
+## Phase 6 regression results
+
+- `npm --prefix frontend run typecheck`: passed.
+- `npm --prefix frontend test`: passed. The Node launcher reports its grouped
+  bridge file as one test in this runner; direct `node shared/test/bridge.test.ts`
+  confirms **19/19**, zero failed or skipped.
+- `npm --prefix frontend run test:voice`: **18/18**, zero failed or skipped.
+- `npm --prefix frontend run build`: passed, 1,064 modules, no chunk-size warning.
+- Full Chromium suites: voice **20/20**, Astra **29/29**, GitHub **23/23**, and
+  Studio **28/28, zero skipped**. Total: **100/100 browser checks**.
+- Axe scans: voice 9, Astra 7, GitHub 7 and Studio 1. **24 scans, zero violations.**
+  Each browser suite reported zero page errors and zero external asset requests.
+- Voice coverage includes permission explainer and denial, native-unavailable and
+  older-host failure, no audio, no speech, lost Bluetooth input, recognition model
+  installation, mute, typed/editable drafts, auto-speak identity, cancel/stop/end,
+  keyboard focus, four desktop sizes, reduced-motion jaw settling and long captions
+  in compact/expanded/focus layouts.
+- Astra regression covers tool/approval privacy boundaries, conversation recovery,
+  repository scoping, typed keyboard navigation, resizing and Markdown rendering.
+  GitHub covers disconnect/connect/device auth, repository metadata, search/filter/
+  sorting/pagination, rate limits, errors, permissions and confirmation. Studio
+  covers the original GLB, attribution, six workstations, camera/mouse/keyboard,
+  window layouts, WebGL loss/recovery and reduced motion.
+- The source and production GLB checksums match at
+  `e9984ddc7e04a1b39d72f5ab5e1ba9fe459fc42e773f851bf52068b357eb76c1`. Original
+  XRProfXR and CC BY 4.0 credit remains visible. `macos/`, `shared/`,
+  `frontend/src/platform/` and `assets/` have no changes from native base `4087d11`.
+
+Evidence is outside Git under `/workspace/aura-phase3c-d/phase6/`:
+
+| Suite | Results and screenshots |
+|---|---|
+| Voice | `voice/results.json`, nine `axe-*.json`, state and layout screenshots |
+| Astra | `astra/results.json`, seven axe scans and conversation/approval screenshots |
+| GitHub | `github/github-results.json`, seven `accessibility-*.json` and auth/repository screenshots |
+| Studio | `studio/results.json`, accessibility scan and six-zone/3D screenshots |
+
+All browser runs used Chromium with ANGLE/SwiftShader. The final voice scene sample
+was 2 fps at DPR 1, with 14 draw calls and 79,802 scene triangles. This is a
+software-renderer functional result, not a performance benchmark. **Mac M5 ≥55 fps
+and all native voice acceptance remain pending.**
 
 ## Phase 5 refinements
 
@@ -174,8 +217,6 @@ Production build: **1,064 modules**, initial JS **1,388.45 kB / 385.72 kB gzip**
 size warning. The native base's initial JS was 1,362.98 / 378.78 kB gzip; the initial
 increase is about 25.47 kB / 6.94 kB gzip. No dependencies were added.
 
-This is implementation verification. The required Phase 6 matrix (including a
-fresh complete GitHub suite after any Phase 5 refinements) remains pending.
 The frontend-owned controller tests run with `npm --prefix frontend run test:voice`;
 the UI tests with `npm --prefix frontend run test:voice:browser` (external Playwright/
 axe module paths as in the design test command below). The application still runs
@@ -190,12 +231,11 @@ coverage.
 
 ### Remaining phase checkpoints
 
-1. **Phase 6: GPT-6 Luna / Medium.** Perform the full specified regression and
-   accessibility matrix, including GitHub, permission/device failures, cancellation,
-   all window sizes and reduced motion. Continue this branch without repeating
-   design or implementation. Phase 5 checks do not mark that phase complete.
-2. **Phase 7: GPT-6.1 Sol / High.** Final combined engineering review and exact
-   commit/handoff, then stop for owner review. No push or merge without approval.
+1. **Phase 7: GPT-6.1 Sol / High.** Review the combined implementation and Phase 6
+   evidence, address only integration defects, verify the handoff, then stop for
+   owner review. Continue this branch without repeating design, implementation or
+   the completed Phase 6 test matrix unless new changes require it. No push or merge
+   without approval.
 
 Physical microphone/speakers, real Bluetooth switching, OS permission prompts,
 SpeechAnalyzer/fallback/downloads, VoiceOver and Mac M5 performance remain pending
