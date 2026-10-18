@@ -1,28 +1,33 @@
-> M1 update: art direction and scaled floor plan are complete design deliverables.
-> Runtime/native functionality remains at M0. Continue M2 asset/blueprint work next;
-> the next required manual model change is Sol / Extra High before M3. The M0 audit
-> and native coordination requirements below remain applicable.
+# Phase 4 Codex → Claude checkpoint
 
-# Living Universe — Codex to Claude handoff
+**M0 audit, M1 art direction and M2 research/blueprint are complete as design work.**
+No Phase 4 world runtime is implemented yet. Branch: `codex/phase4-living-universe`,
+based on main `a67cda15538b16af4182c249bfc212ad39e41f38`. M0 commit `1d8981f`;
+M1 commit `f0a2370`; obtain the M2 tip with `git rev-parse HEAD` at this checkpoint.
+No push, merge or `/Applications/AURA.app` replacement has been performed.
 
-## Current boundary: Milestone 0 only
+The seven requested world documents and `frontend/design/phase4/` contain the
+scaled plan, palettes, camera/interaction/collision/load specifications, resource
+review ceilings and actual asset/source measurements. Three research GLBs remain
+outside Git; GlamVelvetSofa is preferred, SheenChair conditional, ornate sofa rejected.
+Detailed PC/peripherals/arcade assets remain unresolved. Direct HTTP catalogues were
+blocked by the environment; official Git sources were reviewed. These gaps block
+later room quality gates, not the existing-Hub migration.
 
-Branch: `codex/phase4-living-universe`, based on fetched main
-`a67cda15538b16af4182c249bfc212ad39e41f38`. This is the audit/migration checkpoint,
-**not Phase 4 integration-ready software**. No world runtime, new asset, dependency,
-native contract or service was changed. No push/merge or `/Applications/AURA.app`
-replacement. Preserve the user's existing worktrees and the merged main application.
+Current checks: typecheck/build pass, bridge **20/20**, voice controller **19/19**,
+909 plan clearance samples, two final design-sheet layouts/axe scans with zero
+violations, three isolated model loads/renders without external requests/errors.
+Full results and measured asset costs: [PHASE4_LIVING_UNIVERSE.md](PHASE4_LIVING_UNIVERSE.md)
+and [WORLD_ASSET_INVENTORY.md](WORLD_ASSET_INVENTORY.md). The M0 application browser
+baseline is retained; new world functionality and native performance are untested.
+Runtime/native/contracts/permissions/dependencies and original Astra are unchanged.
 
-M0 checks passed: TypeScript/build, 20 bridge tests, 19 voice-controller tests,
-asset inspection/checksum, nine focused browser checks and two zero-violation axe
-scans. Evidence and software-renderer limitations are in the audit, not native
-acceptance. Changes are the seven requested documents plus an appended TASKS entry.
-
-The next model is GPT-6 Astra / Extra High for M1 art direction. Do not begin M3
-implementation until M1 architectural plans and M2 licensed asset/blueprint gates
-are complete. Status and future ideas live in [WORLD_ROADMAP.md](WORLD_ROADMAP.md).
-The final M9 handoff must replace this checkpoint's status with actual implemented
-features, exact commit, results and unresolved items; do not claim planned features.
+**Stop for the owner's manual switch to GPT-6.1 Sol / Extra High, then M3.**
+Implement Atrium + existing-Hub navigation/load/camera/collision/input in frontend
+ownership, following the M2 acceptance checklist. Preserve the application state
+above room boundaries. Do not repeat the audit, integrate unsupported media/games,
+or begin detailed room expansion before the Hub quality gate. The M9 final handoff
+must replace this checkpoint with actual implementation and native acceptance work.
 
 ## Preserve the current native baseline
 

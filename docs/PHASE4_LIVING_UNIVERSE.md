@@ -2,9 +2,10 @@
 
 ## Current checkpoint
 
-M1 art direction is complete as a design specification. M2 asset research follows
-on GPT-6 Astra / High; no model switch is needed between these two design milestones.
-The application remains at the verified M0 baseline.
+M1 art direction and M2 research/blueprint deliverables are complete. The application
+remains at the verified M0 runtime baseline. Detailed PC/peripheral/arcade acquisition
+remains unresolved; this does not block M3 migration, but blocks later room-quality
+acceptance. Stop here for **GPT-6.1 Sol / Extra High** before M3.
 
 ## Milestone 0: audit and migration plan
 
@@ -165,8 +166,60 @@ Design sheet at 1440×900 and 1100×700: no horizontal overflow, images loaded, 
 errors; two axe scans with zero violations. Screenshots and helper evidence are
 outside Git in `/workspace/aura-phase4/m1/`. No new 3D performance measurement.
 
-## Next checkpoint
+## Milestone 2: assets, engineering research and room blueprint
 
-M2: **GPT-6 Astra / High**. Research actual assets/licences and engineering sources,
-then complete room interaction/collision/loading blueprints. Stop after M2 for
-**GPT-6.1 Sol / Extra High** before runtime implementation.
+Reviewed official Git repositories and three licensed furniture GLBs outside AURA.
+Shortlisted GlamVelvetSofa (4,196 measured triangles, 3.15 MB) for fitting, kept
+SheenChair conditional, and rejected the ornate heavier sofa. Recorded creator,
+source commit, licence, SHA-256, bytes, mesh/material/image counts, dimensions,
+modification status and credit requirements in WORLD_ASSET_INVENTORY. Screenshots
+were visually inspected. No binary, third-party code, dependency or skill installed
+in the application. Small sofa fit expands planned depth from 1.00 to 1.05 m.
+
+Direct public HTTP sources returned proxy 403; Git access worked. Catalogues remain
+unverified where inaccessible. Precise remaining PC/furniture/gaming assets and the
+required environment domain additions are recorded without replacing an unknown
+allowlist. M4 cannot pass with placeholder equipment. No asset issue was hidden by
+calling an unreviewed catalogue or geometric block production-ready.
+
+WORLD_ARCHITECTURE now specifies portal/floor collision, safe camera waypoints,
+cancellation, input ownership, staged room availability, bounded cache/disposal,
+state-backed screen limits, proposed resource ceilings and M3 checks. Reviewed R3F,
+Three controls, Rapier, glTF-Transform, gltfjsx and meshoptimizer. Simple authored
+collision is sufficient initially; no new physics or optimization dependency.
+WORLD_INTERACTION_MAP specifies stable scene action IDs, availability/reset/cleanup,
+bounded customization and game launch/pause/exit. P4-N1/P4-N2 stay native requests.
+
+Current checkpoint checks:
+
+- `npm --prefix frontend run typecheck`: pass.
+- `npm --prefix frontend test`: pass, one grouped test file; direct
+  `node shared/test/bridge.test.ts`: **20/20**, zero skipped.
+- `npm --prefix frontend run test:voice`: **19/19**, zero skipped.
+- `npm --prefix frontend run build`: pass, **1,064 modules**; same initial JS
+  **1,391.40 kB / 386.51 kB gzip**, no chunk warning. Design HTML/SVG/JSON and research
+  GLBs are excluded from the production output.
+- Updated plan: four room bounds, three aligned passages, all drawn furniture
+  bounds and **909** primary-route clearance samples pass.
+- Final design-sheet browser checks at **1440×900 / 1100×700**: no overflow, all
+  images loaded, no page errors; **two axe scans, zero violations**.
+- Three isolated local GLB renders pass without page errors or external requests;
+  measured counts are in the inventory. These are candidate studies, not new rooms.
+- Original Astra hash/credit and native/shared/platform/runtime/dependency boundaries
+  unchanged. No new tracked binary, credential or screenshot.
+
+M0's nine application browser checks are retained baseline evidence, **not rerun as
+new world acceptance**. Full world regression belongs to implementation milestones.
+No macOS build, physical audio acceptance or M5 performance revalidation occurred.
+Research evidence is `/workspace/aura-phase4/m2/research/`; final plan/sheet evidence
+is `/workspace/aura-phase4/m1/`. These local files are not substitutes for committed
+provenance: source URLs, pinned commits, licences and measurements are in the docs.
+
+## Required next checkpoint
+
+**GPT-6.1 Sol / Extra High — M3 Core Spatial World.** Continue on
+`codex/phase4-living-universe` from these design commits. Implement typed frontend
+room/edge registries, an Atrium + existing-Hub vertical slice, safe loading/camera/
+input/collision and native-zone adapter. Keep unavailable room doors honest until
+M5. Preserve persistent developer/voice state and original Astra. Do not redo M0,
+upgrade dependencies or start M4 hero replacements as part of the M3 foundation.

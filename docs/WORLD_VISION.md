@@ -81,8 +81,8 @@ An east entry looks over a warm rug and sculpted seating toward a north window.
 Low horizontal furniture, uneven but balanced books/plants and fabric seams create
 comfort. Warm wood and forest upholstery carry color; ceiling/plaster remain cream.
 
-- Sofa (0,−1.1), 2.6 × 1, faces +Z; coffee table (0,0.5), 1.2 × 0.6, top 0.38 m.
-  Sofa/table edge gap 0.8 m. Rug 3.6 × 3, with no raised collision edge.
+- Sofa (0,−1.1), maximum 2.6 × 1.05, faces +Z; coffee table (0,0.5), 1.2 × 0.6, top 0.38 m.
+  Sofa/table edge gap approximately 0.78 m. Rug 3.6 × 3, with no raised collision edge.
 - Armchair (−2.4,0.7), bound ≤1.1 × 1.1 including rotation; alternate approved slot
   (−2.4,1.5). Floor lamp (−2.1,−1.9); west-wall bookshelf; media/storage console
   (0,3.55), 2.8 × 0.45. Window and curtains on north wall Z=−4.
@@ -99,7 +99,7 @@ screens. No illuminated trim around every wall.
 
 - Desk (2.6,−2.55), 2.4 × 0.8; chair (2.6,−1.35), ≤0.8 × 0.8. Arcade (−2.9,−2.6),
   target 0.85 × 1, height 1.85; north display 2.4 m wide; console below at
-  (0,−3.45), 2 × 0.5. Sofa (0,1.7), 2.5 × 1, faces −Z.
+  (0,−3.45), 2 × 0.5. Sofa (0,1.7), maximum 2.5 × 1.05, faces −Z.
 - Entry route (−4.5,0) → (0,0) → (2.6,−0.2); keep Z=−0.7…0.7 clear before the
   desk approach. East shelf X=4.1, depth 0.4; Astra slot (−2.8,2.5).
 - All displays open one launcher with actual availability. Use generic licensed

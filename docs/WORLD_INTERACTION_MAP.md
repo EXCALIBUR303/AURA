@@ -1,6 +1,6 @@
 # World interaction map
 
-Status: Milestone 0 requirements and proposed adapters. Existing Project Hub
+Status: M0 requirements plus M2 action blueprint. Existing Project Hub
 functions are implemented; physical new-room controls below are planned only.
 
 ## Proposed physical-to-functional mapping
@@ -59,3 +59,62 @@ without real state may show a clearly labelled local illustration, never telemet
 
 Durable controls depend on [P4-N1](WORLD_ARCHITECTURE.md#preferences-and-native-request-p4-n1).
 Until approved native persistence exists, explicitly describe changes as session-only.
+
+## M2 room-level action blueprint
+
+IDs below are frontend scene IDs, not new bridge methods. Each action routes through
+one adapter with the same availability and error behavior from raycast and keyboard
+HUD. Scene-only controls are session-only until P4-N1 lands. Object locations and
+maximum footprints come from WORLD_VISION/blueprint.json; actual colliders follow
+fitted mesh bounds. No actions in this table have been newly implemented in M2.
+
+| Stable object/action | Target and focus | State / reset / ownership |
+|---|---|---|
+| `atrium.map` / `open-map` | Plinth at local (2.5,2.4); DOM map button always reachable | Available/loading/planned/error for each room; retry/cancel; return focus to opener |
+| `door.atrium-hub`, `door.atrium-living`, `door.atrium-gaming` / `travel` | Actual 2.4 m portal plus named map entry; shared edge adapter | Planned destination has no active travel; loading keeps barrier; safe crossing/return; no side effects on AI/context |
+| `hub.hardware.pc` / `inspect-hardware` | Hardware outer desktop; focus at M1 detail pose, simplified chassis hit volume | Selection shows only authored parts present in model. Reset restores pose. Missing components are not offered as inspectable |
+| `hub.hardware.monitor` / `open-hardware` | Northwest bay screen and keyboard workspace button | Existing `hardware` selection/project inspector; local hardware illustration explicitly labelled |
+| `hub.software.monitor` / `open-software` | Northeast desk, front-of-screen constrained camera | Existing `software` selection, selected repository metadata only; no fabricated editor/source |
+| `hub.ai.console` / `open-ai` | Southwest desk; existing provider and conversation panel | `ai-lab` remains native authority; configured model/status only. Future model-management location has no invented install/switch service |
+| `hub.github.monitor` / `open-github` | Southeast desk, portrait display; accessible explorer action | Existing `github` auth/search/selection/errors; world preview clears on sign-out. Manual categories still update current projects through existing path |
+| `hub.pc.fan` / scene power option | Only a separately authored fan rotor, if the model provides one | Ambient rotation only when visible/powered/motion allowed. Not a hardware sensor or physical Mac fan control; not clickable unless real scene option exposed |
+| `companion.actor` / `open-companion` | Single 1.75 m actor, simplified stable proxy | Existing companion flow/voice events. No second session. Open panel works even if actor is in a different room |
+| `companion.placement` / `bring-here` | Only room's authored clear Astra anchor | Explicit relocation of same actor; short transition or immediate reduced motion; no walking/follow claim or automatic speech |
+| `living.lamp` / `toggle-light` | Floor lamp outside entry route; matching HUD switch | Actual assigned scene light and emissive state toggle together; disabled/error if no light binding; restore preset resets it |
+| `living.curtain` / `set-curtain` | Window-recess mesh; keyboard Open/Close | Bounded 0…1 transform with model-supported folds/pivots; static collision. Interrupted motion continues from current value; reduced motion snaps |
+| `living.armchair` / `choose-slot` | Only (−2.4,0.7) or (−2.4,1.5), footprint ≤1.1² | Validate slot/clearance, reject invalid without changing scene; Reset returns authored slot. No free-drag editor or fake Save |
+| `living.decor` / `inspect` | A few licensed/authored books/art objects, not every shelf item | Real title/creator/material/provenance; no invented book contents. Focus and Return only unless an actual extra action exists |
+| `living.media` | Storage/display, decorative until player exists | Explain unavailable media in room tools; no Play/Connect button and no audio starts |
+| `gaming.launcher` / `open-games` | Main display and arcade share launcher; DOM launcher button | Empty list clearly states no games installed. Future entries show availability reason; no uninstalled item launches |
+| `gaming.light` / `set-ambience` | Real authored practicals; room settings panel | Changes bounded light preset, not provider/game state; Reset available, session-only disclosure |
+| `world.presentation` / `set-mode` | HUD settings, no disguised glowing object | Static/floating/hybrid; intensity 0…1. Only eligible screens/decor move ≤0.12 m vertically with ≤0.015 m idle drift; Reduce Motion disables drift/transition |
+| `world.lighting` / `set-preset` | HUD named Daylight/Sunset/Night choices | Applied room light/material rig; accessible pressed state; no setting claims persistence before native support |
+
+For floating objects, keep a stable expanded hit envelope covering all allowed
+visual displacement; use the authored anchor for focus. It must not create an
+invisible blocking collider above a walkable floor. Architecture, furniture, player
+colliders and Astra's ground contact never levitate. Static/hybrid are not animation
+intensity synonyms: they select eligibility, then intensity affects allowed offsets.
+
+### Game contract and exit matrix
+
+No game is installed by M2, and no sample is presented as playable. M5 implements
+an empty, honest registry and launcher. A future registry entry needs a stable ID,
+name/description, locally licensed preview, availability reason, lazy `entry`, input
+requirements, embedded/fullscreen mode, and explicit pause/resume/dispose. Expose
+save-state only for a game with a real versioned implementation. Require these
+capabilities at registration rather than reflecting arbitrary object methods.
+
+| Trigger | Required behavior |
+|---|---|
+| Launch installed game | Snapshot room/camera; await native capture cancellation and speech stop through existing frontend coordinator; release pointer lock; transfer input only after success |
+| Native stop/cancel failure | Keep safe launcher state with Retry/Cancel; do not hide an active mic behind the game |
+| Pause / blur / hidden window | Pause game and world work as appropriate; show a keyboard-accessible pause/exit surface; no automatic input reacquisition |
+| Resume | Deliberate user action, only if installed runtime supports it; no restart of mic or speech |
+| Exit / map / native workspace shortcut | Dispose game resources/timers/listeners; restore safe world pose/focus; then perform requested navigation |
+| Failed load / runtime error | Error boundary releases exclusive input and partial resources; return to launcher/room with Retry where valid |
+| Dispose twice / cancel while importing | Idempotent cleanup, ignore stale import completion; no orphan renderer or new game after cancellation |
+
+A small original game can be proposed after the gaming room passes its quality
+slice. There is no paid/commercial game, streaming service or new native privilege
+in this blueprint.
