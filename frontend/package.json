@@ -20,7 +20,9 @@
     "test:world": "node test/world.test.ts",
     "test:world:browser": "node test/world.browser.mjs",
     "test:voice": "node test/voice-controller.test.ts",
-    "test:voice:browser": "node test/voice.browser.mjs"
+    "test:voice:browser": "node test/voice.browser.mjs",
+    "assets:workstation": "blender -b --factory-startup --disable-autoexec --python asset-pipeline/workstation.py -- --output public/world/workstation.glb",
+    "test:equipment:browser": "node test/equipment.browser.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

@@ -45,6 +45,7 @@ export class WorldController {
     this.patch({selectedZone:zone});const room=restore?.room&&ROOMS[restore.room].availability==="available"?restore.room:"project-hub";
     void this.request(room,restore??zonePose(zone),"workspace");
   };
+  inspect=(pose:CameraPose)=>{void this.request(pose.room??this.snapshot.room,pose,"travel");};
   retry=()=>{const r=this.retryRequest;if(r)void this.request(r.room,r.pose,r.kind);};
   arrive=(id:number)=>{const request=this.snapshot.request;if(!request||request.id!==id)return;this.lastPose=request.pose;this.patch({room:request.room,pending:undefined,phase:"idle",mode:"inspect",request:undefined,error:undefined});};
   updatePose=(pose:CameraPose)=>{this.lastPose={position:[...pose.position],target:[...pose.target],room:pose.room??this.snapshot.room};};

@@ -1,3 +1,4 @@
+import { EMPTY_SCREEN_STATE } from "../world/assets/MonitorAtlas.tsx";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { VoicePhase, VoiceRecovery, VoiceOption } from "@aura/contracts";
 import fixturesRaw from "../../../shared/fixtures/bridge-messages.json?raw";
@@ -65,7 +66,7 @@ const Scene = memo(function Scene({ reduced }: { reduced: boolean }) {
   }, []);
   const restart = useCallback(() => { setSceneKey((key) => key + 1); setStatus("loading"); }, []);
   const stay = useCallback(() => {}, []);
-  return <><Studio key={sceneKey} zone="companion" revision={0} reducedMotion={reduced} maxDpr={1} state="idle" speechLevel={0} report={report} navigate={stay} restart={restart} focusCompanion={stay} world={snapshot} worldController={controller} openWorldMap={stay} />
+  return <><Studio key={sceneKey} zone="companion" revision={0} reducedMotion={reduced} maxDpr={1} state="idle" speechLevel={0} report={report} navigate={stay} restart={restart} focusCompanion={stay} world={snapshot} worldController={controller} inspectEquipment={()=>{}} selectedEquipment={null} screens={EMPTY_SCREEN_STATE} openWorldMap={stay} />
     {status !== "loaded" && <div className="vd-scene-feedback" role="status">{status === "error" ? <>Studio could not load. <button onClick={restart}>Retry scene</button></> : "Loading original Astra Lumen II…"}</div>}</>;
 });
 

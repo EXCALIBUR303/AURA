@@ -1,6 +1,6 @@
 # World architecture — M3 runtime and extension blueprint
 
-M3 implements the Hub/Atrium foundation below; future asset/game/environment and
+M3–4 implement the Hub/Atrium foundation, equipment/assets/interactions; game/environment and
 customization records remain extension specifications until their milestones.
 `src/world/types.ts`, `registry.ts`, `WorldController.ts`, `collision.ts`,
 `WorldNavigation.tsx`, `WorldScene.tsx`, `WorldHUD.tsx` and `rooms/*` are the
@@ -92,6 +92,36 @@ Context-loss recovery restores supported world/navigation state and releases obs
 loads. Separate long-lived Astra/shared resources from disposable room assets; do
 not mutate/dispose a shared useGLTF cache from an unrelated room's unmount. Bound
 cache lifetime and measure repeated visits. Do not preload every game/room on launch.
+
+
+## M4 asset and interaction implementation
+
+`assets/resources.ts` owns local GLTFLoader entries with room owner sets, pending
+load deduplication, required-root validation and disposal after the new React room
+set commits. Original Astra stays in its existing cache/lifetime. A failed required
+model prevents opening the destination and keeps tools/retry available. Canceled
+unowned parses dispose on completion. No remote URI/decoder is present in the
+inspected GLB. Source JS modules may stay cached; disposable GPU resources do not
+use that code cache as a lifetime policy.
+
+`assets/Equipment.tsx` merges transformed static model copies by shared material;
+only the wood material is cloned for the original room texture. One instanced
+rotor mesh replaces twelve per-object animation draw calls. It pauses when inactive
+or Reduce Motion is set. Stable hit proxies do not move. Original buffer/material
+ownership stays with the resource manager; merged room buffers/textures are disposed
+by the room instance.
+
+`interactions/registry.ts` defines stable IDs, category, label, native ZoneId adapter,
+focus pose and hit bounds. `EquipmentPanel` is a dismissible keyboard alternative
+with component information/action/return. App saves the prior checked camera;
+inspection leaves native zone/context unchanged, while Open workspace invokes the
+existing adapter. Existing native navigation clears obsolete selection.
+
+One `MonitorAtlas` reflects authorized selected repository metadata and real
+companion/provider/model state. It does not fetch source, credentials, telemetry
+or another provider service. Hardware is explicitly an authored illustration.
+Canvas text is bounded plain text. The atlas updates on state changes and at most
+2 Hz for a real active companion indicator; no React update loop per frame.
 
 ## Camera, input and collision
 

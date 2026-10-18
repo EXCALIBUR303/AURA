@@ -1,8 +1,9 @@
 # World asset inventory
 
 Status: M0 baseline retained; M2 reviewed candidates and measurements are below.
-Three research GLBs were acquired outside the checkout. No new model/texture/tool/
-skill is installed in AURA, and no binary has been committed.
+Three research GLBs were acquired outside the checkout. M4 now integrates an original locally generated workstation kit; research seating
+remains outside the app until M5. No third-party tool/skill installed and no binary
+has been committed.
 
 ## M3 foundation resources
 
@@ -187,3 +188,49 @@ Environment settings: `polyhaven.com`, `api.polyhaven.com`, `kenney.nl`,
 host). The current allowlist cannot be read here, so it was **not replaced**. Git
 research remains usable. This does not block M3's atrium + existing-hub migration;
 it does prevent declaring the later detailed rooms complete.
+
+## Milestone 4 — original workstation kit
+
+External PC catalogues remained inaccessible, so the hero equipment is original
+modeled work, not an inadequate block substitute. Source:
+`frontend/asset-pipeline/workstation.py`; creator: original Project AURA asset,
+authored for this repository with Codex. Project asset rights remain with the
+project; no unrelated third-party licence or dedication is invented. No external
+mesh, logo, texture, addon or code is incorporated. Source and rights/modification
+record: `frontend/public/world/CREDITS.txt` and pipeline README.
+
+Generated ignored file: `frontend/public/world/workstation.glb`, **1,002,184 bytes**;
+SHA-256 `9c76a40861e39c10b7fc7d8616dcb999ffa9a22b7de3271c49fd22971841a75b`.
+Blender 4.3.2 / glTF exporter 4.3.47, metre scale, Y up, front +Z, clean common
+origins. No required extension, external URI, codec, image or animation clip.
+Full file **22,328 triangles / 33 primitives / 10 shared materials**; runtime room
+copies are merged by material, fan rotors instanced, not 33 calls per PC.
+
+| Model | Triangles | Visible construction |
+|---|---:|---|
+| Desk | 1,836 | Rounded walnut top, trestles, tray, grommets, levelling feet |
+| Task chair | 3,876 | Sculpted seat/back/lumbar, arms, gas lift, five-star base/casters |
+| PC | 7,668 | Open frame, glass, slats, fan surrounds, board, fins, memory, expansion card, cabling/ports/feet |
+| Fan rotor | 964 | Seven shaped blades and hub; 12 bounded room instances |
+| Monitor | 1,076 | Bezel, rear vents, VESA form, stand/base and power point |
+| Keyboard | 3,188 | Separate beveled keycaps and spacebar |
+| Mouse / speaker / laptop | 464 / 732 / 2,480 | Shaped shell/wheel, drivers, hinged screen/keys/trackpad |
+
+Materials: painted graphite, bare aluminium/copper, walnut, fabric, plastic/rubber,
+circuit board, restrained power point and single-layer alpha glass. Original
+512² wood/stone canvas textures and a single 2048×1024 application-state monitor
+atlas are generated locally. Colour maps are sRGB; no downloaded image/HDRI or
+postprocess. Monitor atlas uploads only on state changes and up to 2 Hz during
+real companion activity. No actual source code, credential, endpoint, fake sensor
+reading or synthetic repository activity appears.
+
+Read-only generated metadata is committed as `workstation.manifest.json`; generated
+GLB remains ignored. A new checkout must copy it or reproduce using the committed
+Blender command. No requirement to manually operate Blender and no production
+Blender dependency. The original Astra file is unchanged.
+
+Rendered evidence: `/workspace/aura-phase4/m4/hub.png`, `pc.png` and
+`equipment/` desktop/laptop screenshots (shared mock data only). Overview measured
+**51 calls / 250,204 rendered triangles** including shadows. Initial 270,154-triangle
+composition was reduced by simplifying tiny fan blades, with actual close-up review.
+Native M5 performance remains pending; no cloud FPS equivalence is claimed.

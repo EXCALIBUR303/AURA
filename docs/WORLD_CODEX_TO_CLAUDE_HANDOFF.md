@@ -1,25 +1,28 @@
 # Phase 4 Codex → Claude checkpoint
 
-**M0–2 design/research and M3 core spatial world are complete locally.**
+**M0–2 design/research and M3 core spatial world and M4 workstation are complete locally.**
 Branch `codex/phase4-living-universe`, main base
 `a67cda15538b16af4182c249bfc212ad39e41f38`; use `git log` for milestone commits.
 This is an intermediate checkpoint, not the M9 native-validation handoff.
 
 Hub + Atrium are connected physical rooms with bounded lazy modules, safe camera
 modes/collisions, E passage/continuous WASD traversal, cancellable cinematic travel
-and accessible map. Living/Gaming remain planned/closed. Existing developer state,
+and accessible map. Living/Gaming remain planned/closed. Detailed original GLB equipment, state-backed
+monitor atlas and reusable PC inspection/return now pass the M4 frontend gate. Existing developer state,
 original Astra and native contracts/permissions remain intact. No native/shared/
 platform/dependency changes. No binaries, screenshots, push, merge or installation.
 
-M3 TypeScript/build pass; bridge 20/20, voice controller 19/19, world unit 16/16,
-world browser 13/13, Studio browser 28/28, five zero-violation axe scans. No browser
+M4 TypeScript/build pass; bridge 20/20, voice controller 19/19, world unit 18/18,
+equipment browser 6/6, world browser 13/13, Studio browser 28/28, seven
+zero-violation axe scans. No browser
 errors/external requests. Details/screenshots/counters:
 [PHASE4_LIVING_UNIVERSE.md](PHASE4_LIVING_UNIVERSE.md#milestone-3-core-spatial-world).
-Final SwiftShader sample 3 fps/DPR1/25 calls/80,306 triangles; no native acceptance.
-Detailed PC/peripheral/arcade asset quality remains pending. Two researched seating
+M4 overview SwiftShader 2–3 fps/DPR1/51 calls/250,204 triangles; no native acceptance.
+Original kit binary is ignored: copy or reproduce with `frontend/asset-pipeline/README.md`.
+Arcade quality remains M5 work. Two researched seating
 candidates have reviewed licences; no research GLB is installed in the app yet.
 
-Continue M4 on GPT-6.1 Sol / High, then M5–6. Stop after M6 for the owner's manual
+Continue M5–6 on GPT-6.1 Sol / High. Stop after M6 for the owner's manual
 switch to GPT-6 Astra / Extra High. Do not repeat the completed audit or broaden
 native contracts. The M9 handoff must replace this intermediate checkpoint.
 

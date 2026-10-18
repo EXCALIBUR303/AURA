@@ -2,10 +2,10 @@
 
 ## Current checkpoint
 
-M3 core spatial world is implemented on `codex/phase4-living-universe` after the
+M3 core spatial world and M4 workstation are implemented on `codex/phase4-living-universe` after the
 owner's manual model checkpoint. Atrium + Project Hub form the verified vertical
-slice. Living and Gaming remain closed/planned until M5. Detailed equipment and
-room furnishing are not claimed complete. M4 continues with GPT-6.1 Sol / High;
+slice. Living and Gaming remain closed/planned until M5. Detailed workstation equipment is verified; Living/Gaming furnishing remains M5.
+M5 continues with GPT-6.1 Sol / High;
 no model change is needed. Stop after M6 for Astra / Extra High.
 
 ## Milestone 0: audit and migration plan
@@ -267,3 +267,44 @@ hero assets, real-state monitor surfaces and reusable inspection/action/return
 before expanding into M5. Then M6 customization/motion; required stop for
 GPT-6 Astra / Extra High after M6. Do not repeat completed audits or claim full
 Phase 4 acceptance from this foundation.
+
+## Milestone 4: workstation implementation evidence
+
+Recommended model/effort: GPT-6.1 Sol / High; same model continues after M3.
+Replaced primitive workstation furniture/equipment with an original offline-authored
+GLB kit, with detailed PC internals, glass/ventilation, sculpted task chairs,
+rounded desks, monitors/laptop, keycaps, mice and speaker drivers. Blender source,
+read-only inspector, reproduction instructions, provenance and generated manifest
+are committed text; the 1,002,184-byte GLB remains ignored. The original Astra and
+CC BY attribution are unchanged. No external script, addon, dependency or service.
+
+Added room-scoped asset owner/disposal boundaries, required-model failure/retry,
+material batching, instanced reduced-motion-aware fan rotors, original wood/stone
+textures, room-inside key lighting and distinct workspace panels/rugs/shelves.
+Reusable equipment registry/keyboard panel supports actual PC click, component
+information, native workspace action and exact prior camera return. A single
+bounded monitor atlas shows real project/branch/language/last-push/auth and actual
+companion/provider/model state. No fake hardware or source data. Hardware screens
+explicitly identify an authored local illustration.
+
+M4 evidence so far: TypeScript/build pass, direct bridge **20/20**, grouped npm test
+passes, voice controller **19/19**, world unit **18/18**, new equipment browser
+**6/6**, world browser **13/13**; five combined axe scans with zero violations,
+zero uncaught page errors/external requests. Equipment tests cover actual PC
+raycast, four keyboard camera targets, real tool opening, camera/draft preservation,
+laptop layout and missing-model/retry. Existing full Studio browser also passes **28/28**, zero skipped, with two further
+zero-violation axe scans (**seven** M4 scans total).
+
+Actual overview: SwiftShader **2–3 fps, DPR1, 51 calls/250,204 rendered triangles**.
+Final equipment sample 3 fps/51 calls/250,204 triangles, 43 geometries/14 textures/
+16 programs after camera/selection visits. World repeat-visit test ends at
+2 fps/66 calls/251,380 triangles, 51 geometries/15 textures/18 programs with
+Hub+Atrium loaded. Browser resource-growth assertions pass. These are measured
+software-GPU costs, not ≥55 fps M5 acceptance. Native regressions remain pending.
+
+Screenshots/results: `/workspace/aura-phase4/m4/equipment/`, `world/`, `studio/`;
+original overview/close-up at `m4/hub.png` and `m4/pc.png`; M3 screenshots supply
+before views. Tests use labelled shared mock repositories and no private data.
+Build 1,082 modules; entry JS 503.37 kB + shared Architecture chunk 918.06 kB,
+CSS68.14 kB. These are split chunks, not a claimed reduction in total application
+payload. Native/shared/platform/permissions/contracts/lockfile remain unchanged.

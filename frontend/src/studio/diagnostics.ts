@@ -20,6 +20,7 @@ export interface StudioDiagnostics extends AvatarDiagnostics {
   drawCalls?: number;
   sceneTriangles?: number;
   resources?: { geometries: number; textures: number; programs: number };
+  assets?: {id:string;owners:RoomId[];ready:boolean;loading:boolean}[];
   animationTime?: number;
   camera?: { position: [number, number, number]; target: [number, number, number]; fov?: number };
   rig?: { head: boolean; eyes: boolean; jaw: boolean; jawAngle: number; headYaw: number; headPitch: number };

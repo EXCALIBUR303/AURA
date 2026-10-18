@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useGLTF } from "@react-three/drei";
 import type { AppInfo, ZoneId } from "@aura/contracts";
@@ -20,6 +20,8 @@ import { CompanionWorkspace } from "./companion/CompanionWorkspace.tsx";
 import type { CompanionHandle, CompanionPresentation, ConversationLayout } from "./companion/CompanionWorkspace.tsx";
 import type { VoiceSamples } from "./companion/voice/VoiceController.ts";
 import { useWorld } from "./world/useWorld.ts";
+import { EquipmentPanel } from "./world/interactions/EquipmentPanel.tsx";
+import { interactionById } from "./world/interactions/registry.ts";
 import { WorldHUD } from "./world/WorldHUD.tsx";
 import { ROOMS } from "./world/registry.ts";
 import "./studio.css";
@@ -33,6 +35,8 @@ export function App() {
   const clearRestorePose = useCallback(() => setRestorePose(null), []);
   const studio = useStudio(clearRestorePose);
   const {controller: worldController, snapshot: world} = useWorld();
+  const [equipmentOpen,setEquipmentOpen] = useState(false),[equipmentId,setEquipmentId] = useState<string|null>(null);
+  const equipmentReturn=useRef<CameraPose|null>(null);
   const [worldMapOpen,setWorldMapOpen] = useState(false);
   const openWorldMap=useCallback(()=>setWorldMapOpen(true),[]);
   useEffect(()=>{ worldController.focusWorkspace(studio.zone,restorePose); },[worldController,studio.zone,studio.revision,restorePose]);
@@ -78,7 +82,7 @@ export function App() {
     if (zoneRef.current !== "companion") previousView.current = { zone: zoneRef.current, pose: camera.current?.capture() };
     setRestorePose(null); studio.navigate("companion"); setLayout("expanded"); companion.current?.focus();
   }, [studio.navigate]);
-  const reportCompanion = useCallback((value: CompanionPresentation) => setPresentation((current) => current.state === value.state && current.activity === value.activity && current.label === value.label ? current : value), []);
+  const reportCompanion = useCallback((value: CompanionPresentation) => setPresentation((current) => current.state === value.state && current.activity === value.activity && current.label === value.label && current.provider===value.provider && current.model===value.model ? current : value), []);
   const resize = useCallback((width: number | null) => setPaneWidth(width === null ? null : Math.max(440, Math.min(650, innerWidth - 600, width))), []);
   useEffect(() => { const update = () => { setWindowWidth(innerWidth); if (innerWidth <= 1250 && zoneRef.current === "github") setInspectorOpen(false); setPaneWidth((width) => width === null ? null : Math.max(440, Math.min(650, innerWidth - 600, width))); }; window.addEventListener("resize", update); return () => window.removeEventListener("resize", update); }, []);
   useEffect(() => { if (["hardware", "software", "ai-lab"].includes(studio.zone) || studio.zone === "github" && innerWidth > 1250) setInspectorOpen(true); if (studio.zone !== "companion" && layoutRef.current === "focus" || studio.zone === "companion" && layoutRef.current === "compact") setLayout("expanded"); }, [studio.zone]);
@@ -88,6 +92,10 @@ export function App() {
   useEffect(() => { const keydown = (event: KeyboardEvent) => { if (event.repeat) return; if (bridge.transportKind === "mock" && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setCommandOpen(true); } }; window.addEventListener("keydown", keydown); return () => window.removeEventListener("keydown", keydown); }, []);
   const useProject = () => { changeLayout("expanded"); companion.current?.context(true); };
   const zone = getZone(studio.zone), project = github.repos.find((repo) => repo.fullName === github.selected);
+  const screens=useMemo(()=>({project:project?.name??"",branch:github.selectedBranch,language:project?.primaryLanguage??"",description:project?.description??"",repositoryCount:github.repos.length,githubState:github.auth?.state??"loading",companion:presentation.label,provider:presentation.provider??"No provider configured",model:presentation.model??"No model selected",updated:project?.pushedAt?.slice(0,10)??"",activity:presentation.state,mock:bridge.transportKind==="mock"}),[project,github.selectedBranch,github.repos.length,github.auth?.state,presentation.label,presentation.state,presentation.provider,presentation.model]);
+  const inspectEquipment=useCallback((id:string)=>{const item=interactionById(id);if(!item)return;if(!equipmentReturn.current)equipmentReturn.current=worldController.capture();setEquipmentId(id);setEquipmentOpen(true);worldController.inspect(item.focus);},[worldController]);
+  const returnEquipment=()=>{setEquipmentOpen(false);setEquipmentId(null);const saved=equipmentReturn.current;equipmentReturn.current=null;if(saved)worldController.inspect(saved);};
+  useEffect(()=>{setEquipmentOpen(false);setEquipmentId(null);equipmentReturn.current=null;},[studio.zone,world.room]);
   const inHub = world.room === "project-hub";
   const inspector = inspectorOpen && layout === "compact" && inHub;
   const width = paneWidth ?? Math.min(500, Math.max(440, windowWidth / 3));
@@ -99,8 +107,10 @@ export function App() {
     <div className="workspace-context-strip"><span><span className="mono">{String(ZONES.findIndex((item) => item.id === studio.zone) + 1).padStart(2, "0")}</span>{zone.label}</span><div>{project && <button className="selected-project-chip" title="Choose this project for conversation context" onClick={useProject}><ZoneIcon zone="github" size={14} /><span>{project.name}</span><code>{github.selectedBranch}</code><UiIcon name="plus" /></button>}{studio.zone === "companion" && previousView.current && <button onClick={returnToView}><UiIcon name="back" />Previous view</button>}<button aria-pressed={inspector} onClick={() => { changeLayout("compact"); setInspectorOpen(!inspector); }}><UiIcon name="file" />{inspector ? "Hide inspector" : "Project inspector"}</button><button onClick={() => { setLayout("expanded"); companion.current?.focus(); }}><ZoneIcon zone="companion" size={14} />Astra</button></div></div>
     <main className="workspace">
       <section className={`viewport ${studio.zone === "github" && inHub ? "exploring" : ""}`} aria-label="Interactive 3D studio">
-        {probe ? <AvatarProbe report={report} maxPixelRatio={studio.prefs?.graphics.maxPixelRatio ?? 2} /> : <StableStudio key={sceneKey} zone={studio.zone} revision={studio.revision} reducedMotion={studio.reducedMotion} maxDpr={studio.prefs?.graphics.maxPixelRatio ?? 2} state={presentation.state} speechLevel={0} voiceSamples={voiceSamples.current} report={report} navigate={navigate} restart={restart} focusCompanion={focusCompanion} cameraHandle={camera} world={world} worldController={worldController} openWorldMap={openWorldMap} />}
+        {probe ? <AvatarProbe report={report} maxPixelRatio={studio.prefs?.graphics.maxPixelRatio ?? 2} /> : <StableStudio key={sceneKey} zone={studio.zone} revision={studio.revision} reducedMotion={studio.reducedMotion} maxDpr={studio.prefs?.graphics.maxPixelRatio ?? 2} state={presentation.state} speechLevel={0} voiceSamples={voiceSamples.current} report={report} navigate={navigate} restart={restart} focusCompanion={focusCompanion} cameraHandle={camera} world={world} worldController={worldController} openWorldMap={openWorldMap} inspectEquipment={inspectEquipment} selectedEquipment={equipmentId} screens={screens} />}
         <WorldHUD controller={worldController} snapshot={world} mapOpen={worldMapOpen} setMapOpen={setWorldMapOpen}/>
+        {inHub && <button className="equipment-trigger" aria-expanded={equipmentOpen} onClick={()=>{if(equipmentOpen)returnEquipment();else{equipmentReturn.current=worldController.capture();setEquipmentOpen(true);}}}>Equipment</button>}
+        {equipmentOpen && inHub && <EquipmentPanel selected={equipmentId} select={inspectEquipment} ready={world.phase==="idle"} close={returnEquipment} openTool={zone=>{setEquipmentOpen(false);setEquipmentId(null);equipmentReturn.current=null;navigate(zone);}}/>}
         {!inHub && <div className="viewport-heading"><div className="eyebrow">AURA / CONNECTED WORLD</div><h1>{ROOMS[world.room].title}</h1><p>{ROOMS[world.room].description}</p><div className="view-actions"><button onClick={()=>worldController.travel("project-hub")}>Return to Project Hub</button></div></div>}
         {inHub && studio.zone !== "github" && <div className="viewport-heading"><div className="eyebrow">A PERSONAL DEVELOPMENT STUDIO</div><h1>{zone.id === "studio" ? <>Room to <em>think clearly.</em></> : zone.id === "companion" ? <>Astra, <em>alongside.</em></> : zone.label}</h1><p>{zone.caption}</p><div className="view-actions"><button onClick={() => navigate("studio")}><ArrowIcon reset /> Reset overview</button><span>Drag to orbit · scroll to explore</span></div></div>}
         {studio.zone === "github" && <RepositoryExplorer workspace={github} navigate={navigate} visible={inHub} />}

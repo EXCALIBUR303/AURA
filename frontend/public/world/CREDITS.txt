@@ -1,0 +1,8 @@
+AURA original workstation kit
+Creator: original Project AURA asset, authored for this repository with Codex.
+Source: frontend/asset-pipeline/workstation.py in this repository.
+Rights: original project asset; no third-party meshes, textures, marks or logos.
+Generated file: workstation.glb (Git-ignored; not approved for binary commit).
+Modification history: initial original modeling; metre scale/Y-up GLB export;
+static model parts merged by material. Runtime copies are batched, not file edits.
+Astra Lumen II is separate and unchanged; see /avatar/astra-lumen/CREDITS.txt.

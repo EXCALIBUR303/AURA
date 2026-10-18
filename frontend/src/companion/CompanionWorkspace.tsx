@@ -18,7 +18,7 @@ const ProviderSettings = lazy(() => import("./ProviderSettings.tsx").then((modul
 const VoiceSettings = lazy(() => import("./voice/VoiceSettings.tsx").then((module) => ({ default: module.VoiceSettings })));
 
 export type ConversationLayout = "compact" | "expanded" | "focus";
-export type CompanionPresentation = { state: CompanionState; activity: AITurnState; label: string };
+export type CompanionPresentation = { state: CompanionState; activity: AITurnState; label: string; provider?:string; model?:string };
 export type CompanionHandle = { focus: () => void; context: (selected?: boolean) => void; providers: () => void; newConversation: () => void };
 const labels: Record<AITurnState, string> = { idle: "Ready", completed: "Reply complete", cancelled: "Reply stopped", preparing_context: "Preparing context", requesting: "Thinking", streaming: "Responding", waiting_for_tool: "Reading project context", waiting_for_approval: "Your approval is needed", error: "Reply unavailable" };
 
@@ -50,7 +50,7 @@ export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayo
   const voiceActive = phase && ["starting", "listening", "recognizing", "thinking", "speaking", "interrupted", "error"].includes(phase);
   const speakState: CompanionState = state === "waiting_for_approval" ? "thinking" : phase === "error" ? "error" : phase === "starting" || phase === "listening" ? "listening" : phase === "recognizing" || phase === "thinking" ? "thinking" : phase === "speaking" ? "speaking" : phase === "interrupted" ? "idle" : state === "error" ? "error" : c.active ? "thinking" : "idle";
   const presentationLabel = state === "waiting_for_approval" ? labels[state] : voiceActive ? voiceLabel(voice.view) : labels[state];
-  useEffect(() => { report({ state: speakState, activity: state, label: presentationLabel }); }, [report, speakState, state, presentationLabel]);
+  useEffect(() => { report({ state: speakState, activity: state, label: presentationLabel, provider:conversation?.providerName??provider?.displayName, model:c.model }); }, [report, speakState, state, presentationLabel, conversation?.providerName, provider?.displayName, c.model]);
   async function newConversation(provider?: string, model?: string) { await voice.controller.end(); await c.newConversation(provider, model); }
   useImperativeHandle(ref, () => ({
     focus: () => { changeLayout("expanded"); requestAnimationFrame(() => prompt.current?.focus({ preventScroll: true })); },

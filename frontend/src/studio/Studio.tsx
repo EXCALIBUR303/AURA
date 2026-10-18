@@ -4,6 +4,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import type { CompanionState, WindowState, ZoneId } from "@aura/contracts";
+import type { ScreenState } from "../world/assets/MonitorAtlas.tsx";
+import { assetSummary } from "../world/assets/resources.ts";
 import { World } from "./World.tsx";
 import { Astra } from "./Astra.tsx";
 import { getZone, ZONES } from "./zones.ts";
@@ -73,7 +75,7 @@ function Measurements({ zone, room, throttled, report, lowerDpr }: { zone: ZoneI
       };
     }
     const orbit = controls as OrbitControlsImpl | null;
-    report({ fps, drawCalls: sample.drawCalls, sceneTriangles: sample.triangles, resources: {geometries:gl.info.memory.geometries,textures:gl.info.memory.textures,programs:gl.info.programs?.length ?? 0}, perZone: { ...samples.current }, perRoom: { ...roomSamples.current },
+    report({ assets:assetSummary(), fps, drawCalls: sample.drawCalls, sceneTriangles: sample.triangles, resources: {geometries:gl.info.memory.geometries,textures:gl.info.memory.textures,programs:gl.info.programs?.length ?? 0}, perZone: { ...samples.current }, perRoom: { ...roomSamples.current },
       cameraSampledAt: Date.now(), camera: { position: camera.position.toArray(), target: orbit?.target.toArray() ?? [0, 0, 0],
         fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : undefined },
       renderer: { webgl2: gl.capabilities.isWebGL2, pixelRatio: sample.pixelRatio,
@@ -185,11 +187,11 @@ function CompanionRing({ state, samples, reduced }: { state: CompanionState; sam
   return <mesh position={[0, 0.132, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[.37, .4, 48]} /><meshBasicMaterial ref={material} color={color} /></mesh>;
 }
 
-export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart, focusCompanion, cameraHandle, voiceSamples, world, worldController, openWorldMap }: {
+export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart, focusCompanion, cameraHandle, voiceSamples, world, worldController, openWorldMap, inspectEquipment, selectedEquipment, screens }: {
   zone: ZoneId; revision: number; reducedMotion: boolean; maxDpr: number; state: CompanionState; speechLevel: number;
   report: Report; navigate: (zone: ZoneId) => void; restart: () => void; focusCompanion: () => void;
   cameraHandle?: Ref<StudioCameraHandle>; world: WorldSnapshot; worldController: WorldController; openWorldMap: () => void;
-  voiceSamples?: VoiceSamples;
+  voiceSamples?: VoiceSamples; inspectEquipment:(id:string)=>void;selectedEquipment:string|null;screens:ScreenState;
 }) {
   const buttons = useRef(new Map<ZoneId, HTMLButtonElement>());
   const startedAt = useRef(performance.now());
@@ -222,7 +224,7 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
         fallback={<p>WebGL2 is unavailable. Your workstation and companion controls remain accessible.</p>}
         onCreated={({ gl }) => { gl.domElement.tabIndex = 0; gl.domElement.setAttribute("aria-label", "AURA 3D world"); gl.outputColorSpace = THREE.SRGBColorSpace; gl.toneMapping = THREE.ACESFilmicToneMapping; report({ context: "ready", graphicsAvailable: true, error: undefined, status: "loading" }); }}>
         <WorldScene snapshot={world} travel={worldController.travel} openMap={openWorldMap}>
-          <group position={[0,-.0625,0]}><World zone={zone} navigate={navigate} focusCompanion={focusCompanion} /></group>
+          <World zone={zone} navigate={navigate} focusCompanion={focusCompanion} inspect={inspectEquipment} selected={selectedEquipment} reduced={reducedMotion} active={rendering && hostWindow.active && world.phase === "idle"} screens={screens}/>
         </WorldScene>
         <group position={[ASTRA_HOME[0],-.0625,ASTRA_HOME[2]]} visible={world.loaded.includes("project-hub")}>
         <CompanionRing state={state} samples={voiceSamples} reduced={reducedMotion} />

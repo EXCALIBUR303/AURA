@@ -6,3 +6,14 @@
 @media(max-width:1250px){.world-room-name,.world-hud-divider{display:none}.experience .viewport-heading{top:68px;max-width:calc(100% - 180px)}.experience .companion-pill{top:70px}}@media(max-height:800px){.experience .viewport-heading{top:66px}.experience .viewport-heading>p,.experience .viewport-heading .eyebrow{display:none}.experience .viewport-heading h1{font-size:21px}.experience .companion-pill{top:68px}.world-feedback{top:147px}}
 
 .experience .github-explorer{inset:66px 0 0}
+.equipment-trigger { position:absolute;z-index:7;right:20px;top:15px;padding:8px 13px;background:#f5f2e9;border:1px solid #c6cdc8;border-radius:9px;color:#293f46;font-size:12px;box-shadow:0 3px 12px #16313a12; }
+.equipment-panel { position:absolute;z-index:9;right:18px;top:111px;bottom:90px;width:min(340px,calc(100% - 36px));overflow:auto;color:#293f46;background:#f5f3ec;border:1px solid #c5cdc6;border-radius:15px;box-shadow:0 12px 36px #152e3b22; }
+.equipment-panel header { display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 10px; }
+.equipment-panel h2 { margin:6px 0 0;font-size:20px;line-height:1.2;font-weight:550; }
+.equipment-panel h3 {font-size:14px;margin:16px 0 5px;}
+.equipment-body { padding:8px 18px 20px; }
+.equipment-panel p {font-size:12px;line-height:1.65;color:#50616a;}
+.equipment-components,.equipment-actions {display:flex;flex-wrap:wrap;gap:7px;margin-top:18px;}
+.equipment-components button {font-size:11px;padding:7px 9px;border-radius:7px;background:#e8ece5;color:#364b51;}
+.equipment-components button[aria-pressed=true] {background:#294e55;color:#fff;}
+.equipment-actions button {font-size:12px;padding:9px 11px;}

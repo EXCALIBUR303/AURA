@@ -1,7 +1,7 @@
 # AURA world vision — Milestone 1
 
-Status: design specification complete; M3 Hub/Atrium foundation implemented.
-Detailed equipment and furnished Living/Gaming remain later milestones. Dimensions
+Status: design specification complete; M3 Hub/Atrium foundation and M4 detailed workstation implemented.
+Furnished Living/Gaming remain the next milestone. Dimensions
 below are design constraints, not performance results or full-room acceptance.
 M3 rendered-camera refinement: Hub introduction world `(0,2.6,-7.5)`, target
 `(0,1,-11.7)` supplies safe ceiling headroom for bounded orbit/zoom. The
@@ -219,3 +219,15 @@ truthful mock labels. Missing hero assets block room completion, not core naviga
 | Gaming close-up | Recognizable cabinet/controller/console; licensed art; truthful launcher state |
 | Astra | Original proportions/materials/idle; floor contact, clear face, visible CC BY 4.0 |
 | Motion / low tier | Stable hit targets, safe cameras, essential silhouettes and UI retained |
+
+## M4 rendered workstation refinement
+
+Original fitted GLB equipment replaces the weak block props: transparent engineered
+PCs, sculpted task chairs, rounded trestle desks and real keycaps/stands/drivers.
+Four subdued material rugs, engraved workspace panels, walnut shelves and local
+stone/wood textures ground the bays. An interior ceiling-height key light produces
+contact shadows inside the enclosed shell; a light above an opaque ceiling had
+flattened the earlier view. One bounded shadow pass remains. No bloom/postprocess,
+remote environment map or arbitrary CSS colour filter was introduced. Evidence and
+actual geometry costs are in the inventory; M7 still performs the complete visual
+audit after the other two furnished rooms exist.

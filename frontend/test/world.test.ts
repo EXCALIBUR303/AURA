@@ -77,3 +77,14 @@ test("opening a passage loads its floor without changing the camera, mode or sel
 test("pointer release during a door load stays released after the module arrives",async()=>{
   let release!:(module:RoomModule)=>void;const c=new WorldController(id=>id==="atrium"?new Promise(r=>{release=r;}):Promise.resolve(module));c.focusWorkspace("studio");await tick();c.arrive(c.getSnapshot().request!.id);c.setMode("explore");c.openDoor("atrium");c.setMode("inspect");release(module);await tick();assert.equal(c.getSnapshot().mode,"inspect");assert.equal(c.getSnapshot().phase,"idle");
 });
+
+test("equipment registry retains native adapters, unique stable IDs and collision-safe fitted poses",async()=>{
+  const {EQUIPMENT}=await import("../src/world/interactions/registry.ts");const geometry=worldGeometry(["project-hub"]);
+  assert.equal(new Set(EQUIPMENT.map(e=>e.id)).size,EQUIPMENT.length);
+  assert.deepEqual([...new Set(EQUIPMENT.map(e=>e.zone))].sort(),["ai-lab","github","hardware","software"]);
+  for(const item of EQUIPMENT){assert.ok(safePoint(item.focus.position,geometry.floors,geometry.colliders,.12,false),item.id);assert.ok(item.proxy.size.every(v=>Number.isFinite(v)&&v>0));assert.ok(item.focus.target.every(Number.isFinite));}
+});
+test("object inspection preserves the selected logical workspace and restores its exact physical pose",async()=>{
+  const {EQUIPMENT}=await import("../src/world/interactions/registry.ts");const c=await ready();c.focusWorkspace("software");await tick();c.arrive(c.getSnapshot().request!.id);const prior=c.capture();
+  c.inspect(EQUIPMENT[0]!.focus);await tick();c.arrive(c.getSnapshot().request!.id);assert.equal(c.getSnapshot().selectedZone,"software");c.inspect(prior);await tick();c.arrive(c.getSnapshot().request!.id);assert.deepEqual(c.capture(),prior);assert.equal(c.getSnapshot().selectedZone,"software");
+});

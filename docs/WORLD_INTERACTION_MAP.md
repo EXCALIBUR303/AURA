@@ -1,6 +1,6 @@
 # World interaction map
 
-Status: M3 Hub/Atrium navigation implemented; later-room/equipment actions remain
+Status: M3 Hub/Atrium navigation implemented; later-room actions remain
 planned as identified below. Accessible map and portal clicks travel through checked
 cinematic paths. In Explore, E opens a nearby passage without teleportation, WASD
 walks the real corridor, and Esc releases capture. Closed Living/Gaming entries
@@ -11,10 +11,10 @@ map travel preserves developer context and drafts. Modal opening cancels capture
 
 | Room / object | Category | Meaningful action and source | Status |
 |---|---|---|---|
-| Hub / hardware workstation | Functional + inspectable | Focus native `hardware` view, existing project list/inspector; component inspection only for real authored metadata | Current navigation exists; new equipment/inspection planned |
-| Hub / software monitors | Functional | `software`, selected repository/branch and existing project details; do not invent source code or activity | Current tools exist; screen adapter planned |
-| Hub / AI console | Functional | `ai-lab`, existing provider/model configuration and permitted conversation state; no separate provider runtime or fake inference stats | Current tools exist; console adapter planned |
-| Hub / repository display | Functional | `github`, existing auth/explorer/commits and selected repository | Current explorer exists; physical display planned |
+| Hub / hardware workstation | Functional + inspectable | Focus native `hardware` view, existing project list/inspector; component inspection only for real authored metadata | Implemented M4: PC inspection + original hardware tool |
+| Hub / software monitors | Functional | `software`, selected repository/branch and existing project details; do not invent source code or activity | Implemented M4: metadata atlas + existing workspace |
+| Hub / AI console | Functional | `ai-lab`, existing provider/model configuration and permitted conversation state; no separate provider runtime or fake inference stats | Implemented M4: actual provider/model/state atlas + original tools |
+| Hub / repository display | Functional | `github`, existing auth/explorer/commits and selected repository | Implemented M4: actual repository/auth/last-push metadata + original explorer |
 | Hub / Astra | Functional | Existing companion conversation, explicit Talk/⌥Space, Stop/Pause/Resume/Replay/Mute/End and real levels | Implemented; preserve across rooms |
 | Hub / fan | Ambient or customizable | Local authored rotation only when enabled, visible, powered and motion allowed; label as scene control, not system cooling telemetry | Planned |
 | Atrium / doors + map | Functional | Room graph travel, truthful availability/load/error/retry/cancel | Planned |
@@ -122,3 +122,13 @@ capabilities at registration rather than reflecting arbitrary object methods.
 A small original game can be proposed after the gaming room passes its quality
 slice. There is no paid/commercial game, streaming service or new native privilege
 in this blueprint.
+
+## M4 verified equipment behavior
+
+All four PC proxies open reusable inspection without changing logical selection;
+all four display proxies open the corresponding existing workspace. Equipment
+selector provides keyboard access, component descriptions distinguish modeled
+content from sensors, and Return restores the exact saved pose. Hover/selection
+is a restrained stable proxy tint. The first-person route/colliders do not float.
+Missing required GLB offers Retry room while text/native controls remain available.
+The equipment panel is nonmodal, dismissible, opaque and scrollable at 1100×700.
