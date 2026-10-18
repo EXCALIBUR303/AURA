@@ -72,7 +72,7 @@ In every case the microphone indicator in the rail ends as "Microphone off", and
 | `tools/build-app.sh Release` / `Debug` | Built, no warnings |
 | In-app probes: Release (12 scenarios) and Debug + Vite (flow) | All checks passed (§2–3) |
 
-The last full run predates the probe-only commit `faaaa68`. **A final routine regression is still pending** (§8).
+**Final regression, re-run on `5644ad9` (includes the probe commit `faaaa68`):** every row above passed again with identical counts: typecheck, bridge 19/19, controller 18/18, Chromium voice 20/20, Astra 29/29, GitHub 23/23 and Studio 28/28 (the suite summaries), 25 axe scans with 0 violations, Swift 218/218 with 0 warnings, and Release and Debug builds with no errors or warnings.
 
 ## 5. Performance (M5, bundled Release app, DPR 2, no physical recording)
 
@@ -117,9 +117,9 @@ The last full run predates the probe-only commit `faaaa68`. **A final routine re
 - **In-app GitHub/Keychain re-check on this build.** It needs one Keychain prompt for the new ad-hoc signature. The code is unchanged since the 3C-C validation, where it passed.
 - **Hosted (billable) inference:** not requested and not run.
 
-## 8. Next step
+## 8. Conclusion
 
-The final routine regression on the review branch (`typecheck`, `test`, `test:voice`, four browser suites with axe, `swift-test.sh`, Release and Debug builds) and the closing of this report. Recommended model: **Claude Sonnet 5.5, Medium effort**.
+Native integration is validated with deterministic fixtures, and the final regression is complete. Voice is **not fully accepted**: the §7 device-dependent and owner-present tests have not been run. Next: you run the §7 tests with me when ready, then the Phase 3C-D branches can be reviewed for push and merge. Nothing has been pushed or merged.
 
 ## 9. Artifacts (outside git)
 
