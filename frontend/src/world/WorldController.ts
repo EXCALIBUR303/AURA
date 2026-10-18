@@ -1,10 +1,12 @@
+import { DEFAULT_ROOM_OPTIONS, roomOptionsPatch } from "./settings.ts";
+import type { RoomOptions } from "./settings.ts";
 import type { ZoneId } from "@aura/contracts";
-import { ROOMS, zonePose } from "./registry.ts";
+import { ROOMS, zonePose, connectionFor } from "./registry.ts";
 import { safeLanding } from "./collision.ts";
 import type { CameraMode, CameraPose, RoomId, RoomModule, WorldSnapshot } from "./types.ts";
 
 export class WorldController {
-  private snapshot:WorldSnapshot={room:"project-hub",mode:"inspect",phase:"preparing",modules:{},loaded:[],selectedZone:"studio"};
+  private snapshot:WorldSnapshot={options:{...DEFAULT_ROOM_OPTIONS},room:"project-hub",mode:"inspect",phase:"preparing",modules:{},loaded:[],selectedZone:"studio"};
   private listeners=new Set<()=>void>();
   private generation=0;
   private pendingLoads=new Map<RoomId,Promise<RoomModule>>();
@@ -29,7 +31,7 @@ export class WorldController {
     try{
       const module=await this.load(room);if(id!==this.generation)return;
       // Only current + destination room instances are retained; shared Astra lives above these modules.
-      const keep=[...new Set([this.snapshot.room,room])].filter(r=>r===room||this.snapshot.modules[r]);
+      const keep=[...new Set([this.snapshot.room,room])].filter(r=>r===room||!!connectionFor(r,room)&&this.snapshot.modules[r]);
       const modules:Partial<Record<RoomId,RoomModule>>={};for(const r of keep)modules[r]=r===room?module:this.snapshot.modules[r];
       if(kind==="door")this.patch({phase:"idle",pending:undefined,error:undefined,loaded:keep,modules,request:undefined});
       else this.patch({phase:"travelling",loaded:keep,modules,request:{id,room,pose:{...pose,room},kind}});
@@ -40,6 +42,7 @@ export class WorldController {
   }
   travel=(room:RoomId)=>{if(room===this.snapshot.room&&this.snapshot.phase==="idle")return;void this.request(room,ROOMS[room].introduction,"travel");};
   openDoor=(room:RoomId)=>{if(this.snapshot.phase!=="idle"||this.snapshot.loaded.includes(room))return;void this.request(room,this.capture(),"door");};
+  setRoomOptions=(patch:Partial<RoomOptions>)=>this.patch({options:roomOptionsPatch(this.snapshot.options,patch)});
   clearIssue=()=>this.patch({error:undefined});
   focusWorkspace=(zone:ZoneId,restore?:CameraPose|null)=>{
     this.patch({selectedZone:zone});const room=restore?.room&&ROOMS[restore.room].availability==="available"?restore.room:"project-hub";

@@ -2,10 +2,10 @@
 
 ## Current checkpoint
 
-M3 core spatial world and M4 workstation are implemented on `codex/phase4-living-universe` after the
+M3 core spatial world, M4 workstation and M5 separate rooms are implemented on `codex/phase4-living-universe` after the
 owner's manual model checkpoint. Atrium + Project Hub form the verified vertical
-slice. Living and Gaming remain closed/planned until M5. Detailed workstation equipment is verified; Living/Gaming furnishing remains M5.
-M5 continues with GPT-6.1 Sol / High;
+slice. Living and Gaming are distinct furnished modules with functional scene controls
+and a truthful upcoming game library. M6 customization continues with GPT-6.1 Sol / High;
 no model change is needed. Stop after M6 for Astra / Extra High.
 
 ## Milestone 0: audit and migration plan
@@ -260,7 +260,7 @@ Build: 1,075 modules; main JS 1,415.14 kB (393.85 kB gzip), CSS 67.00 kB
 shared, platform, contract, permission, original asset or lockfile changes.
 No binary/screenshot committed, push, merge or app installation.
 
-## Next work
+## Next work (historical M3 gate; superseded by milestones below)
 
 M4 Premium Workstation — GPT-6.1 Sol / High. Complete detailed licensed/original
 hero assets, real-state monitor surfaces and reusable inspection/action/return
@@ -308,3 +308,61 @@ before views. Tests use labelled shared mock repositories and no private data.
 Build 1,082 modules; entry JS 503.37 kB + shared Architecture chunk 918.06 kB,
 CSS68.14 kB. These are split chunks, not a claimed reduction in total application
 payload. Native/shared/platform/permissions/contracts/lockfile remain unchanged.
+
+## Milestone 5: separate Living and Gaming
+
+Recommended model/effort: GPT-6.1 Sol / High. M4 frontend quality gate was committed
+as `1d93e8a` before room expansion. Added separate lazy furnished modules at the
+approved floor-plan origins, side corridors, two-sided closed-door collisions and
+fitted room/furniture colliders. The map now offers all three destinations. Adjacent
+travel uses loaded paths; nonadjacent map visits explicitly allow direct placement
+and retain only the destination, avoiding two unrelated detailed rooms in memory.
+WASD exploration uses the real Atrium corridors. No new native logical zones.
+
+Living includes reviewed original sofa and chair, original authored walnut furniture,
+books, lamps, pleated curtains, pointed-leaf plants, rug, artwork/window study and
+media display. Gaming includes a recognizable original arcade/controller/console,
+large display, detailed PC/desk/chair, shelves and navy sofa. Gaming camera was
+refined from rendered evidence to world `(9.5,2.2,3.25)`, target `(11,1,-1.8)` to
+frame the arcade and desk together. Living cloth has bounded runtime forest/
+terracotta variations; lamp/curtain/palette controls persist for the session across
+room resource eviction. No durable preference or fake media service.
+
+The Sofa and Chair binary hashes are unchanged. Source lights are disabled per
+instance, mesh materials cloned for supported variants, models floor-recentered
+without stretching or modifying originals. Furniture credits are accessible in-app;
+original Astra/visible CC BY remain. Original room authoring source, manifest and
+all licences/provenance are text in the repository; generated and reviewed GLBs
+remain ignored. Pipeline instructions reproduce/copy them on a new checkout.
+
+Game registry defines availability, entry point, input/presentation, pause/resume,
+cleanup and optional save capability. No installed entry, Play action, game binary
+or save claim. `GameSession` provides cancellable lazy start/late-result cleanup,
+exclusive input preparation, pause/exit and exact world restoration for future
+installed entries. The native voice handshake uses existing methods only and
+refuses uncertain release; no automatic mic restart. Its six unit cases use
+explicit test-only runtimes, not a playable production demo or live host acceptance.
+A small original circuit puzzle is a possible later proposal, not installed scope.
+
+M5 TypeScript/build pass, grouped bridge test pass (direct M4 20/20 retained), voice
+controller **19/19**, world unit **20/20**, game lifecycle unit **6/6**, furnished
+room browser **8/8**, **six** zero-violation axe scans. Browser suite verifies room
+assets/metadata, real controls, game truthfulness, focus, drafts/native workspace
+return, attribution/laptop layout, twelve repeated cross-room visits/resource
+bounds, missing licensed sofa and retry. No uncaught page errors/external requests.
+World/Studio/Astra/GitHub/voice broad browser regression remains the later QA gate;
+M4 Studio28/world13 results are retained earlier evidence, not new M5 reruns.
+
+An initial render exposed mixed UV attributes in original leaf batches; fixed by
+normalizing absent UVs/normals and rejecting invalid batches. Palette selector has
+an explicit accessible name. Final actual room evidence:
+`/workspace/aura-phase4/m5/rooms/` (results, six axe reports and screenshots).
+Early independent render: Living **4 fps/48 calls/113,428 triangles**, Gaming
+**3 fps/66 calls/80,548 triangles**, SwiftShader/DPR1. Room-suite samples are in
+its results JSON. These are browser measurements, not M5 hardware acceptance.
+Native pointer lock, hardware audio/accessibility and ≥55fps remain pending.
+
+Build: 1,095 modules; main 518.15 kB + shared Architecture918.09 kB; CSS69.35 kB;
+Living/Gaming/RoomDetails are separate lazy chunks. No dependency/lockfile/native/
+shared/platform/permission/contract changes. No binary/screenshot commit or push/
+merge/install. Next M6 on Sol/High; required Astra/Extra High stop follows M6.

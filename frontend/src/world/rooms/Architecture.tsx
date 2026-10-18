@@ -17,13 +17,13 @@ export function Sign({label,detail,position,rotation=0}:{label:string;detail:str
   useEffect(()=>{texture.needsUpdate=true;return()=>texture.dispose();},[texture]);
   return <mesh position={position} rotation={[0,rotation,0]}><planeGeometry args={[2.3,.575]}/><meshBasicMaterial map={texture}/></mesh>;
 }
-export function Portal({side,at,open,label,detail,onSelect}:{side:"north"|"south"|"east"|"west";at:Point;open:boolean;label:string;detail:string;onSelect:()=>void}){
+export function Portal({side,at,open,label,detail,onSelect,showSign=true}:{showSign?:boolean;side:"north"|"south"|"east"|"west";at:Point;open:boolean;label:string;detail:string;onSelect:()=>void}){
   const yaw=side==="north"?0:side==="south"?Math.PI:side==="west"?Math.PI/2:-Math.PI/2;
   return <group position={at} rotation={[0,yaw,0]}>
     {[-1.31,1.31].map(x=><Block key={x} at={[x,1.45,0]} size={[.22,2.9,.32]} color="#716d61"/>)}
     <Block at={[0,2.91,0]} size={[2.84,.22,.32]} color="#716d61"/>
     <mesh position={[0,1.4,.025]} visible={!open} castShadow><boxGeometry args={[2.4,2.8,.1]}/><meshStandardMaterial color="#394851" roughness={.6}/></mesh>
-    <Sign label={label} detail={detail} position={[0,3.23,.19]}/>
+    {showSign&&<Sign label={label} detail={detail} position={[0,3.23,.19]}/>}
     <mesh position={[0,1.4,.15]} visible={false} onClick={e=>{e.stopPropagation();onSelect();}} onPointerOver={e=>{(e.nativeEvent.target as HTMLCanvasElement).style.cursor="pointer";}} onPointerOut={e=>{(e.nativeEvent.target as HTMLCanvasElement).style.cursor="";}}><boxGeometry args={[2.4,2.8,.1]}/><meshBasicMaterial/></mesh>
   </group>;
 }

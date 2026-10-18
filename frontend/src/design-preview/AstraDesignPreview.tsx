@@ -65,7 +65,7 @@ const DesignScene = memo(function DesignScene({ zone, revision, reducedMotion, m
     if (patch.status) setStatus(patch.status);
   }, []);
   const restart = useCallback(() => { setKey((value) => value + 1); setStatus("loading"); }, []);
-  return <><Studio key={key} zone={zone} revision={revision} reducedMotion={reducedMotion} maxDpr={maxDpr} state="idle" speechLevel={0} report={report} navigate={navigate} restart={restart} focusCompanion={focus} world={snapshot} worldController={controller} inspectEquipment={()=>{}} selectedEquipment={null} screens={EMPTY_SCREEN_STATE} openWorldMap={focus} />
+  return <><Studio key={key} zone={zone} revision={revision} reducedMotion={reducedMotion} maxDpr={maxDpr} state="idle" speechLevel={0} report={report} navigate={navigate} restart={restart} focusCompanion={focus} world={snapshot} worldController={controller} roomAction={()=>{}} worldPaused={false} inspectEquipment={()=>{}} selectedEquipment={null} screens={EMPTY_SCREEN_STATE} openWorldMap={focus} />
     {status === "loading" && <div className="d-scene-status" role="status">Loading Astra Lumen II…</div>}
     {status === "error" && <div className="d-scene-status" role="alert">The studio could not load. <button onClick={restart}>Retry scene</button></div>}
   </>;

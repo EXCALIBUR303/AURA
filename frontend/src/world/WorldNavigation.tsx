@@ -24,7 +24,7 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
     if(snapshot.phase==="idle")report({cameraSettled:true,cameraSampledAt:Date.now(),camera:{position:camera.position.toArray(),target:pose.target,fov:camera instanceof PerspectiveCamera?camera.fov:undefined}});
   },[camera,controller,report]);
   useEffect(()=>{
-    const request=snapshot.request;if(!request||requestId.current===request.id)return;requestId.current=request.id;keys.current.clear();
+    const request=snapshot.request;if(!request||requestId.current===request.id)return;requestId.current=request.id;keys.current.clear();gl.domElement.style.cursor="";
     if(document.pointerLockElement===gl.domElement)document.exitPointerLock();
     const destination=request.pose;goal.current=destination;
     const from=camera.position.toArray() as Point;

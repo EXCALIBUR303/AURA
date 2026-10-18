@@ -36,3 +36,27 @@ inspect its runtime geometry, scale and screenshots rather than trusting a name.
 if Blender is installed outside PATH, use
 `/Applications/Blender.app/Contents/MacOS/Blender` for the command above. Blender is
 only an offline asset authoring tool, never a production dependency of AURA.
+
+## Separate rooms
+
+`rooms.py` creates the original room kit (furniture, lamps, curtains, plants,
+arcade, console/controller, display/frame). Same offline authoring and project
+rights as the workstation kit. Generate and inspect from repository root:
+
+```sh
+blender -b --factory-startup --disable-autoexec \
+  --python frontend/asset-pipeline/rooms.py -- \
+  --output frontend/public/world/room-kit.glb
+node frontend/asset-pipeline/inspect.mjs frontend/public/world/room-kit.glb \
+  frontend/public/world/room-kit.manifest.json
+```
+
+Two reviewed seating assets are separate unchanged originals, with pinned source,
+digests and licences in `frontend/public/world/FURNITURE_CREDITS.txt` and
+`docs/WORLD_ASSET_INVENTORY.md`. Copy `GlamVelvetSofa.glb` and `SheenChair.glb`
+from the reviewed local workspace or obtain them at that exact official source
+revision. Do not run external scripts or substitute the licence of the repository.
+All four world GLBs are ignored; copy them to `frontend/public/world/` on a new
+checkout. Preserve original Astra separately per `docs/ASSETS.md`. These are
+bundled assets at runtime; source links are attribution/reproduction references,
+not runtime fetches. No binary publication or commit is implied.

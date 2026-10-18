@@ -3,9 +3,15 @@ import type { GLTF } from "three-stdlib";
 import { Material, Mesh, Texture } from "three";
 import type { RoomId } from "../types.ts";
 
-export type AssetId = "workstation";
-export const ASSETS = { workstation: { url:"./world/workstation.glb", title:"AURA original workstation kit", requiredBy:["project-hub"] as readonly RoomId[] } };
+export type AssetId = "workstation" | "room-kit" | "sofa" | "chair";
+export const ASSETS:Record<AssetId,{url:string;title:string;requiredBy:readonly RoomId[]}>= {
+ workstation:{url:"./world/workstation.glb",title:"AURA original workstation kit",requiredBy:["project-hub","gaming"]},
+ "room-kit":{url:"./world/room-kit.glb",title:"AURA original room kit",requiredBy:["living","gaming"]},
+ sofa:{url:"./world/GlamVelvetSofa.glb",title:"GlamVelvetSofa / Eric Chadwick, Wayfair / CC BY 4.0",requiredBy:["living","gaming"]},
+ chair:{url:"./world/SheenChair.glb",title:"Sheen Chair / Eric Chadwick, Wayfair / CC0",requiredBy:["living"]},
+};
 type Entry = { owners:Set<RoomId>; value?:GLTF; pending?:Promise<GLTF> };
+const REQUIRED_PARTS:Partial<Record<AssetId,string[]>>={workstation:["desk","chair","pc","fan","monitor","keyboard","mouse","speaker","laptop"],"room-kit":["coffee-table","console","bookshelf","floor-lamp","pendant","plant","curtain","arcade","controller","game-console","display","art-frame"]};
 const entries = new Map<AssetId,Entry>();
 const loader = new GLTFLoader(); // Uncompressed, embedded GLBs. No external decoders or CDN.
 function dispose(value:GLTF){
@@ -18,7 +24,7 @@ async function acquire(id:AssetId,owner:RoomId){
   if(entry.value)return entry.value;
   const current=entry;
   if(!current.pending)current.pending=loader.loadAsync(ASSETS[id].url).then(value=>{
-    if(id==="workstation"&&!["desk","chair","pc","fan","monitor","keyboard","mouse","speaker","laptop"].every(name=>value.scene.getObjectByName(name))){dispose(value);throw Error("Incomplete workstation asset");}
+    if(REQUIRED_PARTS[id]?.some(name=>!value.scene.getObjectByName(name))){dispose(value);throw Error("Incomplete workstation asset");}
     current.pending=undefined;
     if(!current.owners.size){dispose(value);if(entries.get(id)===current)entries.delete(id);}else current.value=value;
     return value;

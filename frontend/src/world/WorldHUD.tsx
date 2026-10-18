@@ -38,10 +38,10 @@ export function WorldHUD({controller,snapshot,mapOpen,setMapOpen}:{controller:Wo
       {(lockIssue||snapshot.error)&&<button onClick={()=>{setLockIssue(null);controller.clearIssue();}}>Dismiss</button>}
     </div>}
     {mapOpen&&<Modal title="Your AURA world" subtitle="CONNECTED SPACES" close={()=>setMapOpen(false)} wide>
-      <div className="ui-dialog-body world-map-body"><p className="help">Three destinations connected by a central atrium. Room travel keeps your current project and conversation.</p>
+      <div className="ui-dialog-body world-map-body"><p className="help">Three destinations connected by a central atrium. Room travel keeps your current project and conversation. Map visits use camera travel where a loaded route is available, or direct placement. Walk through the atrium for continuous exploration.</p>
         <div className="world-map-diagram" aria-hidden="true"><span className="map-hub">Project Hub</span><span className="map-atrium">Atrium</span><span className="map-living">Living</span><span className="map-gaming">Gaming</span></div>
         <div className="world-room-list">{ROOM_LIST.map(room=><article key={room.id} data-room={room.id}><div><h3>{room.title}{room.id===snapshot.room&&<span className="world-current">Current room</span>}</h3><p>{room.description}</p>{room.availability==="planned"&&<p className="help">{room.reason}</p>}</div><button data-initial-focus={room.availability==="available"&&room.id!==snapshot.room||undefined} disabled={room.availability!=="available"||room.id===snapshot.room&&snapshot.phase==="idle"} onClick={()=>travel(room.id)}>{room.availability==="planned"?"Planned":room.id===snapshot.room?"Here":"Visit"}</button></article>)}</div>
-        <p className="help">World navigation is session-only. Existing developer workspace shortcuts ⌘1–6 remain available. Future expansion is reserved; no extra rooms or playable games are installed.</p>
+        <p className="help">World navigation is session-only. Existing developer workspace shortcuts ⌘1–6 remain available. Future expansion is reserved; no playable games are installed.</p>
       </div>
     </Modal>}
   </>;

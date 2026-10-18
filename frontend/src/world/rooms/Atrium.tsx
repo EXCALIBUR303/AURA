@@ -16,8 +16,8 @@ export default function Atrium({travel,openMap,connected}:RoomShellProps){
     <Block at={[0,.006,0]} size={[.035,.012,7.9]} color="#305a9d"/>
     <Block at={[0,.007,0]} size={[7.9,.012,.035]} color="#305a9d"/>
     <Portal side="north" at={[0,0,-4]} open={connected.includes("project-hub")} label="PROJECT HUB" detail="Hardware · Software · AI · GitHub" onSelect={()=>travel("project-hub")}/>
-    <Portal side="west" at={[-4,0,0]} open={false} label="PERSONAL LIVING" detail="Planned · not available yet" onSelect={openMap}/>
-    <Portal side="east" at={[4,0,0]} open={false} label="GAMING & ENTERTAINMENT" detail="Planned · no games installed" onSelect={openMap}/>
+    <Portal side="west" at={[-4,0,0]} open={connected.includes("living")} label="PERSONAL LIVING" detail="A quieter place · Enter" onSelect={()=>travel("living")}/>
+    <Portal side="east" at={[4,0,0]} open={connected.includes("gaming")} label="GAMING & ENTERTAINMENT" detail="Game library · Enter" onSelect={()=>travel("gaming")}/>
     <group position={[2.5,0,2.4]} onClick={e=>{e.stopPropagation();openMap();}}>
       <Block at={[0,.48,0]} size={[.85,.96,.35]} color="#80644c" metal={.6} rough={.4}/>
       <Block at={[0,1.02,0]} size={[1.2,.12,.5]} color="#305a9d"/>

@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MeshStandardMaterial, BufferGeometry, InstancedMesh, Matrix4, Mesh, Object3D } from "three";
-import type { Material } from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { MeshStandardMaterial, InstancedMesh, Mesh, Object3D } from "three";
 import { useFrame } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
 import { surfaceTexture } from "../rooms/Surfaces.tsx";
@@ -12,19 +10,8 @@ import type { ZoneId } from "@aura/contracts";
 import { MonitorAtlas } from "./MonitorAtlas.tsx";
 import type { ScreenState } from "./MonitorAtlas.tsx";
 
-type Part = {name:string;position:Point;rotation?:number;scale?:Point};
-function collect(scene:Object3D,parts:Part[]){
- const groups=new Map<Material,BufferGeometry[]>();
- for(const part of parts){const root=scene.getObjectByName(part.name);if(!root)throw Error("Missing authored equipment part");
-  const placed=new Object3D();placed.position.fromArray(part.position);placed.rotation.y=part.rotation??0;if(part.scale)placed.scale.fromArray(part.scale);placed.updateMatrix();
-  root.updateWorldMatrix(true,true);const inverse=new Matrix4().copy(root.matrixWorld).invert();
-  root.traverse(o=>{if(!(o instanceof Mesh))return;const material=o.material as Material;
-   const g=o.geometry.clone().applyMatrix4(new Matrix4().multiplyMatrices(placed.matrix,new Matrix4().multiplyMatrices(inverse,o.matrixWorld)));
-   const list=groups.get(material)??[];list.push(g);groups.set(material,list);
-  });
- }
- return [...groups].map(([material,list])=>{const geometry=mergeGeometries(list,false)!;list.forEach(g=>g.dispose());return {material,geometry};});
-}
+import { collect } from "./ModelBatch.tsx";
+import type { Part } from "./ModelBatch.tsx";
 const stationParts=(s:typeof STATIONS[number]):Part[]=>{
  const yaw=s.z>0?Math.PI:0,sign=s.z>0?-1:1;
  const part=(name:string,p:Point,scale?:Point,rotation=0):Part=>({name,position:[s.x+p[0]*sign,p[1],s.z+p[2]*sign],rotation:yaw+rotation,scale});

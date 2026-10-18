@@ -15,7 +15,7 @@ Planned items must never appear as working product features.
 | 2 Asset research + blueprint | Complete (research/blueprint; hero gaps recorded) | GPT-6 Astra / High | Actual asset/source/licence review, measured inventory, reviewed engineering references, room interaction/collision plans; stop |
 | 3 Core spatial world | Implemented (Hub + Atrium vertical slice) | GPT-6.1 Sol / Extra High | One canvas, RoomId graph, atrium/connected travel, room boundaries/loading, camera modes, safe collisions/input, native zone compatibility |
 | 4 Premium Project Hub | Implemented (frontend quality gate; native performance pending) | GPT-6.1 Sol / High | Convincing licensed PC/furniture assets and state-backed screens; inspect/action/return; all existing developer functionality passes before expansion |
-| 5 Living + Gaming | Planned | GPT-6.1 Sol / High | Two separate complete spaces, real supported controls, modular launcher and truthful availability; no fake game/media features |
+| 5 Living + Gaming | Implemented (furnished modules + scene controls; native acceptance pending) | GPT-6.1 Sol / High | Two separate complete spaces, real supported controls, modular launcher and truthful availability; no fake game/media features |
 | 6 Customization + motion | Planned | GPT-6.1 Sol / High | Static/floating/hybrid, eligibility/intensity, day/sunset/night, reduced motion, bounded customization and safe persistence path; stop |
 | 7 Visual audit | Planned | GPT-6 Astra / Extra High | Evidence-driven scale/material/light/colour/HUD corrections in actual rendered rooms; stop |
 | 8 QA + optimization | Planned | GPT-6 Luna / Medium | World/load/input/accessibility tests plus Astra/GitHub/voice/Studio regressions, resource stability and honest performance evidence; stop |
@@ -30,7 +30,7 @@ switch. Complex M8 rendering/integration failures escalate to Sol / High.
 Frontend registry/controller, lazy Hub/Atrium, physical corridor and E passage,
 WASD/pointer lock, bounded safe orbit/cinematic travel, cancellation/retry and
 accessible map are verified. Developer state remains above rooms. Living/Gaming
-are intentionally closed pending furnished M5 modules. Evidence: world 16 unit +
+are furnished in M5 with real lamp/curtain/palette controls and a truthful game library. Evidence: world 16 unit +
 13 browser checks, Studio 28 browser checks, five zero-violation axe scans;
 TypeScript/build/bridge/voice checks pass. No M5/native performance claim.
 
@@ -47,8 +47,8 @@ TypeScript/build/bridge/voice checks pass. No M5/native performance claim.
 | Item | Status | Resolution |
 |---|---|---|
 | Hero PC/peripherals | Implemented original offline Blender kit; binary remains ignored | Committed source/provenance/manifest; 6 equipment + 13 world + 28 Studio browser checks, actual close-up screenshots; Mac performance pending |
-| Arcade model | Planned for M5 original authoring | External catalogue gap remains; no inadequate block substitute |
-| Living/Gaming seating | Reviewed candidates; runtime integration planned | Glam sofa preferred, chair conditional, ornate sofa rejected; measured licences/bounds and texture costs in inventory |
+| Arcade / room objects | Implemented original offline room kit | Source, 741,932-byte ignored GLB, 15,796 triangles and rights/provenance recorded; no commercial game content |
+| Living/Gaming seating | Implemented reviewed unchanged sofa/chair originals | CC BY sofa and CC0 chair credits accessible; original hashes preserved, licensed copies remain ignored |
 | Native durable room/layout/ambience preferences | Requires Claude native integration | Versioned `prefs.world` proposal in WORLD_ARCHITECTURE; append request in TASKS; session-only controls until approved |
 | Pointer lock in actual WKWebView | Requires Claude native integration validation | Feature-detect browser API, validate native host; delegate request only if necessary and approved |
 | Physics/decoder/postprocessing dependencies | Needs review before adoption | Use authored collision; defer reviewed physics/codec tooling until a measured need; M2 review complete; none added |

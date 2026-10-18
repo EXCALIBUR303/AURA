@@ -1,7 +1,8 @@
 # World architecture — M3 runtime and extension blueprint
 
-M3–4 implement the Hub/Atrium foundation, equipment/assets/interactions; game/environment and
-customization records remain extension specifications until their milestones.
+M3–5 implement the four rooms, equipment/assets/interactions, session room options
+and game lifecycle interface. Global environment/presentation customization remains
+M6; durable native preferences remain an unapproved extension proposal.
 `src/world/types.ts`, `registry.ts`, `WorldController.ts`, `collision.ts`,
 `WorldNavigation.tsx`, `WorldScene.tsx`, `WorldHUD.tsx` and `rooms/*` are the
 current modules. `useWorld.ts` owns the external store; App retains native state.
@@ -399,3 +400,36 @@ P4-N2/native validation work; a Chromium study does not establish those capabili
   no accumulating listeners/loops, preserved throttling and meaningful diagnostics.
 - Run typecheck/build/bridge/voice unit checks and relevant existing browser suites.
   Report software-renderer limitations; send exact native acceptance work to Claude.
+
+## M5 actual room/game boundaries
+
+`rooms/Living.tsx` and `Gaming.tsx` are separate lazy modules with fitted geometry;
+`HomeShell`, `RoomDetails`, `ModelBatch`, `Seating` and `HitTarget` are reusable
+frontend view helpers. The room-kit source is original. GLTF resources use explicit
+room owners (room kit + sofa shared by Living/Gaming, chair Living-only, workstation
+Hub/Gaming). Prepare completes before a destination opens; generalized registry
+collision closes either side of unloaded doors. Corridors orient walls along the
+correct X or Z axis. Nonadjacent map travel retains destination only and explicitly
+allows direct placement; continuous walking follows the Atrium graph. No giant
+loaded world or invisible collection of unused future rooms.
+
+`WorldSnapshot.options` holds validated bounded session-only room controls. It does
+not store RoomId into native ZoneId or read/write localStorage. Native logical
+commands still return to the Hub. `RoomPanel` controls lights/curtains/palette and
+truthful decor/media details. A media screen is informational, not an installed
+player. Source sofa lights are disabled; runtime material clones own their changes,
+while geometry/textures remain leased and original files remain immutable.
+
+`games/registry.ts` lists upcoming metadata only: no installed entry points or save
+support. `GameSession` is a cancellable external store for future installed entries;
+it requires explicit native voice release, defers module loading, owns abort/input,
+pauses on focus/lifecycle loss, disposes late results and restores the checked room
+pose after exit. Native navigation suppresses obsolete game-camera restoration.
+`GameLibrary` is a focus-trapped dialog with disabled upcoming actions. No game
+runtime is loaded at startup. Tests use separate test-only installed fixtures.
+
+The existing CompanionHandle's `releaseForGame` ends voice through its current
+coordinator and re-reads authoritative status; uncertain mic/audio release blocks
+entry. No new native method, weakened permission, automatic capture or duplicate AI
+service. A future installed game must still pass real WKWebView/input/audio/native
+acceptance; the interface is not proof that such a game is currently playable.

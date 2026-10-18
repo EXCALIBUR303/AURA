@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "bytes": 741932,
+  "sha256": "04b88b088f2511cda8910dc58c281024ad39de6da87810f4fe33a6496892e2a2",
+  "models": {
+    "coffee-table": 796,
+    "console": 1188,
+    "bookshelf": 5616,
+    "floor-lamp": 804,
+    "pendant": 432,
+    "plant": 1132,
+    "curtain": 768,
+    "arcade": 2080,
+    "controller": 1528,
+    "game-console": 852,
+    "display": 448,
+    "art-frame": 152
+  },
+  "triangles": 15796,
+  "primitives": 45,
+  "materials": [
+    "Walnut",
+    "Aluminium",
+    "Copper",
+    "Graphite",
+    "Cream",
+    "Forest",
+    "Terracotta",
+    "Lamp",
+    "Rubber",
+    "Cobalt",
+    "Coral",
+    "Indigo",
+    "Porcelain",
+    "Power"
+  ],
+  "images": 0,
+  "externalURIs": [],
+  "extensionsRequired": [],
+  "generator": "Khronos glTF Blender I/O v4.3.47"
+}

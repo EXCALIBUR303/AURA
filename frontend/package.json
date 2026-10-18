@@ -22,7 +22,10 @@
     "test:voice": "node test/voice-controller.test.ts",
     "test:voice:browser": "node test/voice.browser.mjs",
     "assets:workstation": "blender -b --factory-startup --disable-autoexec --python asset-pipeline/workstation.py -- --output public/world/workstation.glb",
-    "test:equipment:browser": "node test/equipment.browser.mjs"
+    "test:equipment:browser": "node test/equipment.browser.mjs",
+    "assets:rooms": "blender -b --factory-startup --disable-autoexec --python asset-pipeline/rooms.py -- --output public/world/room-kit.glb",
+    "test:games": "node test/games.test.ts",
+    "test:rooms:browser": "node test/rooms.browser.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

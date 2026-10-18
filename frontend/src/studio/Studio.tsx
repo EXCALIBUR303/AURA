@@ -187,11 +187,11 @@ function CompanionRing({ state, samples, reduced }: { state: CompanionState; sam
   return <mesh position={[0, 0.132, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[.37, .4, 48]} /><meshBasicMaterial ref={material} color={color} /></mesh>;
 }
 
-export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart, focusCompanion, cameraHandle, voiceSamples, world, worldController, openWorldMap, inspectEquipment, selectedEquipment, screens }: {
+export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart, focusCompanion, cameraHandle, voiceSamples, world, worldController, openWorldMap, inspectEquipment, selectedEquipment, screens, roomAction, worldPaused }: {
   zone: ZoneId; revision: number; reducedMotion: boolean; maxDpr: number; state: CompanionState; speechLevel: number;
   report: Report; navigate: (zone: ZoneId) => void; restart: () => void; focusCompanion: () => void;
   cameraHandle?: Ref<StudioCameraHandle>; world: WorldSnapshot; worldController: WorldController; openWorldMap: () => void;
-  voiceSamples?: VoiceSamples; inspectEquipment:(id:string)=>void;selectedEquipment:string|null;screens:ScreenState;
+  voiceSamples?: VoiceSamples; inspectEquipment:(id:string)=>void;selectedEquipment:string|null;screens:ScreenState;roomAction:(id:string)=>void;worldPaused:boolean;
 }) {
   const buttons = useRef(new Map<ZoneId, HTMLButtonElement>());
   const startedAt = useRef(performance.now());
@@ -213,7 +213,7 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
     return () => document.removeEventListener("visibilitychange", update);
   }, []);
   const dpr = Math.max(1, Math.min(maxDpr, adaptiveDpr));
-  const rendering = active && hostWindow.visible;
+  const rendering = active && hostWindow.visible && !worldPaused;
   const throttled = rendering && !hostWindow.active;
   const showHotspots = world.room === "project-hub" && world.mode === "inspect" && world.phase === "idle";
   return <>
@@ -223,7 +223,7 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
         gl={{ antialias: true, powerPreference: "high-performance" }}
         fallback={<p>WebGL2 is unavailable. Your workstation and companion controls remain accessible.</p>}
         onCreated={({ gl }) => { gl.domElement.tabIndex = 0; gl.domElement.setAttribute("aria-label", "AURA 3D world"); gl.outputColorSpace = THREE.SRGBColorSpace; gl.toneMapping = THREE.ACESFilmicToneMapping; report({ context: "ready", graphicsAvailable: true, error: undefined, status: "loading" }); }}>
-        <WorldScene snapshot={world} travel={worldController.travel} openMap={openWorldMap}>
+        <WorldScene act={roomAction} active={rendering && hostWindow.active && world.phase === "idle"} reduced={reducedMotion} snapshot={world} travel={worldController.travel} openMap={openWorldMap}>
           <World zone={zone} navigate={navigate} focusCompanion={focusCompanion} inspect={inspectEquipment} selected={selectedEquipment} reduced={reducedMotion} active={rendering && hostWindow.active && world.phase === "idle"} screens={screens}/>
         </WorldScene>
         <group position={[ASTRA_HOME[0],-.0625,ASTRA_HOME[2]]} visible={world.loaded.includes("project-hub")}>

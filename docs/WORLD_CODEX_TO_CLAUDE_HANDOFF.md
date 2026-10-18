@@ -1,30 +1,33 @@
 # Phase 4 Codex → Claude checkpoint
 
-**M0–2 design/research and M3 core spatial world and M4 workstation are complete locally.**
+**M0–2 design/research and M3–5 frontend milestones are complete locally.**
 Branch `codex/phase4-living-universe`, main base
-`a67cda15538b16af4182c249bfc212ad39e41f38`; use `git log` for milestone commits.
-This is an intermediate checkpoint, not the M9 native-validation handoff.
+`a67cda15538b16af4182c249bfc212ad39e41f38`. M3 `960439b`, M4 `1d93e8a`;
+use `git log` for the M5 commit. Intermediate checkpoint, not final native handoff.
 
-Hub + Atrium are connected physical rooms with bounded lazy modules, safe camera
-modes/collisions, E passage/continuous WASD traversal, cancellable cinematic travel
-and accessible map. Living/Gaming remain planned/closed. Detailed original GLB equipment, state-backed
-monitor atlas and reusable PC inspection/return now pass the M4 frontend gate. Existing developer state,
-original Astra and native contracts/permissions remain intact. No native/shared/
-platform/dependency changes. No binaries, screenshots, push, merge or installation.
+Four physical rooms with bounded lazy assets, camera/collision controls and map;
+all original native workspaces stay together in the Hub. Detailed original equipment,
+real-state screens, PC inspection/return, separately furnished Living/Gaming,
+lighting/curtain/palette controls and honest unavailable game/media state. Game
+lifecycle interface exists; no installed game or fake Play action. Native/shared/
+platform/contracts/permissions/dependencies remain unchanged. No push/merge/install.
 
-M4 TypeScript/build pass; bridge 20/20, voice controller 19/19, world unit 18/18,
-equipment browser 6/6, world browser 13/13, Studio browser 28/28, seven
-zero-violation axe scans. No browser
-errors/external requests. Details/screenshots/counters:
-[PHASE4_LIVING_UNIVERSE.md](PHASE4_LIVING_UNIVERSE.md#milestone-3-core-spatial-world).
-M4 overview SwiftShader 2–3 fps/DPR1/51 calls/250,204 triangles; no native acceptance.
-Original kit binary is ignored: copy or reproduce with `frontend/asset-pipeline/README.md`.
-Arcade quality remains M5 work. Two researched seating
-candidates have reviewed licences; no research GLB is installed in the app yet.
+M5 typecheck/build and grouped bridge pass, world unit20/20, game unit6/6, voice
+controller19/19; furnished room browser8/8, six zero-violation axe scans and no
+page errors/external requests. M4 fullStudio28/equipment6/world13 remain retained
+prior evidence; not new M5 runs. Full QA is M8. Exact evidence/counters:
+[PHASE4_LIVING_UNIVERSE.md](PHASE4_LIVING_UNIVERSE.md#milestone-5-separate-living-and-gaming).
+Native M5 ≥55fps and physical voice/accessibility/pointer lock are still pending.
 
-Continue M5–6 on GPT-6.1 Sol / High. Stop after M6 for the owner's manual
-switch to GPT-6 Astra / Extra High. Do not repeat the completed audit or broaden
-native contracts. The M9 handoff must replace this intermediate checkpoint.
+**Ignored runtime assets must be copied/reproduced on a new checkout.**
+Original workstation/room-kit scripts, manifests and instructions:
+`frontend/asset-pipeline/README.md`. Reviewed unchanged sofa/chair sources, licences,
+hashes and runtime changes: `frontend/public/world/FURNITURE_CREDITS.txt` and asset
+inventory. Original Astra/hash/visibleCC BY are preserved. No GLB/screenshot commit.
+
+Continue M6 on GPT-6.1 Sol / High, then stop for the owner's manual switch to
+GPT-6 Astra / Extra High. Global floating/day-night customization and final visual/
+QA/native review are not complete. Do not repeat audits or alter native contracts.
 
 ## Preserve the current native baseline
 

@@ -58,9 +58,10 @@ test("failed import leaves a usable room and retry succeeds without resetting wo
 test("cancellation ignores pending imports and recovers a safe landing",async()=>{
   let release!:(m:RoomModule)=>void;const c=new WorldController(id=>id==="atrium"?new Promise(r=>{release=r;}):Promise.resolve(module));c.focusWorkspace("studio");await tick();c.arrive(c.getSnapshot().request!.id);c.travel("atrium");c.cancel();const cancelled=c.getSnapshot().request!;release(module);await tick();assert.equal(c.getSnapshot().request!.id,cancelled.id);assert.equal(cancelled.instant,true);c.arrive(cancelled.id);assert.equal(c.getSnapshot().phase,"idle");assert.equal(c.getSnapshot().room,"project-hub");
 });
-test("planned destinations cannot create room loads or playable claims",async()=>{
-  let loads=0;const c=new WorldController(async()=>{loads++;return module;});c.travel("gaming");await tick();assert.equal(loads,0);assert.equal(c.getSnapshot().room,"project-hub");assert.ok(c.getSnapshot().error?.includes("No games"));assert.equal(ROOMS.living.availability,"planned");
+test("all three physical destinations are available independently of native workspace selection",async()=>{
+ const c=await ready();for(const room of ["living","gaming","project-hub"] as const){assert.equal(ROOMS[room].availability,"available");assert.ok(ROOMS[room].load);c.travel(room);await tick();c.arrive(c.getSnapshot().request!.id);assert.equal(c.getSnapshot().room,room);assert.equal(c.getSnapshot().selectedZone,"studio");assert.ok(c.getSnapshot().loaded.length<=2);}
 });
+
 test("inspect snapshots retain exact pose and physical room independently of logical context",async()=>{
   const c=await ready();const pose:CameraPose={position:[0,1.62,2.7],target:[0,1.7,-3.4],room:"atrium"};c.focusWorkspace("companion",pose);await tick();c.arrive(c.getSnapshot().request!.id);const captured=c.capture();captured.position[0]=999;assert.equal(c.capture().position[0],0);assert.equal(c.capture().room,"atrium");assert.equal(c.getSnapshot().selectedZone,"companion");
 });
@@ -87,4 +88,13 @@ test("equipment registry retains native adapters, unique stable IDs and collisio
 test("object inspection preserves the selected logical workspace and restores its exact physical pose",async()=>{
   const {EQUIPMENT}=await import("../src/world/interactions/registry.ts");const c=await ready();c.focusWorkspace("software");await tick();c.arrive(c.getSnapshot().request!.id);const prior=c.capture();
   c.inspect(EQUIPMENT[0]!.focus);await tick();c.arrive(c.getSnapshot().request!.id);assert.equal(c.getSnapshot().selectedZone,"software");c.inspect(prior);await tick();c.arrive(c.getSnapshot().request!.id);assert.deepEqual(c.capture(),prior);assert.equal(c.getSnapshot().selectedZone,"software");
+});
+
+test("Living and Gaming passages open continuously along X and close from either side when unloaded",()=>{
+ for(const id of ["living","gaming"] as const){const edge=CONNECTIONS.find(e=>e.to===id)!;for(const loaded of [["atrium"],[id]] as const){const g=worldGeometry(loaded);const p=loaded[0]==="atrium"?edge.fromPoint:edge.toPoint;assert.equal(safePoint(p,g.floors,g.colliders),false);}
+ const g=worldGeometry(["atrium",id]);const low=Math.min(edge.fromPoint[0],edge.toPoint[0]),high=Math.max(edge.fromPoint[0],edge.toPoint[0]);for(let x=low-.1;x<high+.1;x+=.03)assert.ok(safePoint([x,1.62,0],g.floors,g.colliders));assert.equal(safePoint([(low+high)/2,1.62,1.1],g.floors,g.colliders),false);}
+});
+test("new room cameras clear fitted furniture and room settings survive resource eviction",async()=>{
+ for(const id of ["living","gaming"] as const){const g=worldGeometry([id]);assert.ok(safePoint(ROOMS[id].introduction.position,g.floors,g.colliders,.12,false),id);assert.ok(safePoint(ROOMS[id].landing,g.floors,g.colliders),id);}
+ const c=await ready();c.setRoomOptions({curtainsOpen:false,livingPalette:"terracotta",livingLights:false});c.travel("living");await tick();c.arrive(c.getSnapshot().request!.id);c.travel("gaming");await tick();c.arrive(c.getSnapshot().request!.id);assert.equal(c.getSnapshot().options.curtainsOpen,false);assert.equal(c.getSnapshot().options.livingLights,false);assert.equal(c.getSnapshot().options.livingPalette,"terracotta");assert.ok(!c.getSnapshot().loaded.includes("project-hub"));
 });

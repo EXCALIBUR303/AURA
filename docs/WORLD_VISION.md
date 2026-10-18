@@ -1,7 +1,7 @@
 # AURA world vision — Milestone 1
 
 Status: design specification complete; M3 Hub/Atrium foundation and M4 detailed workstation implemented.
-Furnished Living/Gaming remain the next milestone. Dimensions
+Furnished Living/Gaming are implemented in M5; M6 controls/motion and M7 full visual audit remain. Dimensions
 below are design constraints, not performance results or full-room acceptance.
 M3 rendered-camera refinement: Hub introduction world `(0,2.6,-7.5)`, target
 `(0,1,-11.7)` supplies safe ceiling headroom for bounded orbit/zoom. The
@@ -231,3 +231,16 @@ flattened the earlier view. One bounded shadow pass remains. No bloom/postproces
 remote environment map or arbitrary CSS colour filter was introduced. Evidence and
 actual geometry costs are in the inventory; M7 still performs the complete visual
 audit after the other two furnished rooms exist.
+
+## M5 rendered room fitting
+
+Both room footprints remain the approved 9×8 m physical spaces. Reviewed unchanged
+sofa/chair originals provide fabric forms; original modeled furniture, lamps,
+pleated curtains, pointed-leaf plants, artwork and distant landscape study ground
+Living. Gaming combines indigo walls with an authored arcade profile, console,
+controllers, real workstation kit, navy sofa and a truthful library display. No
+commercial marks or game content. The Gaming introduction is refined to world
+`(9.5,2.2,3.25)`, target `(11,1,-1.8)` after actual screenshot review so the
+arcade and desk fit the view. Original source window/art images are bounded local
+canvas textures; no fake video or streaming integration. Full composition/lighting/
+HUD audit remains M7; cloud screenshots do not establish native performance.

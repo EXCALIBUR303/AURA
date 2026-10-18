@@ -1,10 +1,9 @@
 # World interaction map
 
-Status: M3 Hub/Atrium navigation implemented; later-room actions remain
-planned as identified below. Accessible map and portal clicks travel through checked
+Status: M3 Hub/Atrium navigation implemented; Living/Gaming controls and truthful library are implemented in M5; future game/media
+features remain unavailable. Accessible map and portal clicks travel through checked
 cinematic paths. In Explore, E opens a nearby passage without teleportation, WASD
-walks the real corridor, and Esc releases capture. Closed Living/Gaming entries
-truthfully state unavailable. Native six workspace commands return to the Hub;
+walks the real corridor, and Esc releases capture. Living/Gaming open only after their required local assets load. Native six workspace commands return to the Hub;
 map travel preserves developer context and drafts. Modal opening cancels capture.
 
 ## Proposed physical-to-functional mapping
@@ -132,3 +131,21 @@ content from sensors, and Return restores the exact saved pose. Hover/selection
 is a restrained stable proxy tint. The first-person route/colliders do not float.
 Missing required GLB offers Retry room while text/native controls remain available.
 The equipment panel is nonmodal, dismissible, opaque and scrollable at 1100×700.
+
+## M5 implemented room actions
+
+- Living floor lamp and Room lamps toggle the actual local light/bulb emission.
+- Curtains click or keyboard control moves the bounded pleated panels; Reduce Motion
+  places them immediately. No cloth physics or floating architecture.
+- Sofa palette swaps only supported runtime cloth colors; original file unchanged.
+- Books/art/media provide authored object details and honest unavailable-media copy.
+- Gaming arcade and displays open the same game library; only upcoming metadata,
+  disabled controls and no Play action. No copyrighted game or external service.
+- Room controls/credits are keyboard reachable and dismissible; source/licence links
+  cover the two reviewed furniture assets while original Astra credit stays visible.
+
+Session room options survive room unmount/resource eviction. Twelve browser visits
+verify bounded owners/resources; native workspace return preserves the typed draft.
+The future game handshake/lifecycle is unit-tested with test-only runtimes, not
+claimed live native gameplay. Real installed-game/physical input acceptance remains
+future work; no sample is installed merely because the registry contains metadata.
