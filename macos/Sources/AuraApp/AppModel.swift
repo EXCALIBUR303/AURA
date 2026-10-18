@@ -50,7 +50,8 @@ final class AppModel {
             currentZone = try? await store.loadPreferences().lastZone
             Log.app.notice("started (\(configuration.environment.rawValue, privacy: .public))")
             state = .ready(services)
-            await services.github.restore()
+            // The voice probe skips the GitHub Keychain read so repeated probe launches need no Keychain prompt.
+            if !VoiceProbe.isEnabled { await services.github.restore() }
             if GitHubProbe.isEnabled { Task { await GitHubProbe.run(services.github) } }
         } catch {
             Log.app.fault("startup failed: \(String(describing: error), privacy: .public)")

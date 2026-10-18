@@ -7,6 +7,10 @@ import AuraCore
 enum VoiceSystem {
     /// Voice engines for this process, or nil when it is not the AURA.app bundle (`swift run`).
     static func engines() -> VoiceEngines? {
+        if let scenario = VoiceProbe.scenario {
+            // Development validation only: scripted microphone, silent playback, real on-device recognition.
+            return VoiceFixture.engines(scenario, openSettings: { _ in true })
+        }
         let info = Bundle.main.infoDictionary ?? [:]
         guard Bundle.main.bundleIdentifier != nil,
               info["NSMicrophoneUsageDescription"] != nil, info["NSSpeechRecognitionUsageDescription"] != nil else { return nil }
