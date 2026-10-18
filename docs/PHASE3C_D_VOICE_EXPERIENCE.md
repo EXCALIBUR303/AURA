@@ -1,14 +1,20 @@
 # Phase 3C-D — Astra voice frontend
 
-## Current checkpoint: Phase 6 full frontend QA
+## Final frontend handoff — Phases 0–7 complete locally
 
-Phases 0–6 are complete. The frontend regression matrix passes on the
-`codex/phase3c-d-voice-experience` branch through Phase 5 commit
-`55914f157b99c5373939187f701c477552d9e933`. The required **Phase 7 final engineering
-review and Claude handoff** are pending. Browser checks use the shared native-shaped
-mock in Chromium on Linux; they do not establish AURA.app, microphone, accessibility
-service or Mac hardware acceptance. The earlier design checkpoint is
-`ce0fa3eef6a3690e66b6670473115506bcc1a3e1`; completed work was not restarted.
+The production voice frontend, visual refinement and final engineering review are
+complete for owner review. Implementation is at
+`55914f157b99c5373939187f701c477552d9e933`; the full regression record was committed
+in `72ac207a157a62da0e32bc3d143237d5b67c0aa3`. Subsequent handoff changes are
+documentation only. Use the final commit reported with this handoff, or
+`git rev-parse HEAD` on this branch, as the exact checkout to validate.
+
+Talk/hold ⌥Space, live and editable final transcripts, speech playback controls,
+permissions, device recovery and voice settings use the native typed bridge.
+Existing Astra jaw/ring feedback uses actual native level samples. Browser checks
+use the shared native-shaped mock in Chromium on Linux; AURA.app, physical audio,
+system accessibility and Mac hardware acceptance remain pending. No additional
+phase is started.
 
 - Branch: `codex/phase3c-d-voice-experience`, created directly from remote
   `claude/phase3c-d-voice`.
@@ -18,6 +24,49 @@ service or Mac hardware acceptance. The earlier design checkpoint is
   those changes was performed.
 - No push, merge, native service edit, platform edit or contract change.
 - `/Applications/AURA.app` has not been touched.
+
+## Phase 7 engineering review and changed files
+
+Reviewed status/transcript/caption ordering, cancellation and session cleanup,
+conversation/provider/repository binding, microphone gestures, approval separation,
+native setting/recovery targets, actual audio sample flow and production packaging.
+No additional implementation defect was identified; Phase 6 evidence applies to
+the unchanged production code. The 100-check browser matrix was not repeated for
+documentation changes.
+
+Final package checks pass: every local script/style/icon referenced by built
+`index.html` exists, the lazy Voice Settings chunk exists, the design entry is absent,
+and original source/built GLB digests and bundled credit match. No direct browser
+microphone/speech APIs or WebKit calls appear in the production voice UI. Protected
+paths and lockfile are unchanged; no model, screenshot, private-key or certificate
+file was added to the branch. The final production source matches the tested Phase 5
+commit exactly.
+
+The final evidence audit corrected one reporting error: the Phase 6 voice artifact's
+last SwiftShader sample is **1 fps**, while the earlier Phase 5 sample was **2 fps**.
+Both retain 14 draw calls and 79,802 triangles. Neither validates Mac performance.
+
+All 24 changed paths relative to native base `4087d11`:
+
+| Area | Files |
+|---|---|
+| App/conversation | `frontend/src/App.tsx`, `frontend/src/companion/CompanionWorkspace.tsx`, `frontend/src/companion/useConversation.ts` |
+| Voice | `frontend/src/companion/voice/{VoiceController.ts,VoiceRail.tsx,VoiceSettings.tsx,useVoice.ts,voice.css}` |
+| Existing 3D | `frontend/src/studio/{Astra.tsx,Studio.tsx}` |
+| Production tests | `frontend/test/{astra.browser.mjs,studio.browser.mjs,voice-controller.test.ts,voice.browser.mjs}` |
+| Design reference | `frontend/design/VOICE_EXPERIENCE.md`, `frontend/voice-design.html`, `frontend/src/voice-design/{main.tsx,VoiceDesignPreview.tsx,voice-design.css}`, `frontend/test/voice-design.browser.mjs` |
+| Test configuration | `frontend/package.json`, `frontend/tsconfig.node.json` |
+| Handoff | `docs/PHASE3C_D_VOICE_EXPERIENCE.md`, appended `TASKS.md` entries |
+
+No dependencies were added or updated; the lockfile is unchanged. The design study
+is a separate browser-only Vite entry and is excluded from the production build.
+The build retains the lazy Voice Settings chunk, local original GLB/credit, existing
+Markdown/context/provider chunks, and existing CSP/native scheme handling.
+
+Known inherited limitation: a reload during an outstanding source approval cannot
+restore an approval payload from the current host snapshot. The UI safely offers
+Stop/send again; it never invents or accepts consent. The atomic approval snapshot
+request remains in `TASKS.md` for Claude. Browser regression covers this fallback.
 
 ## Phase 6 regression results
 
@@ -57,7 +106,7 @@ Evidence is outside Git under `/workspace/aura-phase3c-d/phase6/`:
 | Studio | `studio/results.json`, accessibility scan and six-zone/3D screenshots |
 
 All browser runs used Chromium with ANGLE/SwiftShader. The final voice scene sample
-was 2 fps at DPR 1, with 14 draw calls and 79,802 scene triangles. This is a
+was 1 fps at DPR 1, with 14 draw calls and 79,802 scene triangles. This is a
 software-renderer functional result, not a performance benchmark. **Mac M5 ≥55 fps
 and all native voice acceptance remain pending.**
 
@@ -131,10 +180,10 @@ Existing Node, Chromium, Playwright and axe installations were reused; only the
 existing Vite service needed restarting. No environment configuration changes were
 needed. No public preview link was attempted.
 
-The full Astra, GitHub and Studio regression matrix must be run in Phase 6; earlier
-implementation results below are retained as historical evidence, not substituted
-for that final QA pass. Mac physical voice and accessibility acceptance remains
-pending under the instructions at the end of this handoff.
+Phase 6 completed the full Astra, GitHub and Studio regression matrix, as recorded
+above. Earlier results below are retained as historical evidence. Mac physical
+voice and system accessibility acceptance remain pending under the instructions
+at the end of this handoff.
 
 ## Production frontend implementation
 
@@ -229,13 +278,11 @@ configuration also checks frontend controller tests. Existing Astra and Studio
 browser assertions now reflect available voice while retaining unavailable-host
 coverage.
 
-### Remaining phase checkpoints
+### Frontend completion boundary
 
-1. **Phase 7: GPT-6.1 Sol / High.** Review the combined implementation and Phase 6
-   evidence, address only integration defects, verify the handoff, then stop for
-   owner review. Continue this branch without repeating design, implementation or
-   the completed Phase 6 test matrix unless new changes require it. No push or merge
-   without approval.
+Phases 0–7 are complete locally. Stop for owner review. Publishing this branch
+requires explicit push approval; merging requires separate approval. The native
+acceptance below is the next validation task, not another frontend design phase.
 
 Physical microphone/speakers, real Bluetooth switching, OS permission prompts,
 SpeechAnalyzer/fallback/downloads, VoiceOver and Mac M5 performance remain pending
@@ -382,7 +429,8 @@ has not revalidated Mac performance**, especially native speech engine startup.
 
 At the design checkpoint the recommended model was **GPT-6.1 Sol, High**. That
 continuation is now implemented on this branch; the following checklist records
-its original scope. The next active checkpoint is Phase 5, described above.
+its original scope. The required model checkpoints and frontend phases are now
+complete; no part of this historical checklist should restart implementation.
 
 1. Implement a frontend-owned voice controller around `platform/bridge.ts`; subscribe
    before snapshots, revision/run/sequence guards, explicit gestures and reliable cleanup.
@@ -402,20 +450,43 @@ its original scope. The next active checkpoint is Phase 5, described above.
 The sample page is a visual reference. Its scenario controls, fixture snapshots and
 local state transitions must not become a production substitute for native events.
 
-## Native Mac M5 validation — pending after implementation
+## Claude Code native Mac M5 validation — pending
 
-Claude should validate the final frontend commit, not accept this prototype as a
-voice implementation. Final exact branch/hash and complete test results will be
-recorded at Phase 7. The native handoff's §8 remains authoritative for physical tests.
+Claude should validate the final feature branch commit reported with this handoff.
+The native handoff's §8 remains authoritative for physical tests. This branch is
+currently local to Codex and cannot be fetched until the owner authorizes its push.
 
-From the final review checkout (after explicit push approval):
+After an owner-approved push, use a clean Mac checkout and a new review branch
+(if that name already exists, inspect it instead of resetting or overwriting it):
+
+```bash
+git fetch origin codex/phase3c-d-voice-experience
+git switch -c review/phase3c-d-voice-validation origin/codex/phase3c-d-voice-experience
+git status --short
+git rev-parse HEAD
+git merge-base --is-ancestor 4087d11a9a377232e0f7acb40ec75a620f837969 HEAD
+git merge-base --is-ancestor 55914f157b99c5373939187f701c477552d9e933 HEAD
+```
+
+Compare HEAD with the exact final hash in the owner's handoff. Before any native
+validation fix, `git diff 4087d11 -- macos shared frontend/src/platform assets`
+should be empty. Preserve the licensed ignored GLB; copy it from the existing Mac
+checkout according to `docs/ASSETS.md` only if it is missing. Check Node ≥23.6 and
+the original asset before installing/building:
+
+```bash
+node --version
+shasum -a 256 assets/avatar/community/astra-lumen/astra_lumen_ii_a_rigged_companion_android.glb
+```
+
+Expected GLB digest: `e9984ddc7e04a1b39d72f5ab5e1ba9fe459fc42e773f851bf52068b357eb76c1`.
+From the repository root:
 
 ```bash
 npm --prefix frontend ci
 npm --prefix frontend run typecheck
 npm --prefix frontend test
 npm --prefix frontend run test:voice
-npm --prefix frontend run build
 tools/swift-test.sh
 tools/build-app.sh Release
 open macos/.build/xcode/Build/Products/Release/AURA.app
@@ -423,7 +494,11 @@ open macos/.build/xcode/Build/Products/Release/AURA.app
 
 Use the built, bundled app for live voice: `swift run` intentionally has unavailable
 voice engines. Do **not** overwrite `/Applications/AURA.app`. Preserve/copy the licensed
-ignored GLB per `docs/ASSETS.md` into a new checkout before building.
+ignored GLB per `docs/ASSETS.md` into a new checkout before building. The build-app
+script runs the frontend production build before Xcode. Record exact HEAD, macOS,
+Xcode, Node, device names, test output and measured scene results in a separate
+native validation report. Run Debug/WKWebView development validation as a separate
+pass after Release using the repository's existing Xcode scheme and Vite workflow.
 
 Pending owner-present checks: built-in microphone and speaker accuracy/latency,
 Bluetooth no-audio and disconnection recovery, switch input/output during capture and
