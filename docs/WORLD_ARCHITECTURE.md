@@ -1,7 +1,9 @@
 # World architecture — proposed at Milestone 0
 
 No types or services below are implemented. This document specifies the intended
-frontend boundaries; exact room geometry and art await M1–2.
+frontend boundaries. M1 geometry/art are specified in [WORLD_VISION.md](WORLD_VISION.md)
+and the design-only [blueprint](../frontend/design/phase4/blueprint.json). M2 resolves
+asset fitting, route collision, camera paths and resource budgets.
 
 ## Identity and compatibility
 

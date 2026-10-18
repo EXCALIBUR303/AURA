@@ -1,5 +1,11 @@
 # Phase 4 — Living Universe
 
+## Current checkpoint
+
+M1 art direction is complete as a design specification. M2 asset research follows
+on GPT-6 Astra / High; no model switch is needed between these two design milestones.
+The application remains at the verified M0 baseline.
+
 ## Milestone 0: audit and migration plan
 
 Status: audit complete; no Phase 4 runtime implementation. Recommended model
@@ -19,15 +25,16 @@ publication to main.
 
 | Document | Owns |
 |---|---|
-| [WORLD_VISION.md](WORLD_VISION.md) | User requirements, room identities and art-direction questions |
+| [WORLD_VISION.md](WORLD_VISION.md) | Dimensional floor plan, room identities, materials, light and hero quality gates |
 | [WORLD_ARCHITECTURE.md](WORLD_ARCHITECTURE.md) | Proposed spatial state, registries, lifecycle, input and native requests |
 | [WORLD_ASSET_INVENTORY.md](WORLD_ASSET_INVENTORY.md) | Existing assets, acquisition queue and licence/optimization evidence |
 | [WORLD_INTERACTION_MAP.md](WORLD_INTERACTION_MAP.md) | Physical objects, real actions, keyboard alternatives and data sources |
 | [WORLD_ROADMAP.md](WORLD_ROADMAP.md) | Milestone gates, status and bounded future ideas |
 | [WORLD_CODEX_TO_CLAUDE_HANDOFF.md](WORLD_CODEX_TO_CLAUDE_HANDOFF.md) | Integration boundary, native requests and Mac acceptance |
 
-These are an audit and proposed implementation plan. Room art, exact floor plans,
-asset suitability and new features are not represented as implemented or validated.
+These documents distinguish design specifications from implementation. M1 supplies
+the scaled floor plan and art direction; asset suitability awaits M2 and runtime
+features await M3–6.
 
 ## Baseline reviewed
 
@@ -142,9 +149,24 @@ draw calls and 79,610–79,802 triangles, and a 235-test Swift regression. These
 deferred Bluetooth, device-switching, system accessibility and other physical
 checks remain explicitly deferred. New Phase 4 rooms require new M5 validation.
 
+## Milestone 1: art direction
+
+Completed room transforms/dimensions, three level corridors, furniture footprints,
+primary routes, scale/camera anchors, one-actor Astra placement, material palettes,
+day/sunset/night direction, compact HUD principles and hero acceptance criteria.
+See WORLD_VISION and the original design sheet under `frontend/design/phase4/`.
+The JSON blueprint is design-only; no runtime/native contract has been introduced.
+
+Checks: four room bounds/three portal connections, all drawn prop bounds and 909
+route samples with at least 1.4 m clearance pass. A preliminary check caught the
+Gaming chair approach at 1.3 m; the route endpoint moved 0.1 m to preserve clearance.
+These are checks of drawn footprints, not collision tests of finished assets.
+Design sheet at 1440×900 and 1100×700: no horizontal overflow, images loaded, no page
+errors; two axe scans with zero violations. Screenshots and helper evidence are
+outside Git in `/workspace/aura-phase4/m1/`. No new 3D performance measurement.
+
 ## Next checkpoint
 
-Milestone 1: **GPT-6 Astra / Extra High**. Use this completed audit, current baseline
-screenshots and the owner's room identities to author architectural plans, art
-direction, material/light philosophy and asset selection criteria. Do not restart
-the audit or implement the world at this checkpoint.
+M2: **GPT-6 Astra / High**. Research actual assets/licences and engineering sources,
+then complete room interaction/collision/loading blueprints. Stop after M2 for
+**GPT-6.1 Sol / Extra High** before runtime implementation.

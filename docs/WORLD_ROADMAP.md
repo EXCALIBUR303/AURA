@@ -8,10 +8,10 @@ Planned items must never appear as working product features.
 
 ## Milestone gates
 
-| Milestone | Status at M0 | Model / effort | Exit gate |
+| Milestone | Current status | Model / effort | Exit gate |
 |---|---|---|---|
 | 0 Audit | Complete (audit deliverable, no world runtime) | GPT-6.1 Sol / High | Latest-main branch, rendering/contract/asset audit, targeted baseline checks and committed migration docs; stop |
-| 1 Art direction | Planned | GPT-6 Astra / Extra High | Architectural plan, proportions, room identities, camera/lighting/material studies and hero acceptance criteria |
+| 1 Art direction | Complete (design specification) | GPT-6 Astra / Extra High | Architectural plan, proportions, room identities, camera/lighting/material studies and hero acceptance criteria |
 | 2 Asset research + blueprint | Planned | GPT-6 Astra / High | Actual asset/source/licence review, measured inventory, reviewed engineering references, room interaction/collision plans; stop |
 | 3 Core spatial world | Planned | GPT-6.1 Sol / Extra High | One canvas, RoomId graph, atrium/connected travel, room boundaries/loading, camera modes, safe collisions/input, native zone compatibility |
 | 4 Premium Project Hub | Planned | GPT-6.1 Sol / High | Convincing licensed PC/furniture assets and state-backed screens; inspect/action/return; all existing developer functionality passes before expansion |

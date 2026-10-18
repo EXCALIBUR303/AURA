@@ -1,3 +1,8 @@
+> M1 update: art direction and scaled floor plan are complete design deliverables.
+> Runtime/native functionality remains at M0. Continue M2 asset/blueprint work next;
+> the next required manual model change is Sol / Extra High before M3. The M0 audit
+> and native coordination requirements below remain applicable.
+
 # Living Universe — Codex to Claude handoff
 
 ## Current boundary: Milestone 0 only
