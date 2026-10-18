@@ -17,6 +17,8 @@
     "audit:performance": "node test/performance.browser.mjs",
     "test:github": "node test/github.browser.mjs",
     "test:astra": "node test/astra.browser.mjs",
+    "test:world": "node test/world.test.ts",
+    "test:world:browser": "node test/world.browser.mjs",
     "test:voice": "node test/voice-controller.test.ts",
     "test:voice:browser": "node test/voice.browser.mjs"
   },

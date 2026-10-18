@@ -4,6 +4,15 @@ Status: M0 baseline retained; M2 reviewed candidates and measurements are below.
 Three research GLBs were acquired outside the checkout. No new model/texture/tool/
 skill is installed in AURA, and no binary has been committed.
 
+## M3 foundation resources
+
+No new GLB adopted in M3. Hub/Atrium structural boxes are instanced by material;
+room signs are bounded local 1024×256 canvas textures, no remote fonts/assets.
+Existing workstation props remain migration geometry until the M4 hero gate.
+Original Astra file/hash and visible credit remain unchanged. Final 20-visit
+world test reports 19 geometries, 8 textures and 12 shader programs with two room
+instances retained. These measurements do not certify future asset memory costs.
+
 ## Verified existing hero
 
 | Field | Astra Lumen II |

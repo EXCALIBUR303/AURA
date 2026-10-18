@@ -2,10 +2,11 @@
 
 ## Current checkpoint
 
-M1 art direction and M2 research/blueprint deliverables are complete. The application
-remains at the verified M0 runtime baseline. Detailed PC/peripheral/arcade acquisition
-remains unresolved; this does not block M3 migration, but blocks later room-quality
-acceptance. Stop here for **GPT-6.1 Sol / Extra High** before M3.
+M3 core spatial world is implemented on `codex/phase4-living-universe` after the
+owner's manual model checkpoint. Atrium + Project Hub form the verified vertical
+slice. Living and Gaming remain closed/planned until M5. Detailed equipment and
+room furnishing are not claimed complete. M4 continues with GPT-6.1 Sol / High;
+no model change is needed. Stop after M6 for Astra / Extra High.
 
 ## Milestone 0: audit and migration plan
 
@@ -215,11 +216,54 @@ Research evidence is `/workspace/aura-phase4/m2/research/`; final plan/sheet evi
 is `/workspace/aura-phase4/m1/`. These local files are not substitutes for committed
 provenance: source URLs, pinned commits, licences and measurements are in the docs.
 
-## Required next checkpoint
+## Milestone 3: core spatial world
 
-**GPT-6.1 Sol / Extra High — M3 Core Spatial World.** Continue on
-`codex/phase4-living-universe` from these design commits. Implement typed frontend
-room/edge registries, an Atrium + existing-Hub vertical slice, safe loading/camera/
-input/collision and native-zone adapter. Keep unavailable room doors honest until
-M5. Preserve persistent developer/voice state and original Astra. Do not redo M0,
-upgrade dependencies or start M4 hero replacements as part of the M3 foundation.
+Recommended model/effort: GPT-6.1 Sol / Extra High. Implemented frontend RoomId and
+connection registries, lazy room modules, latest-intent/cancellable loading, a
+single camera owner, collision-safe travel/orbit/zoom, explicit pointer-lock WASD,
+E to open nearby passages, continuous corridor walking and accessible room map.
+Map/inspect remain usable with denied pointer lock or unavailable WebGL. Loaded
+room instances are bounded to current plus destination; no native RoomId or prefs
+schema changes. Existing logical workspaces remain together in the Hub.
+
+App-level companion/conversation/voice state stays mounted. Repository search and
+project inspector drafts survive physical room visits. Native workspace commands
+return to the correct Hub view. Opening a modal safely cancels microphone capture
+and releases mouse capture. Original Astra is normalized to 1.75 m at the authored
+Hub home, with unchanged GLB/hash/credit, voice rig and permissions.
+
+M3 camera refinement from rendered evidence: Hub introduction is world
+`(0,2.6,-7.5)`, target `(0,1,-11.7)`, replacing M1's higher local pose so the
+camera has safe orbit/zoom headroom under the actual ceiling. Scene click tests
+now use the physical floor plan and assert real room bounds.
+
+Checks: TypeScript and production build pass; shared bridge **20/20**, voice
+controller **19/19**, world unit **16/16**, world browser **13/13**, retained
+Studio browser **28/28** (zero skipped). Three world axe scans and two Studio
+axe scans report zero violations. Browser suites report no uncaught errors or
+external requests. Coverage includes all six workspaces, actual 3D clicks,
+restore/drafts/search, 20 visits, load cancellation/retry, pointer-lock success
+and denial, keyboard safety, mic cancellation, context loss, missing original GLB
+and no-WebGL recovery. Final Studio rerun also passes **28/28**, zero skipped, with evidence at
+`/workspace/aura-phase4/m3/studio-final/`.
+
+Evidence outside Git: `/workspace/aura-phase4/m3/browser/` and
+`/workspace/aura-phase4/m3/studio/`; room/map screenshots include 1440×900 and
+1100×700. Actual final world SwiftShader sample: **3 fps, DPR 1, 25 draw calls,
+80,306 rendered triangles**, 19 geometries/8 textures/12 programs. Recent Hub
+samples are 17–21 calls/79,184–80,278 triangles. These are software renderer
+measurements, not Mac M5 acceptance. Native pointer lock, hardware voice,
+VoiceOver/system settings and ≥55 fps on M5 remain pending.
+
+Build: 1,075 modules; main JS 1,415.14 kB (393.85 kB gzip), CSS 67.00 kB
+(14.10 kB gzip); Hub/Atrium are separate lazy chunks. No new dependency, native,
+shared, platform, contract, permission, original asset or lockfile changes.
+No binary/screenshot committed, push, merge or app installation.
+
+## Next work
+
+M4 Premium Workstation — GPT-6.1 Sol / High. Complete detailed licensed/original
+hero assets, real-state monitor surfaces and reusable inspection/action/return
+before expanding into M5. Then M6 customization/motion; required stop for
+GPT-6 Astra / Extra High after M6. Do not repeat completed audits or claim full
+Phase 4 acceptance from this foundation.

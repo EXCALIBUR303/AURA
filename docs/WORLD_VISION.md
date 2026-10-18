@@ -1,7 +1,10 @@
 # AURA world vision — Milestone 1
 
-Status: **design specification complete; no new world runtime**. Dimensions below
-are design constraints, not performance results or completed-room claims. The
+Status: design specification complete; M3 Hub/Atrium foundation implemented.
+Detailed equipment and furnished Living/Gaming remain later milestones. Dimensions
+below are design constraints, not performance results or full-room acceptance.
+M3 rendered-camera refinement: Hub introduction world `(0,2.6,-7.5)`, target
+`(0,1,-11.7)` supplies safe ceiling headroom for bounded orbit/zoom. The
 [scaled floor plan](../frontend/design/phase4/world-plan.svg) is an original vector
 drawing; [the design sheet](../frontend/design/phase4/art-direction.html) combines
 it with material palettes. Both are design documents, not application UI.

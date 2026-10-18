@@ -1,7 +1,11 @@
 # World interaction map
 
-Status: M0 requirements plus M2 action blueprint. Existing Project Hub
-functions are implemented; physical new-room controls below are planned only.
+Status: M3 Hub/Atrium navigation implemented; later-room/equipment actions remain
+planned as identified below. Accessible map and portal clicks travel through checked
+cinematic paths. In Explore, E opens a nearby passage without teleportation, WASD
+walks the real corridor, and Esc releases capture. Closed Living/Gaming entries
+truthfully state unavailable. Native six workspace commands return to the Hub;
+map travel preserves developer context and drafts. Modal opening cancels capture.
 
 ## Proposed physical-to-functional mapping
 

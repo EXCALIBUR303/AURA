@@ -1,3 +1,4 @@
+import type { CameraMode, RoomId } from "../world/types.ts";
 import type { ZoneId } from "@aura/contracts";
 import type { AvatarDiagnostics } from "../validation/AvatarProbe.tsx";
 
@@ -12,15 +13,19 @@ export interface FrameSample {
 export interface StudioDiagnostics extends AvatarDiagnostics {
   zone: ZoneId;
   cameraSettled: boolean;
+  graphicsAvailable?: boolean;
   cameraRevision?: number;
   cameraSampledAt?: number;
   context: "ready" | "lost" | "restoring";
   drawCalls?: number;
   sceneTriangles?: number;
+  resources?: { geometries: number; textures: number; programs: number };
   animationTime?: number;
   camera?: { position: [number, number, number]; target: [number, number, number]; fov?: number };
   rig?: { head: boolean; eyes: boolean; jaw: boolean; jawAngle: number; headYaw: number; headPitch: number };
   perZone: Partial<Record<ZoneId, FrameSample[]>>;
+  perRoom?: Partial<Record<RoomId, FrameSample[]>>;
+  world?: { room: RoomId; mode: CameraMode; phase: string; loadedRooms: readonly RoomId[]; pending?: RoomId };
 }
 
 export type Report = (patch: Partial<StudioDiagnostics>) => void;

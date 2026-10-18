@@ -1,7 +1,16 @@
-# World architecture — M0 boundaries and M2 blueprint
+# World architecture — M3 runtime and extension blueprint
 
-No types or services below are implemented. This document specifies the intended
-frontend boundaries. M1 geometry/art are specified in [WORLD_VISION.md](WORLD_VISION.md)
+M3 implements the Hub/Atrium foundation below; future asset/game/environment and
+customization records remain extension specifications until their milestones.
+`src/world/types.ts`, `registry.ts`, `WorldController.ts`, `collision.ts`,
+`WorldNavigation.tsx`, `WorldScene.tsx`, `WorldHUD.tsx` and `rooms/*` are the
+current modules. `useWorld.ts` owns the external store; App retains native state.
+One Canvas and one camera owner serve current + at most one adjacent room.
+Explicit E passage preload preserves camera/mode/ZoneId; floor and collision
+unions open only after the destination is ready. Cancel uses a checked safe pose;
+stale imports cannot trigger a later camera jump. No durable world settings yet.
+
+The module table below describes responsibility, not exact directory names. M1 geometry/art are specified in [WORLD_VISION.md](WORLD_VISION.md)
 and the design-only [blueprint](../frontend/design/phase4/blueprint.json). The M2 blueprint below specifies
 asset fitting, route collision, camera paths and proposed resource budgets.
 

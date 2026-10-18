@@ -22,10 +22,10 @@ export type CompanionPresentation = { state: CompanionState; activity: AITurnSta
 export type CompanionHandle = { focus: () => void; context: (selected?: boolean) => void; providers: () => void; newConversation: () => void };
 const labels: Record<AITurnState, string> = { idle: "Ready", completed: "Reply complete", cancelled: "Reply stopped", preparing_context: "Preparing context", requesting: "Thinking", streaming: "Responding", waiting_for_tool: "Reading project context", waiting_for_approval: "Your approval is needed", error: "Reply unavailable" };
 
-export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayout, report, visible, resized, resize, voiceSamples, reducedMotion }: {
+export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayout, report, visible, resized, resize, voiceSamples, reducedMotion, externalBlocked = false }: {
   ref?: Ref<CompanionHandle>; zone: ZoneId; workspace: GitHubWorkspace; layout: ConversationLayout; changeLayout: (layout: ConversationLayout) => void;
   report: (presentation: CompanionPresentation) => void; visible: boolean; resized: number; resize: (width: number | null) => void;
-  voiceSamples: VoiceSamples; reducedMotion: boolean;
+  voiceSamples: VoiceSamples; reducedMotion: boolean; externalBlocked?: boolean;
 }) {
   const c = useConversation(zone);
   const [draft, setDraft] = useState("");
@@ -42,9 +42,9 @@ export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayo
   const conversation = c.conversation;
   const state = c.state;
   const conversationDisabled = c.loading || c.working || c.active || c.invalidProvider || !provider?.available;
-  const voice = useVoice({ conversationId: conversation?.conversationId ?? null, visible, enabled: c.prefs?.voice.enabled ?? false, canTalk: !conversationDisabled && !dialog && !c.view?.approval,
+  const voice = useVoice({ conversationId: conversation?.conversationId ?? null, visible, enabled: c.prefs?.voice.enabled ?? false, canTalk: !conversationDisabled && !dialog && !c.view?.approval && !externalBlocked,
     prepare: c.ensureConversation, final: onFinalTranscript, cleared: () => { if (voiceDraft.current) { setDraft(""); voiceDraft.current = null; } }, expand: () => { if (layout === "compact") changeLayout("expanded"); },
-  }, voiceSamples, !!dialog || !!c.view?.approval);
+  }, voiceSamples, !!dialog || !!c.view?.approval || externalBlocked);
   const voiceCapture = voice.view.busy || !!voice.view.status?.listening || voice.view.status?.phase === "recognizing";
   const phase = voice.view.status?.phase;
   const voiceActive = phase && ["starting", "listening", "recognizing", "thinking", "speaking", "interrupted", "error"].includes(phase);
@@ -92,7 +92,7 @@ export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayo
     }
   }
   function onFinalTranscript(final: FinalTranscript) {
-    if (draft.trim() || conversationDisabled || dialog || c.view?.approval) return; // Retain the final separately; never overwrite a typed draft.
+    if (draft.trim() || conversationDisabled || dialog || c.view?.approval || externalBlocked) return; // Retain the final separately; never overwrite a typed draft.
     if (editSpeech) { voiceDraft.current = final; setDraft(final.text); voice.controller.dismissFinal(); requestAnimationFrame(() => prompt.current?.focus({ preventScroll: true })); }
     else void send(final.text, final);
   }

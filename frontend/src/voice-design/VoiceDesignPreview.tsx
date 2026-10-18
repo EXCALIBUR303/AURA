@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { VoicePhase, VoiceRecovery, VoiceOption } from "@aura/contracts";
 import fixturesRaw from "../../../shared/fixtures/bridge-messages.json?raw";
+import { useWorld } from "../world/useWorld.ts";
 import { Studio } from "../studio/Studio.tsx";
 import type { StudioDiagnostics } from "../studio/diagnostics.ts";
 import { EMPTY_DIAGNOSTICS } from "../validation/AvatarProbe.tsx";
@@ -55,6 +56,8 @@ function Speaker({ muted }: { muted: boolean }) {
 
 const Scene = memo(function Scene({ reduced }: { reduced: boolean }) {
   const [sceneKey, setSceneKey] = useState(0);
+  const {controller,snapshot}=useWorld();
+  useEffect(()=>controller.focusWorkspace("companion"),[controller]);
   const [status, setStatus] = useState("loading");
   const report = useCallback((patch: Partial<StudioDiagnostics>) => {
     window.__AURA_DIAGNOSTICS__ = { ...EMPTY_DIAGNOSTICS, zone: "companion", cameraSettled: false, context: "ready", perZone: {}, ...window.__AURA_DIAGNOSTICS__, ...patch };
@@ -62,7 +65,7 @@ const Scene = memo(function Scene({ reduced }: { reduced: boolean }) {
   }, []);
   const restart = useCallback(() => { setSceneKey((key) => key + 1); setStatus("loading"); }, []);
   const stay = useCallback(() => {}, []);
-  return <><Studio key={sceneKey} zone="companion" revision={0} reducedMotion={reduced} maxDpr={1} state="idle" speechLevel={0} report={report} navigate={stay} restart={restart} focusCompanion={stay} />
+  return <><Studio key={sceneKey} zone="companion" revision={0} reducedMotion={reduced} maxDpr={1} state="idle" speechLevel={0} report={report} navigate={stay} restart={restart} focusCompanion={stay} world={snapshot} worldController={controller} openWorldMap={stay} />
     {status !== "loaded" && <div className="vd-scene-feedback" role="status">{status === "error" ? <>Studio could not load. <button onClick={restart}>Retry scene</button></> : "Loading original Astra Lumen II…"}</div>}</>;
 });
 

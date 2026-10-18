@@ -8,9 +8,9 @@ import { AVATAR_URL } from "../validation/AvatarProbe.tsx";
 import type { Report } from "./diagnostics.ts";
 import type { VoiceSamples } from "../companion/voice/VoiceController.ts";
 
-export function Astra({ state, speechLevel, reducedMotion, report, startedAt, voiceSamples }: {
+export function Astra({ state, speechLevel, reducedMotion, report, startedAt, voiceSamples, active = true }: {
   state: CompanionState; speechLevel: number; reducedMotion: boolean; report: Report; startedAt: number;
-  voiceSamples?: VoiceSamples;
+  voiceSamples?: VoiceSamples; active?: boolean;
 }) {
   // Both decoder flags are explicit: no remote Draco or Meshopt assets.
   const gltf = useGLTF(AVATAR_URL, false, false);
@@ -78,6 +78,7 @@ export function Astra({ state, speechLevel, reducedMotion, report, startedAt, vo
   }, [rig]);
 
   useFrame(({ camera }, delta) => {
+    if (!active) return;
     rig.bases.forEach((base, bone) => bone.quaternion.copy(base));
     rig.mixer.update(reducedMotion ? 0 : Math.min(delta, 0.1));
     rig.bases.forEach((base, bone) => base.copy(bone.quaternion));

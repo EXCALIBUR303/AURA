@@ -116,11 +116,11 @@ try {
     }
     await navigate(page, 0);
     await page.waitForFunction((pose) => window.__AURA_DIAGNOSTICS__.camera.position.every((v, i) => Math.abs(v - pose[i]) < 0.03), getZone('studio').camera);
-    await clickWorld([-3.05, 0.885, -2.02]);
+    await clickWorld([-2.7, 0.8225, -13.15]);
     await page.waitForFunction(() => window.__AURA_DIAGNOSTICS__.zone === 'hardware' && window.__AURA_DIAGNOSTICS__.cameraSettled);
     await navigate(page, 0);
     await page.waitForFunction((pose) => window.__AURA_DIAGNOSTICS__.camera.position.every((v, i) => Math.abs(v - pose[i]) < 0.03), getZone('studio').camera);
-    await clickWorld([0, 1, 0]);
+    await clickWorld([-1.25, 1, -12.5]);
     await page.waitForFunction(() => window.__AURA_DIAGNOSTICS__.zone === 'companion' && window.__AURA_DIAGNOSTICS__.cameraSettled);
     assert.ok(await page.getByLabel('Message Astra').evaluate((el) => el === document.activeElement));
     await navigate(page, 1);
@@ -160,7 +160,10 @@ try {
     const originalDistance = await distance();
     await page.mouse.move(box.x + 8, box.y + 8); await page.mouse.wheel(0, 350);
     await page.waitForFunction((start) => { const c = window.__AURA_DIAGNOSTICS__.camera; return Math.abs(Math.hypot(...c.position.map((value, i) => value - c.target[i])) - start) > 0.1; }, originalDistance);
-    const zoomed = await distance(); assert.ok(zoomed >= 7 - 0.01 && zoomed <= 22 + 0.01);
+    const zoomed = await distance(); assert.ok(zoomed >= 0.65 - 0.01 && zoomed <= 7 + 0.01);
+    const bounded = await page.evaluate(() => window.__AURA_DIAGNOSTICS__.camera.position);
+    assert.ok(bounded[0] > -6 && bounded[0] < 6 && bounded[2] > -15.5 && bounded[2] < -6.5);
+    assert.ok(bounded[1] >= 0.3 && bounded[1] <= 3.44 + 0.001);
     await page.getByRole('button', { name: 'Reset overview', exact: true }).click();
     await page.waitForFunction((pose) => window.__AURA_DIAGNOSTICS__.camera.position.every((value, i) => Math.abs(value - pose[i]) < 0.03), getZone('studio').camera);
   });
@@ -336,6 +339,10 @@ try {
     await unavailable.getByRole('button', { name: 'Project inspector', exact: true }).click();
     await unavailable.getByRole('heading', { name: 'Workstation inspector', exact: true }).waitFor();
     assert.equal(await unavailable.evaluate(() => window.__AURA_DIAGNOSTICS__.status), 'error');
+    await unavailable.getByRole('button',{name:'World map',exact:false}).click();
+    await unavailable.locator('article[data-room=atrium]').getByRole('button',{name:'Visit',exact:true}).click();
+    await unavailable.waitForFunction(()=>document.querySelector('.experience').dataset.room==='atrium');
+    await unavailable.getByRole('heading',{name:'Central Atrium',exact:true}).waitFor();
     await unavailable.close();
   });
 

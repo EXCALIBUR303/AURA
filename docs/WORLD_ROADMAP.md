@@ -13,7 +13,7 @@ Planned items must never appear as working product features.
 | 0 Audit | Complete (audit deliverable, no world runtime) | GPT-6.1 Sol / High | Latest-main branch, rendering/contract/asset audit, targeted baseline checks and committed migration docs; stop |
 | 1 Art direction | Complete (design specification) | GPT-6 Astra / Extra High | Architectural plan, proportions, room identities, camera/lighting/material studies and hero acceptance criteria |
 | 2 Asset research + blueprint | Complete (research/blueprint; hero gaps recorded) | GPT-6 Astra / High | Actual asset/source/licence review, measured inventory, reviewed engineering references, room interaction/collision plans; stop |
-| 3 Core spatial world | Planned | GPT-6.1 Sol / Extra High | One canvas, RoomId graph, atrium/connected travel, room boundaries/loading, camera modes, safe collisions/input, native zone compatibility |
+| 3 Core spatial world | Implemented (Hub + Atrium vertical slice) | GPT-6.1 Sol / Extra High | One canvas, RoomId graph, atrium/connected travel, room boundaries/loading, camera modes, safe collisions/input, native zone compatibility |
 | 4 Premium Project Hub | Planned | GPT-6.1 Sol / High | Convincing licensed PC/furniture assets and state-backed screens; inspect/action/return; all existing developer functionality passes before expansion |
 | 5 Living + Gaming | Planned | GPT-6.1 Sol / High | Two separate complete spaces, real supported controls, modular launcher and truthful availability; no fake game/media features |
 | 6 Customization + motion | Planned | GPT-6.1 Sol / High | Static/floating/hybrid, eligibility/intensity, day/sunset/night, reduced motion, bounded customization and safe persistence path; stop |
@@ -24,6 +24,15 @@ Planned items must never appear as working product features.
 Every required model checkpoint must finish targeted checks, documentation and a
 safe milestone commit before requesting the manual switch. Never imply an automatic
 switch. Complex M8 rendering/integration failures escalate to Sol / High.
+
+## M3 implemented scope
+
+Frontend registry/controller, lazy Hub/Atrium, physical corridor and E passage,
+WASD/pointer lock, bounded safe orbit/cinematic travel, cancellation/retry and
+accessible map are verified. Developer state remains above rooms. Living/Gaming
+are intentionally closed pending furnished M5 modules. Evidence: world 16 unit +
+13 browser checks, Studio 28 browser checks, five zero-violation axe scans;
+TypeScript/build/bridge/voice checks pass. No M5/native performance claim.
 
 ## Existing implemented foundation to preserve
 

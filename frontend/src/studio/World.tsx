@@ -7,10 +7,10 @@ import type { ZoneId } from "@aura/contracts";
 
 type Point = [number, number, number];
 const STATIONS: { id: ZoneId; x: number; z: number; accent: string; top: string }[] = [
-  { id: "hardware", x: -3.5, z: -2.5, accent: "#4c8186", top: "#c6b394" },
-  { id: "software", x: 3.5, z: -2.5, accent: "#6683ad", top: "#f4f3ed" },
-  { id: "ai-lab", x: -3.5, z: 1.8, accent: "#827a9b", top: "#b1b9bd" },
-  { id: "github", x: 3.5, z: 1.8, accent: "#748b7b", top: "#e8e5db" },
+  { id: "hardware", x: -3.25, z: -2.5, accent: "#4c8186", top: "#c6b394" },
+  { id: "software", x: 3.25, z: -2.5, accent: "#6683ad", top: "#f4f3ed" },
+  { id: "ai-lab", x: -3.25, z: 2.5, accent: "#827a9b", top: "#b1b9bd" },
+  { id: "github", x: 3.25, z: 2.5, accent: "#748b7b", top: "#e8e5db" },
 ];
 
 function Box({ position, size, color = "#e8e8e3", rotation, onSelect }: {
@@ -42,7 +42,7 @@ function Monitor({ x = 0, y = 1.48, width = 1.5, height = 0.83, accent, select }
 function Workstation({ station, navigate }: { station: typeof STATIONS[number]; navigate: (zone: ZoneId) => void }) {
   const { id, x, z, accent, top } = station;
   const select = () => navigate(id);
-  return <group position={[x, 0, z]}>
+  return <group position={[x, 0, z]} rotation={[0,z>0?Math.PI:0,0]}>
     <Box position={[0, 0.08, 0.15]} size={[2.95, 0.032, 2.6]} color={id === "hardware" ? "#d8ded6" : id === "software" ? "#d9e1e5" : id === "ai-lab" ? "#dfdce4" : "#e0e4dc"} />
     <Box position={[0, 0.83, 0]} size={[2.45, 0.1, 1.16]} color={top} onSelect={select} />
     <Box position={[0, 0.755, 0.47]} size={[2.3, 0.045, 0.065]} color={accent} />
@@ -106,27 +106,6 @@ function Plantings() {
 const Architecture = memo(function Architecture({ navigate }: { navigate: (zone: ZoneId) => void }) {
   return <Instances limit={220} frames={1} castShadow receiveShadow>
     <boxGeometry /><meshStandardMaterial roughness={0.76} metalness={0.08} />
-    <Box position={[0, -0.02, 0]} size={[12.1, 0.12, 9.1]} color="#d4c7ae" />
-    <Box position={[0, 0.045, 0]} size={[11.97, 0.035, 8.97]} color="#e8e7de" />
-    {[-4, -2, 0, 2, 4].map((x) => <Box key={x} position={[x, 0.065, 0]} size={[0.013, 0.003, 8.8]} color="#d2d5ce" />)}
-    <Box position={[0, 0.067, -0.3]} size={[1.72, 0.006, 7.9]} color="#eeede6" />
-    <Box position={[0, 1.95, -4.5]} size={[12, 3.9, 0.16]} color="#dedfd6" />
-    <Box position={[-6, 1.95, -0.6]} size={[0.12, 3.9, 7.8]} color="#d5dedc" />
-    <Box position={[0, 3.92, -4.15]} size={[12.1, 0.16, 0.85]} color="#eceae1" />
-    <Box position={[-5.82, 3.92, -0.55]} size={[0.5, 0.16, 7.8]} color="#eceae1" />
-    {/* Tall window bays and solid reveals create depth without transparent overdraw. */}
-    {[-4.4, -2.4, 2.4, 4.4].map((x) => <group key={x}>
-      <Box position={[x, 2.25, -4.37]} size={[1.77, 2.45, 0.07]} color="#c3d4d5" />
-      <Box position={[x, 2.25, -4.29]} size={[0.045, 2.45, 0.07]} color="#f3f1e7" />
-      <Box position={[x, 1.02, -4.25]} size={[1.9, 0.08, 0.28]} color="#ecece3" />
-    </group>)}
-    <Box position={[0, 2.05, -4.32]} size={[1.5, 3.72, 0.16]} color="#c5b99f" />
-    {[-0.49, -0.24, 0, 0.24, 0.49].map((x) => <Box key={x} position={[x, 2.05, -4.19]} size={[0.06, 3.65, 0.12]} color="#dcd1b8" />)}
-    {[-3.2, -1.35, 0.5, 2.35].map((z) => <group key={z}>
-      <Box position={[-5.9, 2.25, z]} size={[0.05, 2.45, 1.55]} color="#c4d5d6" />
-      <Box position={[-5.84, 2.25, z]} size={[0.08, 2.45, 0.045]} color="#eeeee4" />
-    </group>)}
-    <Box position={[0, 0.34, -4.12]} size={[11.4, 0.57, 0.58]} color="#d3d9d1" />
     {STATIONS.map((station) => <Workstation key={station.id} station={station} navigate={navigate} />)}
   </Instances>;
 });
@@ -142,18 +121,17 @@ export const World = memo(function World({ zone, navigate, focusCompanion }: {
   // visit would link a new shader program mid-transition (a synchronous GPU stall).
   const ring = station ?? STATIONS[0]!;
   return <group>
-    <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.085, 0]}>
-      <planeGeometry args={[200, 200]} /><meshStandardMaterial color="#e7e9e6" roughness={0.92} />
-    </mesh>
     <Architecture navigate={navigate} />
     <Plantings />
-    <mesh position={[0, 0.095, 0]} receiveShadow><cylinderGeometry args={[1.23, 1.29, 0.07, 64]} /><meshStandardMaterial color="#c4c8c3" roughness={0.75} /></mesh>
-    <mesh position={[0, 0.126, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[1.2, 64]} /><meshStandardMaterial color="#e7e8e0" roughness={0.66} /></mesh>
+    <group position={[-1.25,0,-1.5]}>
+    <mesh position={[0, 0.095, 0]} receiveShadow><cylinderGeometry args={[.4, .42, 0.07, 48]} /><meshStandardMaterial color="#c4c8c3" roughness={0.75} /></mesh>
+    <mesh position={[0, 0.126, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[.39, 48]} /><meshStandardMaterial color="#e7e8e0" roughness={0.66} /></mesh>
+    </group>
     <mesh position={[ring.x, 0.098, ring.z + 0.15]} rotation={[-Math.PI / 2, 0, 0]}>
       <ringGeometry args={[1.45, 1.47, 4]} /><meshBasicMaterial color={ring.accent} transparent opacity={station ? 0.5 : 0} depthWrite={false} />
     </mesh>
     {/* A non-rendering, six-face hit area avoids raycasting the 36k-triangle rig. */}
-    <mesh visible={false} position={[0, 1.03, 0]} onClick={(event) => { event.stopPropagation(); focusCompanion(); }}
+    <mesh visible={false} position={[-1.25, 1.03, -1.5]} onClick={(event) => { event.stopPropagation(); focusCompanion(); }}
       onPointerOver={() => { gl.domElement.style.cursor = "pointer"; }} onPointerOut={() => { gl.domElement.style.cursor = ""; }}>
       <boxGeometry args={[0.78, 1.8, 0.68]} /><meshBasicMaterial />
     </mesh>
