@@ -97,6 +97,16 @@ Airdopes earbuds and error -10875 on hardware, Bluetooth disconnect, input/outpu
 
 Bluetooth, device switching, sleep/lock and echo tests were not run in this follow-up, as requested.
 
+## 6b. Deferred hardware tests (not passed)
+
+These have **not** been run and must not be counted as passed. Voice is not fully accepted until the owner runs them:
+- **Bluetooth:** Airdopes 141 Elite ANC as input and output, error -10875 on hardware, no-audio and disconnection while connected.
+- **Device switching:** input or output changed during listening or speech.
+- **Interruptions:** real sleep, screen lock, quit during a session, Esc during listening on this build (owner report only so far), pause/resume/replay by ear.
+- **Other:** no-audio detection on a real device, echo test, VoiceOver alongside speech, the system Reduce Motion and Transparency toggles, the macOS 15–25 recogniser.
+- **Install check:** after any replacement of `/Applications/AURA.app`, a fresh ad-hoc signature re-asks for microphone and Keychain access (Deny is safe for Keychain; GitHub then shows unavailable).
+Hands-free barge-in stays unavailable.
+
 ## 7. Automated regression
 
 | Suite | Result |
@@ -106,6 +116,8 @@ Bluetooth, device switching, sleep/lock and echo tests were not run in this foll
 | Voice controller | 19/19 |
 | Chromium: voice, Astra, GitHub, Studio | 21, 29, 23, 28, all passing |
 | Typecheck, Release and Debug builds, `swift build` | Clean |
+
+Final check on `7ab333c` (docs-only since the full regression): Swift 235/235, bridge 20/20, controller 19/19, typecheck clean. Browser suites were not repeated because no code changed after `5216586`. This branch contains the native voice backend (`4087d11`), Codex's frontend (`73b6ffd`), the validation probe (`faaaa68`) and the clarity work (`5216586`). It supersedes PR #2.
 
 ## 8. Files changed
 
