@@ -68,6 +68,6 @@ try{
   assert.equal(await delayed.locator('.experience').getAttribute('data-room'),'project-hub');assert.equal(await delayed.evaluate(()=>window.__AURA_DIAGNOSTICS__.world.phase),'idle');await delayed.close();
  });
  finalDiagnostics=await page.evaluate(()=>window.__AURA_DIAGNOSTICS__);assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
- console.log(JSON.stringify({tests:results.length,scans,diagnostics:finalDiagnostics},null,2));
+ console.log(JSON.stringify({tests:results.length,scans,measurements:{fps:finalDiagnostics.fps,drawCalls:finalDiagnostics.drawCalls,triangles:finalDiagnostics.sceneTriangles,resources:finalDiagnostics.resources}},null,2));
 }catch(error){console.error(error);for(const context of browser.contexts())for(const page of context.pages()){await page.screenshot({path:path.join(artifacts,'failure.png')}).catch(()=>{});console.log(await page.evaluate(()=>({diagnostics:window.__AURA_DIAGNOSTICS__,body:document.body.innerText.slice(0,1300)})).catch(()=>null));}process.exitCode=1;
 }finally{await writeFile(path.join(artifacts,'results.json'),JSON.stringify({results,scans,errors,external,diagnostics:finalDiagnostics},null,2));await browser.close();}

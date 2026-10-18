@@ -14,7 +14,7 @@ export type WorldCameraHandle={capture:()=>CameraPose|undefined};
 export function WorldNavigation({controller,snapshot,reducedMotion,active,report,revision,cameraHandle}:{controller:WorldController;snapshot:WorldSnapshot;reducedMotion:boolean;active:boolean;report:Report;revision:number;cameraHandle?:Ref<WorldCameraHandle>}){
   const {camera,gl}=useThree();const orbit=useRef<Orbit>(null);const keys=useRef(new Set<string>());
   const latest=useRef({snapshot,active});latest.current={snapshot,active};
-  const geometry=useMemo(()=>worldGeometry(snapshot.loaded),[snapshot.loaded]);
+  const geometry=useMemo(()=>worldGeometry(snapshot.loaded,snapshot.options),[snapshot.loaded,snapshot.options.chairSlot]);
   const path=useRef<Point[]>([]),requestId=useRef(-1);const goal=useRef<CameraPose|null>(null);const settled=useRef(true);
   const safe=useRef<CameraPose>(controller.capture());const look=useRef(new Euler(0,0,0,"YXZ"));const direction=useRef(new Vector3());
   const point=useRef(new Vector3()),target=useRef(new Vector3());
@@ -43,7 +43,7 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
   useEffect(()=>{
     const canvas=gl.domElement;const blocked=()=>!!document.querySelector("dialog[open]");
     const release=()=>{keys.current.clear();if(document.pointerLockElement===canvas)document.exitPointerLock();if(controller.getSnapshot().mode==="explore")controller.setMode("inspect");};
-    const lock=()=>{keys.current.clear();if(document.pointerLockElement===canvas){const s=controller.getSnapshot();const g=worldGeometry(s.loaded);const p:Point=[camera.position.x,1.62,camera.position.z];look.current.setFromQuaternion(camera.quaternion,"YXZ");camera.position.fromArray(safePoint(p,g.floors,g.colliders)?p:ROOMS[s.room].landing);controller.setMode("explore");canvas.focus();}else if(controller.getSnapshot().mode==="explore")controller.setMode("inspect");};
+    const lock=()=>{keys.current.clear();if(document.pointerLockElement===canvas){const s=controller.getSnapshot();const g=worldGeometry(s.loaded,s.options);const p:Point=[camera.position.x,1.62,camera.position.z];look.current.setFromQuaternion(camera.quaternion,"YXZ");camera.position.fromArray(safePoint(p,g.floors,g.colliders)?p:ROOMS[s.room].landing);controller.setMode("explore");canvas.focus();}else if(controller.getSnapshot().mode==="explore")controller.setMode("inspect");};
     const down=(e:KeyboardEvent)=>{
       if(e.defaultPrevented||blocked())return;
       if(e.key==="Escape"){

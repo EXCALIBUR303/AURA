@@ -11,8 +11,10 @@ export const ASSETS:Record<AssetId,{url:string;title:string;requiredBy:readonly 
  chair:{url:"./world/SheenChair.glb",title:"Sheen Chair / Eric Chadwick, Wayfair / CC0",requiredBy:["living"]},
 };
 type Entry = { owners:Set<RoomId>; value?:GLTF; pending?:Promise<GLTF> };
-const REQUIRED_PARTS:Partial<Record<AssetId,string[]>>={workstation:["desk","chair","pc","fan","monitor","keyboard","mouse","speaker","laptop"],"room-kit":["coffee-table","console","bookshelf","floor-lamp","pendant","plant","curtain","arcade","controller","game-console","display","art-frame"]};
+const REQUIRED_PARTS:Partial<Record<AssetId,string[]>>={workstation:["desk","chair","pc","fan","monitor","monitor-panel","monitor-stand","keyboard","mouse","speaker","laptop"],"room-kit":["coffee-table","console","bookshelf","floor-lamp","pendant","plant","curtain","arcade","controller","game-console","display","art-frame"]};
 const entries = new Map<AssetId,Entry>();
+let desiredOwners:readonly RoomId[]=[];
+const mountedRooms=new Map<RoomId,number>();
 const loader = new GLTFLoader(); // Uncompressed, embedded GLBs. No external decoders or CDN.
 function dispose(value:GLTF){
   const geometry=new Set<Mesh["geometry"]>(),materials=new Set<Material>(),textures=new Set<Texture>();
@@ -32,11 +34,19 @@ async function acquire(id:AssetId,owner:RoomId){
   return current.pending;
 }
 export async function prepareAssets(room:RoomId){await Promise.all((Object.keys(ASSETS) as AssetId[]).filter(id=>ASSETS[id].requiredBy.includes(room)).map(id=>acquire(id,room)));}
-/** Run after React commits the new room set, never from a room's render/unmount. */
-export function retainAssetOwners(owners:readonly RoomId[]){
-  for(const [id,entry] of entries){for(const owner of entry.owners)if(!owners.includes(owner))entry.owners.delete(owner);
+/** DOM navigation intent may commit before the separate R3F root removes old meshes. */
+function sweepOwners(){
+  const keep=new Set([...desiredOwners,...mountedRooms.keys()]);
+  for(const [id,entry] of entries){for(const owner of entry.owners)if(!keep.has(owner))entry.owners.delete(owner);
     if(!entry.owners.size&&entry.value){dispose(entry.value);entries.delete(id);}
   }
+}
+export function retainAssetOwners(owners:readonly RoomId[]){desiredOwners=[...owners];sweepOwners();}
+/** A passive cleanup inside the R3F root runs after its host meshes have been unlinked. */
+export function pinRenderedRoom(room:RoomId){
+ mountedRooms.set(room,(mountedRooms.get(room)??0)+1);
+ let released=false;
+ return ()=>{if(released)return;released=true;const count=(mountedRooms.get(room)??1)-1;if(count)mountedRooms.set(room,count);else mountedRooms.delete(room);sweepOwners();};
 }
 export function readAsset(id:AssetId):GLTF {const value=entries.get(id)?.value;if(!value)throw Error("Required room asset is unavailable");return value;}
 export function assetSummary(){return [...entries].map(([id,e])=>({id,owners:[...e.owners],ready:!!e.value,loading:!!e.pending}));}

@@ -1,33 +1,51 @@
 # Phase 4 Codex → Claude checkpoint
 
-**M0–2 design/research and M3–5 frontend milestones are complete locally.**
-Branch `codex/phase4-living-universe`, main base
-`a67cda15538b16af4182c249bfc212ad39e41f38`. M3 `960439b`, M4 `1d93e8a`;
-use `git log` for the M5 commit. Intermediate checkpoint, not final native handoff.
+**M0–2 design/research and M3–6 frontend implementation are complete locally.**
+Branch `codex/phase4-living-universe`, base main
+`a67cda15538b16af4182c249bfc212ad39e41f38`. Milestone commits: M3 `960439b`,
+M4 `1d93e8a`, M5 `1470e3b`; use `git log -1` for the M6 tip. No push/merge/install.
+This is the required M6 model checkpoint, not final Phase4/native acceptance.
 
-Four physical rooms with bounded lazy assets, camera/collision controls and map;
-all original native workspaces stay together in the Hub. Detailed original equipment,
-real-state screens, PC inspection/return, separately furnished Living/Gaming,
-lighting/curtain/palette controls and honest unavailable game/media state. Game
-lifecycle interface exists; no installed game or fake Play action. Native/shared/
-platform/contracts/permissions/dependencies remain unchanged. No push/merge/install.
+Four physical rooms, preserved native Hub functions, detailed original equipment,
+actual-state screens, inspection/return and separate furnished Living/Gaming.
+M6 implements bounded static/floating/hybrid displays, intensity, three lighting
+presets, native/system motion priority and two collision-safe chair positions.
+Settings are explicitly session-only. The library has no installed game; its lazy
+input/pause/exit/cleanup interface is tested with separate fixtures only.
 
-M5 typecheck/build and grouped bridge pass, world unit20/20, game unit6/6, voice
-controller19/19; furnished room browser8/8, six zero-violation axe scans and no
-page errors/external requests. M4 fullStudio28/equipment6/world13 remain retained
-prior evidence; not new M5 runs. Full QA is M8. Exact evidence/counters:
-[PHASE4_LIVING_UNIVERSE.md](PHASE4_LIVING_UNIVERSE.md#milestone-5-separate-living-and-gaming).
-Native M5 ≥55fps and physical voice/accessibility/pointer lock are still pending.
+A real cross-root disposal defect was reproduced and fixed in M6: navigation intent
+now cooperates with reference-count pins inside the actual R3F room root. Retired
+GLBs dispose after meshes unlink; old-frame uploads cannot resurrect unowned buffers.
+Original repeat-visit limits are unchanged. Instance-owned buffers also release.
+Runtime Astra/platform contact is aligned without changing its source/rig/voice.
 
-**Ignored runtime assets must be copied/reproduced on a new checkout.**
-Original workstation/room-kit scripts, manifests and instructions:
-`frontend/asset-pipeline/README.md`. Reviewed unchanged sofa/chair sources, licences,
-hashes and runtime changes: `frontend/public/world/FURNITURE_CREDITS.txt` and asset
-inventory. Original Astra/hash/visibleCC BY are preserved. No GLB/screenshot commit.
+TypeScript/build pass; bridge20/20, voice controller19/19, world unit22/22,
+game lifecycle6/6. M6 customization8/8, rooms8/8, equipment6/6, world13/13 and full Studio28/28 pass:
+**63 browser checks**, zero skipped, **15 zero-violation axe scans**, no page
+errors/external requests. Final reruns cover the resource-lifetime fix. Evidence:
+[PHASE4_LIVING_UNIVERSE.md](PHASE4_LIVING_UNIVERSE.md#milestone-6-bounded-customization-and-motion),
+`/workspace/aura-phase4/m6/`. No native/shared/platform/contract/permission/dependency
+or original licensed asset changes. No binary/screenshot commit.
 
-Continue M6 on GPT-6.1 Sol / High, then stop for the owner's manual switch to
-GPT-6 Astra / Extra High. Global floating/day-night customization and final visual/
-QA/native review are not complete. Do not repeat audits or alter native contracts.
+**Ignored runtime GLBs must be copied/reproduced on a new checkout.**
+Commands, current manifests and rights/provenance: `frontend/asset-pipeline/README.md`.
+Current equipment999,936bytes/SHA916fe968d6af527429666f90ee9bd933914d6a1b2b6b816e1cbe2a1f323f90f2;
+use the current manifest, not M4's historical digest. Room-kit/sofa/chair and original
+Astra hashes/credits are in the inventory. All runtime asset URLs are local.
+
+**Next: manually switch to GPT-6 Astra / Extra High for M7.** Review actual room/
+light/motion screenshots, especially dock occlusion, floor grain, framing, scale,
+materials and doorway composition. Preserve implemented functions and the lifetime
+fix. Then the required M8 Luna/Medium QA and M9 Sol/High engineering checkpoints.
+Do not restart audits, rewrite native services or publish without owner approval.
+
+Known review case: Atrium+Hub75calls/250,556triangles exceeds the proposed
+Atrium40-call ceiling; Gaming+Atrium72calls/84,092triangles exceeds its standalone
+70-call ceiling. Profile portal views/culling/LOD in M8 and on native M5. Software
+samples are not ≥55fps validation. Full Astra/GitHub/voice browser matrix, native
+pointer lock, hardware voice, VoiceOver/system settings and durable world prefs
+remain pending. The final M9 handoff must contain the exact native checkout/build/
+validation steps and acceptance results; this checkpoint does not waive them.
 
 ## Preserve the current native baseline
 

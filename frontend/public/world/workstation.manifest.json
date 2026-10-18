@@ -1,20 +1,21 @@
 {
   "schemaVersion": 1,
-  "bytes": 1002184,
-  "sha256": "9c76a40861e39c10b7fc7d8616dcb999ffa9a22b7de3271c49fd22971841a75b",
+  "bytes": 999936,
+  "sha256": "916fe968d6af527429666f90ee9bd933914d6a1b2b6b816e1cbe2a1f323f90f2",
   "models": {
     "desk": 1836,
     "chair": 3876,
-    "pc": 7668,
+    "pc": 7884,
     "fan": 964,
-    "monitor": 1076,
     "screen": 44,
     "keyboard": 3188,
     "mouse": 464,
     "speaker": 732,
-    "laptop": 2480
+    "laptop": 2480,
+    "monitor-panel": 860,
+    "monitor-stand": 216
   },
-  "triangles": 22328,
+  "triangles": 22544,
   "primitives": 33,
   "materials": [
     "Aluminium",

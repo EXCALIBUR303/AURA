@@ -1,7 +1,7 @@
 # AURA world vision — Milestone 1
 
 Status: design specification complete; M3 Hub/Atrium foundation and M4 detailed workstation implemented.
-Furnished Living/Gaming are implemented in M5; M6 controls/motion and M7 full visual audit remain. Dimensions
+Furnished Living/Gaming are implemented in M5; M6 controls/motion are implemented; M7 full visual audit remains. Dimensions
 below are design constraints, not performance results or full-room acceptance.
 M3 rendered-camera refinement: Hub introduction world `(0,2.6,-7.5)`, target
 `(0,1,-11.7)` supplies safe ceiling headroom for bounded orbit/zoom. The
@@ -244,3 +244,19 @@ commercial marks or game content. The Gaming introduction is refined to world
 arcade and desk fit the view. Original source window/art images are bounded local
 canvas textures; no fake video or streaming integration. Full composition/lighting/
 HUD audit remains M7; cloud screenshots do not establish native performance.
+
+## M6 implemented presentation scope
+
+Static grounds the authored equipment. Floating lifts eligible display panels
+slightly while keeping stands, desks and architecture fixed. Hybrid selects AI,
+GitHub and Gaming displays. One bounded intensity and native/system motion priority
+keep the movement restrained; this is neither levitating furniture nor a moving
+collision field. Daylight/sunset/night preserve each room's color identity through
+actual lights/materials/window art. No bloom, arbitrary CSS filter or new renderer.
+
+The required M7 audit must review actual room/preset screenshots. Priorities include
+companion-dock occlusion of room furnishings, repetitive/strong wood grain, doorway
+views, scale/framing, material consistency and compact-window HUD/panel hierarchy.
+Do not describe M6 as final visual acceptance. Native performance, system appearance
+and physical input remain separate. Atrium+Hub portal view exceeds the Atrium draw
+review budget and belongs in the measured optimization review.

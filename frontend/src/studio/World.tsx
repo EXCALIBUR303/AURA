@@ -5,6 +5,7 @@ import type { ZoneId } from "@aura/contracts";
 
 import { Equipment } from "../world/assets/Equipment.tsx";
 import { STATIONS } from "../world/interactions/registry.ts";
+import type { MotionSamples, WorldSettings } from "../world/settings.ts";
 import type { ScreenState } from "../world/assets/MonitorAtlas.tsx";
 
 const PLANTS: [number, number][] = [[-5.15, -3.65], [5.1, -3.65], [-5.1, 3.25], [5.1, 3.25]];
@@ -27,9 +28,9 @@ function Plantings() {
   </>;
 }
 
-export const World = memo(function World({ zone, navigate, focusCompanion, inspect, selected, reduced, active, screens }: {
+export const World = memo(function World({ zone, navigate, focusCompanion, inspect, selected, reduced, active, screens, settings, motion }: {
   zone: ZoneId; navigate: (zone: ZoneId) => void; focusCompanion: () => void;
-  inspect:(id:string)=>void;selected:string|null;reduced:boolean;active:boolean;screens:ScreenState;
+  inspect:(id:string)=>void;selected:string|null;reduced:boolean;active:boolean;screens:ScreenState;settings:WorldSettings;motion:MotionSamples;
 }) {
   const gl = useThree((state) => state.gl);
   useEffect(() => () => { gl.domElement.style.cursor = ""; }, [gl]);
@@ -39,7 +40,7 @@ export const World = memo(function World({ zone, navigate, focusCompanion, inspe
   // visit would link a new shader program mid-transition (a synchronous GPU stall).
   const ring = station ?? STATIONS[0]!;
   return <group>
-    <Equipment navigate={navigate} inspect={inspect} selected={selected} reduced={reduced} active={active} screens={screens}/>
+    <Equipment navigate={navigate} inspect={inspect} selected={selected} reduced={reduced} active={active} screens={screens} settings={settings} motion={motion}/>
     <Plantings />
     <group position={[-1.25,0,-1.5]}>
     <mesh position={[0, 0.095, 0]} receiveShadow><cylinderGeometry args={[.4, .42, 0.07, 48]} /><meshStandardMaterial color="#c4c8c3" roughness={0.75} /></mesh>

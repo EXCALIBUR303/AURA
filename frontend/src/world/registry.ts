@@ -1,3 +1,5 @@
+import { DEFAULT_ROOM_OPTIONS } from "./settings.ts";
+import type { RoomOptions } from "./settings.ts";
 import { prepareAssets } from "./assets/resources.ts";
 import type { ZoneId } from "@aura/contracts";
 import type { CameraPose, Collider, Connection, Point, Rect, RoomDefinition, RoomId } from "./types.ts";
@@ -46,9 +48,9 @@ export function zonePose(zone:ZoneId):CameraPose {
     companion:{position:[.5,1.9,-10.1],target:[-1.25,.9,-12.5]},
   }; return {...poses[zone],room:"project-hub"};
 }
-export function worldGeometry(loaded:readonly RoomId[]) {
+export function worldGeometry(loaded:readonly RoomId[],options:RoomOptions=DEFAULT_ROOM_OPTIONS) {
   const floors=loaded.map(id=>ROOMS[id].floor);
-  const colliders=loaded.flatMap(id=>ROOMS[id].colliders);
+  const colliders=loaded.flatMap(id=>ROOMS[id].colliders.map(c=>c.id==="living.chair"&&options.chairSlot==="conversation"?{...c,minZ:c.minZ+.8,maxZ:c.maxZ+.8}:c));
   for(const e of CONNECTIONS){
     if(!loaded.includes(e.from)&&!loaded.includes(e.to))continue;
     if(loaded.includes(e.from)&&loaded.includes(e.to)){

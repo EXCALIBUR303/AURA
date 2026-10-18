@@ -80,8 +80,11 @@ for x in (-.115,.115):
 # Front facing -Y, open slats reveal fan blades. Keep real openings rather than painted dots.
 for x in (-.115,.115):box((x,-.25,.26),(.02,.02,.455),'Graphite',.004)
 for z in (.095,.245,.395):
-    cylinder((0,-.253,z),.066,.008,'Aluminium',32,rot=(math.pi/2,0,0))
-    cylinder((0,-.259,z),.057,.01,'Graphite',32,rot=(math.pi/2,0,0))
+    for y,radius,thickness,mat in [(-.253,.063,.003,'Aluminium'),(-.259,.056,.004,'Graphite')]:
+        bpy.ops.mesh.primitive_torus_add(major_segments=24,minor_segments=6,location=(0,y,z),rotation=(math.pi/2,0,0),major_radius=radius,minor_radius=thickness)
+        ring=bpy.context.object
+        for face in ring.data.polygons:face.use_smooth=True
+        finish(ring,mat)
     for x in (-.052,.052):
         for dz in (-.052,.052):cylinder((x,-.267,z+dz),.003,.004,'Aluminium',8,rot=(math.pi/2,0,0))
 for z in range(13):box((0,-.272,.05+z*.033),(.22,.008,.004),'Graphite',.001)
@@ -110,13 +113,14 @@ for i in range(7):
     a=2*math.pi*i/7
     ellipsoid((math.sin(a)*.031,0,math.cos(a)*.031),(.017,.004,.029),'Graphite',12,6).rotation_euler[1]=a+.5
 # Machined monitor, rear vents, VESA plate, stand and separate replaceable screen geometry.
-root('monitor')
+root('monitor-panel')
 box((0,0,.36),(.89,.047,.53),'Graphite',.018)
 box((0,.033,.35),(.24,.035,.20),'Graphite',.01)
-box((0,.05,.19),(.035,.045,.31),'Aluminium',.006,rot=(math.radians(-8),0,0))
-box((0,-.025,.014),(.34,.23,.028),'Aluminium',.013)
 for i in range(12):box((-.30+i*.055,.028,.49),(.024,.009,.065),'Rubber',.002)
 cylinder((.37,-.026,.112),.0025,.002,'Power',10,rot=(math.pi/2,0,0))
+root('monitor-stand')
+box((0,.05,.19),(.035,.045,.31),'Aluminium',.006,rot=(math.radians(-8),0,0))
+box((0,-.025,.014),(.34,.23,.028),'Aluminium',.013)
 root('screen');box((0,-.0255,.36),(.848,.001,.479),'Rubber',.001)
 root('keyboard')
 box((0,0,.019),(.43,.145,.038),'Graphite',.012)
@@ -148,6 +152,8 @@ for name,objects in parts.items():
         if len(o.data.materials)>1:
             o.data.materials.clear();o.data.materials.append(M[mat])
             for face in o.data.polygons:face.material_index=0
+monitor=bpy.data.objects.new('monitor',None);bpy.context.collection.objects.link(monitor)
+roots['monitor-panel'].parent=monitor;roots['monitor-stand'].parent=monitor
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.export_scene.gltf(filepath=out,export_format='GLB',use_selection=True,export_yup=True,export_materials='EXPORT',export_animations=False,export_extras=False)
 print('AURA original workstation exported:',out)

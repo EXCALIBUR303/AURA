@@ -2,11 +2,12 @@
 
 ## Current checkpoint
 
-M3 core spatial world, M4 workstation and M5 separate rooms are implemented on `codex/phase4-living-universe` after the
+M3–6 world, workstation, separate-room and customization features are implemented on `codex/phase4-living-universe` after the
 owner's manual model checkpoint. Atrium + Project Hub form the verified vertical
 slice. Living and Gaming are distinct furnished modules with functional scene controls
-and a truthful upcoming game library. M6 customization continues with GPT-6.1 Sol / High;
-no model change is needed. Stop after M6 for Astra / Extra High.
+and a truthful upcoming game library. M6 adds bounded session presentation, lighting
+and motion. Final M6 regression results are recorded below. **Required next checkpoint:
+GPT-6 Astra / Extra High for M7 visual audit.** M7–9 and native acceptance remain.
 
 ## Milestone 0: audit and migration plan
 
@@ -366,3 +367,83 @@ Build: 1,095 modules; main 518.15 kB + shared Architecture918.09 kB; CSS69.35 kB
 Living/Gaming/RoomDetails are separate lazy chunks. No dependency/lockfile/native/
 shared/platform/permission/contract changes. No binary/screenshot commit or push/
 merge/install. Next M6 on Sol/High; required Astra/Extra High stop follows M6.
+
+## Milestone 6: bounded customization and motion
+
+Recommended model/effort: GPT-6.1 Sol / High. Static/floating/hybrid, intensity0…1,
+day/sunset/night and world motion reduction are implemented as validated schema1
+session controls. System/native Reduce Motion takes precedence. Eligible display
+panels/screens move together inside stable hit bounds; stands, furniture, floors,
+walls and colliders stay grounded. Hybrid selects AI/GitHub/Gaming; Floating all
+eligible monitors. Native durable preference contract remains pending Claude.
+
+Split original monitor geometry and material instancing retain one shared atlas.
+Real front fan blades are visible through authored open rings at corrected offsets,
+with inactive/reduced-motion gating and owned instance-buffer cleanup. Living chair
+has two approved locations with matching collision and occupied-slot rejection.
+Room presets drive actual bounded lights, window art and PBR artwork; existing
+sRGB/ACES/exposure1 pipeline and single1024² shadow remain. No postprocess, remote
+runtime asset, added dependency or native service. Astra's runtime feet/ring are
+aligned with its platform; original asset/rig/idle/voice and licences stay intact.
+
+The repeated-visit test exposed a real cross-root lifetime defect. DOM navigation
+could dispose an old GLB before the separate R3F root unmounted its meshes; a final
+frame re-uploaded stale buffers. Exact geometry/texture tracing reproduced retired
+sofa/chair/curtain buffers even after idle. Rendered-room reference-count pins now
+release after actual 3D unlink, and coexist with navigation intent/overlapping
+roots/StrictMode. The original test thresholds were kept. Twelve visits now retain
+Living32geometries/20textures, Atrium+Living39/21 and Gaming+Atrium52/16 rather than
+retaining old unowned buffers. No claim of measured native GPU bytes.
+
+Targeted evidence: `frontend/test/customization.browser.mjs` **8/8**, two zero-violation
+axe scans; actual E/WASD X-corridor walk, static/eligible hybrid/full floating,
+world/system Reduce Motion, all nine room/light combinations, chair/session/focus,
+reset/reload, and laptop layout. `rooms.browser.mjs` **8/8**, six zero-violation
+axe scans after the resource fix, unchanged twelve-visit bounds and missing-sofa
+retry. TypeScript/build pass; shared bridge20/20, voice19/19, world22/22,
+game lifecycle6/6. Final equipment **6/6**, world **13/13** and full Studio **28/28** also pass after
+the lifetime fix, zero skipped. Across all five M6 browser suites: **63/63 checks**,
+**15 zero-violation axe scans**, zero page errors/external requests.
+
+Actual early/customization samples (SwiftShader, DPR1): Hub3fps/56calls/249,352
+rendered triangles; Living3fps/48calls/113,428 triangles; Gaming4fps/70calls/83,012
+triangles. Current repeated-room samples include Gaming+Atrium72calls/84,092triangles
+and Atrium+Living19calls/11,256triangles. **Atrium+Hub portal view reaches75calls/
+250,556triangles**, above the proposed Atrium40-call review ceiling. Preserve this
+case for M8/native culling/LOD profiling; standalone budget checks are not Mac55fps
+acceptance. No Mac performance or physical audio/accessibility claim.
+
+Build after the lifetime fix:1,099modules; main525.78kB + shared Architecture918.09kB,
+CSS69.62kB. Current generated equipment999,936bytes/SHA916fe968d6af527429666f90ee9bd933914d6a1b2b6b816e1cbe2a1f323f90f2;
+source/manifest/credits updated, binary ignored. Original Astra and reviewed furniture
+SHA-256 values preserved. Native/shared/platform/contracts/permissions/lockfile and
+read-only design exports are unchanged. No push/merge/install/binary or screenshot
+commit. Full evidence and nine preset screenshots: `/workspace/aura-phase4/m6/`.
+
+M7 must audit actual rendered scale, materials, floor grain, lighting/color,
+companion-dock occlusion, doorway views and compact-window hierarchy. M8 still owns
+full Astra/GitHub/voice browser regression and optimization; M9 final engineering/
+Claude handoff follows. This is an intermediate model checkpoint, not full Phase4
+completion or permission to start another phase.
+
+### M6 final verification and review entry points
+
+All final processes exited successfully: production build/TypeScript, direct bridge
+20/20, grouped npm test, voice19/19, world22/22, games6/6; browser63/63 and15axe scans
+with zero violations. Unchanged repeat-visit growth checks pass after the pin fix.
+Final world-suite software sample: **1fps/DPR1/73calls/250,532 triangles**,57geometries/
+15textures/19programs with Atrium+Hub retained. This is a constrained software renderer,
+not a Mac performance claim. M8 must profile the explicit doorway budget cases.
+
+Changed frontend areas: `App.tsx`, studio wiring/diagnostics/actor placement;
+`world` settings/controller/navigation/scene/environment/rooms/interactions and
+asset lifetimes/display rendering; original workstation authoring/manifest/credits;
+world/customization browser/unit tests and npm test command. Seven world docs and
+TASKS record the checkpoint. No unrelated native or dependency work.
+
+Actual review images: `m6/studio/overview.png`, `m6/rooms/living-1440.png`,
+`m6/rooms/gaming-1440.png`, `m6/customization/*-{daylight,sunset,night}.png`,
+settings 1440/1100 and fan close-ups. Before views are in M0/M3/M4 artifacts.
+M7 continues from this committed implementation. Stop for the owner's manual switch;
+M7 visual audit, M8 broad legacy regressions/optimization, M9 final handoff and all
+native Mac acceptance remain outstanding. No push/merge/install is authorized here.

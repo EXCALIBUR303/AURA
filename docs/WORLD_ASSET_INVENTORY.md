@@ -267,3 +267,29 @@ Gaming **4fps/66calls/80,548 triangles**, SwiftShader/DPR1. Final Atrium with an
 adjacent Living resource set reports10fps/19calls/11,256 triangles,40 geometries/
 21 textures/28 programs. Twelve repeated visits pass resource-growth/owner bounds.
 These are browser evidence, not M5 GPU memory accounting or native FPS acceptance.
+
+## Milestone 6 — current equipment export
+
+This supersedes the M4 equipment digest for the current runtime; M4 measurements
+above are historical. Original workstation source is regenerated after open fan
+rings and split display/stand authoring. Ignored current file **999,936 bytes**,
+SHA-256 `916fe968d6af527429666f90ee9bd933914d6a1b2b6b816e1cbe2a1f323f90f2`;
+**22,544 triangles / 33 primitives / 10 shared materials**, no images, external URI
+or required decoder. PC7,884tris, monitor-panel860 and monitor-stand216; other model
+counts unchanged. `monitor` remains an aggregate compatibility root. Source, export
+metadata and modification note are committed text. No licensed original is edited.
+
+The front fan surrounds are torus rings instead of opaque discs. The reused real
+rotor is placed behind the slats and visible in actual close-up screenshots. Split
+monitor parts keep stands grounded while bounded eligible panels/screens move;
+one shared atlas avoids duplicate large textures. Gaming reuses the same original
+PC and rotor. Original Astra file/digest and both licensed furniture hashes remain
+unchanged. Its authored runtime placement is aligned with the platform top; its
+source normalization, material/rig/idle/speech and visible licence remain intact.
+
+M6 early floating Hub sample:3fps/DPR1/56calls/249,352 triangles,40geometries/
+12textures/17programs. M6 customization suite samples additionally cover all rooms
+in all three lighting states; complete current evidence is in the phase report.
+Native M5 target and GPU memory are unvalidated. No GLB, screenshot, recording or
+other binary is committed. New checkouts must reproduce/copy the ignored assets
+using the pipeline README and preserve licensed source credits.

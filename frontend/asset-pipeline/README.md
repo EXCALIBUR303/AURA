@@ -60,3 +60,14 @@ All four world GLBs are ignored; copy them to `frontend/public/world/` on a new
 checkout. Preserve original Astra separately per `docs/ASSETS.md`. These are
 bundled assets at runtime; source links are attribution/reproduction references,
 not runtime fetches. No binary publication or commit is implied.
+
+## M6 display and fan revision
+
+The workstation source now exports `monitor-stand` and `monitor-panel` under the
+compatibility `monitor` root. The runtime keeps stands grounded and instances panel
+bodies; screen meshes share one atlas and move with the panels. PC front surrounds
+are open rings, allowing the correctly placed real rotor mesh to remain visible.
+Regenerate the ignored GLB and its manifest together; the current file digest is
+in `workstation.manifest.json`. Previous milestone hashes are historical evidence,
+not the expected current export. None of these changes touches licensed Astra or
+reviewed furniture originals.

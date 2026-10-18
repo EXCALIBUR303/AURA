@@ -17,5 +17,5 @@ export function RoomGraphic({title,detail,position,size,rotation=0,art=false}:{t
   else{c.fillStyle="#9fbeb8";c.font="24px system-ui";c.fillText("AURA / "+title.toUpperCase(),55,65);c.fillStyle="#e3e5d6";c.font="500 42px system-ui";c.fillText(title,55,230);c.font="25px system-ui";c.fillStyle="#b1c3c6";c.fillText(detail,55,297);c.strokeStyle="#527d7e";c.beginPath();c.moveTo(55,470);c.lineTo(970,470);c.stroke();c.font="23px system-ui";c.fillText("LOCAL SCENE / NO EXTERNAL CONNECTION",55,515);}
   const t=new CanvasTexture(canvas);t.colorSpace=SRGBColorSpace;return t;
  },[title,detail,art]);useEffect(()=>()=>texture.dispose(),[texture]);
- return <mesh position={position} rotation={[0,rotation,0]}><planeGeometry args={size}/><meshBasicMaterial map={texture} toneMapped={false}/></mesh>;
+ return <mesh position={position} rotation={[0,rotation,0]}><planeGeometry args={size}/>{art?<meshStandardMaterial map={texture} roughness={.95}/>:<meshBasicMaterial map={texture} toneMapped={false}/>}</mesh>;
 }

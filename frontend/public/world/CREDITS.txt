@@ -6,3 +6,6 @@ Generated file: workstation.glb (Git-ignored; not approved for binary commit).
 Modification history: initial original modeling; metre scale/Y-up GLB export;
 static model parts merged by material. Runtime copies are batched, not file edits.
 Astra Lumen II is separate and unchanged; see /avatar/astra-lumen/CREDITS.txt.
+M6 source revision: fan surrounds are open torus rings and rotor placement matches
+the front vents. Monitor stand/panel roots are separated for bounded display motion;
+original project equipment is regenerated, not a modified third-party model.

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Modal } from "../components/ui.tsx";
+import { Modal, UiIcon } from "../components/ui.tsx";
 import { ROOM_LIST, ROOMS } from "./registry.ts";
 import type { WorldController } from "./WorldController.ts";
 import type { WorldSnapshot } from "./types.ts";
 
-export function WorldHUD({controller,snapshot,mapOpen,setMapOpen}:{controller:WorldController;snapshot:WorldSnapshot;mapOpen:boolean;setMapOpen:(open:boolean)=>void}){
+export function WorldHUD({controller,snapshot,mapOpen,setMapOpen,openSettings}:{openSettings:()=>void;controller:WorldController;snapshot:WorldSnapshot;mapOpen:boolean;setMapOpen:(open:boolean)=>void}){
   const [lockIssue,setLockIssue]=useState<string|null>(null);const intent=useRef(0);
   useEffect(()=>{
     const changed=()=>{if(document.pointerLockElement)setLockIssue(null);};
@@ -28,6 +28,7 @@ export function WorldHUD({controller,snapshot,mapOpen,setMapOpen}:{controller:Wo
       <span className="world-room-name">{ROOMS[snapshot.room].title}</span><span className="world-hud-divider"/>
       <button aria-pressed={snapshot.mode==="inspect"} disabled={busy} onClick={stopExplore}>Inspect</button>
       <button aria-pressed={snapshot.mode==="explore"} disabled={snapshot.phase!=="idle"} onClick={()=>void explore()}>Free Explore</button>
+      <button aria-label="World settings" title="World settings" onClick={openSettings}><UiIcon name="settings"/></button>
       {snapshot.mode==="explore"&&<button onClick={stopExplore}>Exit · Esc</button>}
     </nav>
     {snapshot.mode==="explore"&&<div className="explore-hint" role="status">W A S D to walk · mouse to look · E opens a nearby passage · Esc to release</div>}

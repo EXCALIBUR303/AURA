@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef } from "react";
+import type { RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
-import { CanvasTexture, Matrix4, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace, Vector3 } from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { CanvasTexture, Mesh, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace } from "three";
 import { STATIONS } from "../interactions/registry.ts";
 export type ScreenState={project:string;branch:string;language:string;description:string;repositoryCount:number;githubState:string;companion:string;provider:string;model:string;updated:string;activity:string;mock:boolean};
 export const EMPTY_SCREEN_STATE:ScreenState={project:"",branch:"",language:"",description:"",repositoryCount:0,githubState:"not connected",companion:"Ready when you are",provider:"No provider configured",model:"No model selected",updated:"",activity:"idle",mock:true};
 const clean=(s:string)=>s.replace(/[\u0000-\u001f\u007f]/g," ").slice(0,100);
-export function MonitorAtlas({state}:{state:ScreenState}){
+export function MonitorAtlas({state,lifts,active}:{state:ScreenState;lifts:RefObject<number[]>;active:boolean}){
  const source=useMemo(()=>{const canvas=document.createElement("canvas");canvas.width=2048;canvas.height=1024;const texture=new CanvasTexture(canvas);texture.colorSpace=SRGBColorSpace;
   const material=new MeshBasicMaterial({map:texture,toneMapped:false});
-  const tiles=STATIONS.map((s,i)=>{const g=new PlaneGeometry(.848,.479);const uv=g.getAttribute("uv");for(let j=0;j<uv.count;j++)uv.setXY(j,(uv.getX(j)+i%2)/2,(uv.getY(j)+(i<2?1:0))/2);
-   const m=new Matrix4().makeRotationY(s.z>0?Math.PI:0);m.setPosition(new Vector3(s.x+.18*(s.z>0?-1:1),1.144,s.z-.254*(s.z>0?-1:1)));return g.applyMatrix4(m);});
-  const geometry=mergeGeometries(tiles)!;tiles.forEach(g=>g.dispose());return{canvas,texture,material,geometry};
+  const tiles=STATIONS.map((_,i)=>{const g=new PlaneGeometry(.848,.479);const uv=g.getAttribute("uv");for(let j=0;j<uv.count;j++)uv.setXY(j,(uv.getX(j)+i%2)/2,(uv.getY(j)+(i<2?1:0))/2);
+   return g;});
+  return{canvas,texture,material,tiles};
  },[]);
+ const planes=useRef<(Mesh|null)[]>([]);
  const latest=useRef(state);latest.current=state;const elapsed=useRef(0);const dot=useRef(false);
  const paint=()=>{const c=source.canvas.getContext("2d")!;const data=latest.current;
   for(let i=0;i<4;i++){const s=STATIONS[i]!;const x=(i%2)*1024,y=Math.floor(i/2)*512;c.save();c.translate(x,y);c.fillStyle="#14272e";c.fillRect(0,0,1024,512);c.fillStyle=s.accent;c.fillRect(0,0,10,512);c.fillStyle="#b7d2cb";c.font="500 23px system-ui";c.fillText("AURA / "+s.label.toUpperCase(),48,52);c.fillStyle="#f0f1e4";c.font="500 43px system-ui";
@@ -30,7 +31,7 @@ export function MonitorAtlas({state}:{state:ScreenState}){
   }source.texture.needsUpdate=true;
  };
  useEffect(paint,[source,state]);
- useFrame((_,delta)=>{if(!["thinking","speaking","listening"].includes(latest.current.activity))return;elapsed.current+=delta;if(elapsed.current>=.5){elapsed.current=0;dot.current=!dot.current;paint();}});
- useEffect(()=>()=>{source.texture.dispose();source.material.dispose();source.geometry.dispose();},[source]);
- return <mesh geometry={source.geometry} material={source.material} dispose={null}/>;
+ useFrame((_,delta)=>{for(let i=0;i<planes.current.length;i++){const mesh=planes.current[i];if(mesh)mesh.position.y=1.144+(lifts.current[i]??0);}if(!active||!["thinking","speaking","listening"].includes(latest.current.activity))return;elapsed.current+=delta;if(elapsed.current>=.5){elapsed.current=0;dot.current=!dot.current;paint();}});
+ useEffect(()=>()=>{source.texture.dispose();source.material.dispose();source.tiles.forEach(g=>g.dispose());},[source]);
+ return <group>{STATIONS.map((s,i)=><mesh key={s.id} ref={node=>{planes.current[i]=node;}} position={[s.x+.18*(s.z>0?-1:1),1.144,s.z-.254*(s.z>0?-1:1)]} rotation={[0,s.z>0?Math.PI:0,0]} geometry={source.tiles[i]} material={source.material} dispose={null}/>)}</group>;
 }

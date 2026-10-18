@@ -4,6 +4,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import type { CompanionState, WindowState, ZoneId } from "@aura/contracts";
+import type { MotionSamples, WorldSettings } from "../world/settings.ts";
 import type { ScreenState } from "../world/assets/MonitorAtlas.tsx";
 import { assetSummary } from "../world/assets/resources.ts";
 import { World } from "./World.tsx";
@@ -30,7 +31,7 @@ class SceneBoundary extends Component<{ children: ReactNode; onError: () => void
 
 export type { CameraPose } from "../world/types.ts";
 export type StudioCameraHandle = WorldCameraHandle;
-function Measurements({ zone, room, throttled, report, lowerDpr }: { zone: ZoneId; room: RoomId; throttled: boolean; report: Report; lowerDpr: () => void }) {
+function Measurements({ zone, room, throttled, report, lowerDpr, motion, settings }: { zone: ZoneId; room: RoomId; throttled: boolean; report: Report; lowerDpr: () => void;motion:MotionSamples;settings:WorldSettings }) {
   const { gl } = useThree();
   const elapsed = useRef(0);
   const frames = useRef(0);
@@ -75,7 +76,7 @@ function Measurements({ zone, room, throttled, report, lowerDpr }: { zone: ZoneI
       };
     }
     const orbit = controls as OrbitControlsImpl | null;
-    report({ assets:assetSummary(), fps, drawCalls: sample.drawCalls, sceneTriangles: sample.triangles, resources: {geometries:gl.info.memory.geometries,textures:gl.info.memory.textures,programs:gl.info.programs?.length ?? 0}, perZone: { ...samples.current }, perRoom: { ...roomSamples.current },
+    report({ settings,motion:{fanAngle:motion.fanAngle,displayLifts:{...motion.displayLifts}},assets:assetSummary(), fps, drawCalls: sample.drawCalls, sceneTriangles: sample.triangles, resources: {geometries:gl.info.memory.geometries,textures:gl.info.memory.textures,programs:gl.info.programs?.length ?? 0}, perZone: { ...samples.current }, perRoom: { ...roomSamples.current },
       cameraSampledAt: Date.now(), camera: { position: camera.position.toArray(), target: orbit?.target.toArray() ?? [0, 0, 0],
         fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : undefined },
       renderer: { webgl2: gl.capabilities.isWebGL2, pixelRatio: sample.pixelRatio,
@@ -194,6 +195,7 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
   voiceSamples?: VoiceSamples; inspectEquipment:(id:string)=>void;selectedEquipment:string|null;screens:ScreenState;roomAction:(id:string)=>void;worldPaused:boolean;
 }) {
   const buttons = useRef(new Map<ZoneId, HTMLButtonElement>());
+  const motion=useRef<MotionSamples>({fanAngle:0,displayLifts:{}});
   const startedAt = useRef(performance.now());
   const [adaptiveDpr, setAdaptiveDpr] = useState(maxDpr);
   const [active, setActive] = useState(!document.hidden);
@@ -223,10 +225,10 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
         gl={{ antialias: true, powerPreference: "high-performance" }}
         fallback={<p>WebGL2 is unavailable. Your workstation and companion controls remain accessible.</p>}
         onCreated={({ gl }) => { gl.domElement.tabIndex = 0; gl.domElement.setAttribute("aria-label", "AURA 3D world"); gl.outputColorSpace = THREE.SRGBColorSpace; gl.toneMapping = THREE.ACESFilmicToneMapping; report({ context: "ready", graphicsAvailable: true, error: undefined, status: "loading" }); }}>
-        <WorldScene act={roomAction} active={rendering && hostWindow.active && world.phase === "idle"} reduced={reducedMotion} snapshot={world} travel={worldController.travel} openMap={openWorldMap}>
-          <World zone={zone} navigate={navigate} focusCompanion={focusCompanion} inspect={inspectEquipment} selected={selectedEquipment} reduced={reducedMotion} active={rendering && hostWindow.active && world.phase === "idle"} screens={screens}/>
+        <WorldScene motion={motion.current} act={roomAction} active={rendering && hostWindow.active && world.phase === "idle"} reduced={reducedMotion} snapshot={world} travel={worldController.travel} openMap={openWorldMap}>
+          <World zone={zone} navigate={navigate} focusCompanion={focusCompanion} inspect={inspectEquipment} selected={selectedEquipment} reduced={reducedMotion} active={rendering && hostWindow.active && world.phase === "idle"} screens={screens} settings={world.settings} motion={motion.current}/>
         </WorldScene>
-        <group position={[ASTRA_HOME[0],-.0625,ASTRA_HOME[2]]} visible={world.loaded.includes("project-hub")}>
+        <group position={[ASTRA_HOME[0],0,ASTRA_HOME[2]]} visible={world.loaded.includes("project-hub")}>
         <CompanionRing state={state} samples={voiceSamples} reduced={reducedMotion} />
         <SceneBoundary onError={() => report({ status: "error", error: "Astra could not load. Check the model file and retry the scene." })}>
           <Suspense fallback={null}><Astra startedAt={startedAt.current} state={state} speechLevel={speechLevel} voiceSamples={voiceSamples} reducedMotion={reducedMotion} report={report} active={world.loaded.includes("project-hub")} /></Suspense>
@@ -234,7 +236,7 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
         </group>
         <WorldNavigation controller={worldController} snapshot={world} reducedMotion={reducedMotion} active={rendering && hostWindow.active} report={report} revision={revision} cameraHandle={cameraHandle}/>
         <BackgroundFrames enabled={throttled} />
-        <Measurements zone={zone} room={world.room} throttled={throttled} report={report} lowerDpr={() => setAdaptiveDpr((value) => Math.max(1, value - 0.25))} />
+        <Measurements motion={motion.current} settings={world.settings} zone={zone} room={world.room} throttled={throttled} report={report} lowerDpr={() => setAdaptiveDpr((value) => Math.max(1, value - 0.25))} />
         <ContextEvents report={report} restored={restart} />
         {showHotspots && <ProjectHotspots buttons={buttons} zone={zone} />}
       </Canvas>

@@ -149,3 +149,20 @@ verify bounded owners/resources; native workspace return preserves the typed dra
 The future game handshake/lifecycle is unit-tested with test-only runtimes, not
 claimed live native gameplay. Real installed-game/physical input acceptance remains
 future work; no sample is installed merely because the registry contains metadata.
+
+## M6 implemented global controls
+
+- World settings: static/floating/hybrid, finite intensity0…1 and day/sunset/night.
+- Session Reduce world motion grounds displays and stops nonessential movement;
+  system/native Reduce Motion cannot be overridden by the session UI.
+- Approved Living chair positions move the actual model and collider together;
+  occupied placement is refused with useful feedback. No free drag or fake Save.
+- Reset session appearance uses supported defaults without touching developer,
+  credential, sharing, voice or project preferences.
+- Settings dialogs release mouse/microphone capture through existing controls;
+  closing panels returns keyboard focus. No capture automatically restarts.
+
+Static, both floating eligibility modes, system override, nine room/light states,
+chair/session restoration, keyboard focus and actual side-corridor E/WASD walking
+are browser-tested. Final visual polish, full legacy browser QA and native acceptance
+remain M7–9/Claude work; no live installed-game or Mac hardware test is implied.

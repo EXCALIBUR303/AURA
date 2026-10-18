@@ -12,12 +12,12 @@ const PARTS:Part[]=[
  {name:"plant",position:[3.45,0,-3.15]}, {name:"plant",position:[-3.5,0,3.2]},
  {name:"art-frame",position:[-3.25,1.3,-3.97]},
 ];
-export default function Living({connected,travel,options,reduced,active,act}:RoomShellProps){
- return <HomeShell kind="living" connected={connected} travel={travel}>
+export default function Living({connected,travel,options,reduced,active,act,settings}:RoomShellProps){
+ return <HomeShell kind="living" lighting={settings.lightingPreset} connected={connected} travel={travel}>
   <mesh position={[0,.008,.2]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[3.6,3]}/><meshStandardMaterial color="#b49a73" roughness={1}/></mesh>
   <ModelBatch asset="room-kit" parts={PARTS} lights={options.livingLights}/>
   <Seating kind="sofa" position={[0,0,-1.1]} palette={options.livingPalette}/>
-  <Seating kind="chair" position={[-2.4,0,.7]} rotation={Math.PI/5}/>
+  <Seating kind="chair" position={[-2.4,0,options.chairSlot==="reading"?.7:1.5]} rotation={Math.PI/5}/>
   <Curtain open={options.curtainsOpen} reduced={reduced} active={active}/>
   <RoomGraphic title="Original AURA study" detail="" art position={[-3.25,1.72,-3.94]} size={[1.09,.78]}/>
   <RoomGraphic title="Media display" detail="No media source connected" position={[0,1.30,3.458]} size={[2.30,1.26]} rotation={Math.PI}/>

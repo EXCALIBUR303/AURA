@@ -98,3 +98,19 @@ test("new room cameras clear fitted furniture and room settings survive resource
  for(const id of ["living","gaming"] as const){const g=worldGeometry([id]);assert.ok(safePoint(ROOMS[id].introduction.position,g.floors,g.colliders,.12,false),id);assert.ok(safePoint(ROOMS[id].landing,g.floors,g.colliders),id);}
  const c=await ready();c.setRoomOptions({curtainsOpen:false,livingPalette:"terracotta",livingLights:false});c.travel("living");await tick();c.arrive(c.getSnapshot().request!.id);c.travel("gaming");await tick();c.arrive(c.getSnapshot().request!.id);assert.equal(c.getSnapshot().options.curtainsOpen,false);assert.equal(c.getSnapshot().options.livingLights,false);assert.equal(c.getSnapshot().options.livingPalette,"terracotta");assert.ok(!c.getSnapshot().loaded.includes("project-hub"));
 });
+
+test("world controls validate finite bounds and cannot overwrite a future schema",async()=>{
+ const {DEFAULT_WORLD_SETTINGS,worldSettingsPatch,displayLift}=await import("../src/world/settings.ts");
+ const state=worldSettingsPatch(DEFAULT_WORLD_SETTINGS,{presentation:"hybrid",floatIntensity:9,lightingPreset:"night"});assert.equal(state.floatIntensity,1);assert.equal(state.lightingPreset,"night");
+ assert.deepEqual(worldSettingsPatch(state,{floatIntensity:NaN}),state);assert.deepEqual(worldSettingsPatch(state,{schemaVersion:2,presentation:"static"} as unknown as Partial<typeof state>),state);
+ for(const id of ["hardware","software"])assert.equal(displayLift(state,id,10,false),0);
+ for(const id of ["ai-lab","github","gaming"]){assert.ok(displayLift(state,id,10,false)>.08);assert.equal(displayLift(state,id,10,true),0);}
+ assert.equal(displayLift({...state,presentation:"static"},"gaming",10,false),0);assert.equal(displayLift({...state,floatIntensity:0},"gaming",10,false),0);
+});
+test("approved chair relocation moves collision with the model and refuses an occupied slot",async()=>{
+ const c=await ready();c.travel("living");await tick();c.arrive(c.getSnapshot().request!.id);c.updatePose({position:[-13.4,1.62,1.5],target:[-13.4,1.62,0],room:"living"});
+ let g=worldGeometry(c.getSnapshot().loaded,c.getSnapshot().options);assert.ok(safePoint(c.capture().position,g.floors,g.colliders));
+ c.setRoomOptions({chairSlot:"conversation"});assert.equal(c.getSnapshot().options.chairSlot,"reading");assert.ok(c.getSnapshot().error?.includes("Move away"));
+ c.updatePose({position:[-7.7,1.62,0],target:[-11,1.62,0],room:"living"});c.setRoomOptions({chairSlot:"conversation"});assert.equal(c.getSnapshot().options.chairSlot,"conversation");g=worldGeometry(c.getSnapshot().loaded,c.getSnapshot().options);
+ assert.equal(safePoint([-13.4,1.62,1.5],g.floors,g.colliders),false);assert.equal(safePoint([-13.4,1.62,.7],g.floors,g.colliders),true);assert.equal(c.getSnapshot().selectedZone,"studio");
+});

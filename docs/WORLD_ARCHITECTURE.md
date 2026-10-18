@@ -433,3 +433,57 @@ coordinator and re-reads authoritative status; uncertain mic/audio release block
 entry. No new native method, weakened permission, automatic capture or duplicate AI
 service. A future installed game must still pass real WKWebView/input/audio/native
 acceptance; the interface is not proof that such a game is currently playable.
+
+## M6 session customization and measured motion
+
+`WorldSettings` is schemaVersion1, session-only: static/floating/hybrid, bounded
+finite intensity0…1, daylight/sunset/night and optional world motion reduction.
+Unsupported future schema patches are ignored. System/native Reduce Motion takes
+precedence; no alternate localStorage, prefs payload or unbounded saved layout.
+`WorldSettingsDialog` states this clearly and resets only supported scene options.
+The P4-N1 native proposal remains unimplemented and requires Claude's review.
+
+The authored monitor now has separate stand/panel roots. Stands stay in static
+material batches; panel bodies instance shared geometry; four screen planes share
+one 2048×1024 atlas/material with separate UV tiles. All follow the same bounded
+lift, 0.082…0.118m at intensity1; lower intensity scales it. Hybrid eligibility is
+AI/GitHub/Gaming, Floating all eligible monitors. No architectural, furniture or
+collision-critical object floats. Mode/intensity changes ease to the target and
+Reduce Motion places displays at ground attachment immediately. Stable hit proxies
+cover the complete offset envelope. No shader injection or new dependency.
+
+Real rotor transforms pause when inactive or motion-reduced. Open authored fan
+surrounds and correct front offsets make blades visible. `MotionSamples` is a
+mutable frame channel, sampled into existing diagnostics once per second; it
+reports local model transforms, not measured hardware fans or system telemetry.
+Default static keeps equipment grounded while allowing the justified fan motion.
+
+`roomEnvironment` supplies bounded room-specific day/sunset/night light colors and
+intensities. Existing sRGB/ACES/exposure1 stays; one 1024² shadow map, no postprocess,
+remote HDRI or extra shadow pass. Local window art follows the selected preset;
+framed artwork uses a rough PBR surface, LCDs retain unlit display material. Lamps
+remain real room controls. Closed Living curtains reduce the daylight key.
+
+Living chair placement is restricted to the two authored positions (.7/1.5localZ).
+Collider selection follows the same option. A currently occupied Living slot blocks
+the move and keeps the old position; native workspace data remains unchanged.
+This is a bounded furniture option, not a drag editor or durable layout system.
+
+Known performance review case: Atrium plus visible Hub through the north portal
+measures75calls/250,556 rendered triangles, exceeding the proposed Atrium40-call
+review ceiling. Standalone rooms meet their per-room review budgets in cloud tests.
+Keep this pair explicit for M8 culling/LOD review and native M5 measurement; neither
+software FPS nor a triangle ceiling proves ≥55fps on the target machine.
+
+### R3F asset release ordering
+
+M6 repeated-visit tracing found that a DOM-root navigation effect could dispose
+an old GLB before the separate Canvas reconciler removed its meshes. A final
+frame uploaded those disposed buffers again, after cache ownership had ended.
+This was a real lifecycle defect, not an increased test tolerance. RoomAssetScope
+now pins each rendered room from inside the R3F root; passive cleanup releases
+that pin only after 3D host objects are unlinked. The cache keeps the union of
+navigation intent and rendered-room pins. Counts support overlapping Canvas roots
+and StrictMode without disposing shared live assets. Pending canceled imports
+still dispose when unowned. Fan/panel InstancedMesh objects explicitly release
+their owned instance buffers; source geometry/materials stay with the cache.

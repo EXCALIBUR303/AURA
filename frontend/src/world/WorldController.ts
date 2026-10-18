@@ -1,12 +1,12 @@
-import { DEFAULT_ROOM_OPTIONS, roomOptionsPatch } from "./settings.ts";
-import type { RoomOptions } from "./settings.ts";
+import { DEFAULT_ROOM_OPTIONS, roomOptionsPatch, DEFAULT_WORLD_SETTINGS, worldSettingsPatch } from "./settings.ts";
+import type { RoomOptions, WorldSettings } from "./settings.ts";
 import type { ZoneId } from "@aura/contracts";
-import { ROOMS, zonePose, connectionFor } from "./registry.ts";
-import { safeLanding } from "./collision.ts";
+import { ROOMS, zonePose, connectionFor, worldGeometry } from "./registry.ts";
+import { safeLanding, safePoint } from "./collision.ts";
 import type { CameraMode, CameraPose, RoomId, RoomModule, WorldSnapshot } from "./types.ts";
 
 export class WorldController {
-  private snapshot:WorldSnapshot={options:{...DEFAULT_ROOM_OPTIONS},room:"project-hub",mode:"inspect",phase:"preparing",modules:{},loaded:[],selectedZone:"studio"};
+  private snapshot:WorldSnapshot={settings:{...DEFAULT_WORLD_SETTINGS},options:{...DEFAULT_ROOM_OPTIONS},room:"project-hub",mode:"inspect",phase:"preparing",modules:{},loaded:[],selectedZone:"studio"};
   private listeners=new Set<()=>void>();
   private generation=0;
   private pendingLoads=new Map<RoomId,Promise<RoomModule>>();
@@ -42,7 +42,11 @@ export class WorldController {
   }
   travel=(room:RoomId)=>{if(room===this.snapshot.room&&this.snapshot.phase==="idle")return;void this.request(room,ROOMS[room].introduction,"travel");};
   openDoor=(room:RoomId)=>{if(this.snapshot.phase!=="idle"||this.snapshot.loaded.includes(room))return;void this.request(room,this.capture(),"door");};
-  setRoomOptions=(patch:Partial<RoomOptions>)=>this.patch({options:roomOptionsPatch(this.snapshot.options,patch)});
+  setRoomOptions=(patch:Partial<RoomOptions>)=>{const options=roomOptionsPatch(this.snapshot.options,patch);
+    if(options.chairSlot!==this.snapshot.options.chairSlot&&this.snapshot.room==="living"){const geometry=worldGeometry(this.snapshot.loaded,options);if(!safePoint(this.lastPose.position,geometry.floors,geometry.colliders)){this.patch({error:"Move away from the chair before changing its position."});return;}}
+    this.patch({options,error:undefined});
+  };
+  setWorldSettings=(patch:Partial<WorldSettings>)=>this.patch({settings:worldSettingsPatch(this.snapshot.settings,patch)});
   clearIssue=()=>this.patch({error:undefined});
   focusWorkspace=(zone:ZoneId,restore?:CameraPose|null)=>{
     this.patch({selectedZone:zone});const room=restore?.room&&ROOMS[restore.room].availability==="available"?restore.room:"project-hub";

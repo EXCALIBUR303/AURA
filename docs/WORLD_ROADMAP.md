@@ -16,7 +16,7 @@ Planned items must never appear as working product features.
 | 3 Core spatial world | Implemented (Hub + Atrium vertical slice) | GPT-6.1 Sol / Extra High | One canvas, RoomId graph, atrium/connected travel, room boundaries/loading, camera modes, safe collisions/input, native zone compatibility |
 | 4 Premium Project Hub | Implemented (frontend quality gate; native performance pending) | GPT-6.1 Sol / High | Convincing licensed PC/furniture assets and state-backed screens; inspect/action/return; all existing developer functionality passes before expansion |
 | 5 Living + Gaming | Implemented (furnished modules + scene controls; native acceptance pending) | GPT-6.1 Sol / High | Two separate complete spaces, real supported controls, modular launcher and truthful availability; no fake game/media features |
-| 6 Customization + motion | Planned | GPT-6.1 Sol / High | Static/floating/hybrid, eligibility/intensity, day/sunset/night, reduced motion, bounded customization and safe persistence path; stop |
+| 6 Customization + motion | Implemented (session-only; final M6 checks recorded in phase report) | GPT-6.1 Sol / High | Static/floating/hybrid, eligibility/intensity, day/sunset/night, reduced motion, bounded customization and safe persistence path; stop |
 | 7 Visual audit | Planned | GPT-6 Astra / Extra High | Evidence-driven scale/material/light/colour/HUD corrections in actual rendered rooms; stop |
 | 8 QA + optimization | Planned | GPT-6 Luna / Medium | World/load/input/accessibility tests plus Astra/GitHub/voice/Studio regressions, resource stability and honest performance evidence; stop |
 | 9 Engineering handoff | Planned | GPT-6.1 Sol / High | Final integration review, inventory/licences, unresolved issues and exact Claude Mac validation instructions; stop for owner |
@@ -41,6 +41,19 @@ TypeScript/build/bridge/voice checks pass. No M5/native performance claim.
   inactive 30 fps and hidden suspension, DPR limit and reduced motion.
 - Four project workstations, GitHub explorer/selection and source-bound AI tools,
   explicit approvals, conversation state, voice with the merged real-audio fixes.
+
+## M6 implemented and remaining review
+
+Bounded session presentation/light/motion, eligible instanced displays, real fan
+rotors and two safe Living chair positions are implemented. System/native Reduce
+Motion takes precedence. Rendered-room pins fix cross-root GLB release ordering;
+original repeat-visit bounds pass. No native persistence or installed game.
+
+Next required manual model checkpoint: **GPT-6 Astra / Extra High, M7 visual audit**.
+Prioritize actual room/preset screenshots, dock occlusion, floor grain, camera and
+material consistency. M8 must measure Atrium+Hub portal cost (75calls, above the
+Atrium40-call review ceiling), then complete broad Astra/GitHub/voice regressions.
+Native M5 ≥55fps, hardware audio, accessibility and pointer lock remain pending.
 
 ## Dependencies and restricted work
 

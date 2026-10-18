@@ -17,7 +17,7 @@ export const EQUIPMENT:readonly InteractionDefinition[]=STATIONS.flatMap(s=>{
     {id:s.id+".screen",label:s.label+" project display",category:"functional" as const,zone:s.id,
     description:"Opens the existing AURA workspace. Project and activity labels come from current application state; no source files or fabricated telemetry are drawn on this display.",
     focus:{position:[s.x-.1*side,1.7,s.z-11+1.7*side],target:[s.x+.18*side,1.16,s.z-11-.28*side],room:"project-hub" as const},
-    proxy:{position:[.18,1.14,-.28] as Point,size:[.93,.56,.09] as Point}}];
+    proxy:{position:[.18,1.14,-.28] as Point,size:[.93,.85,.09] as Point}}];
 });
 export const COMPONENTS = [
   {id:"chassis",name:"Chassis & airflow",detail:"Open-frame steel structure, transparent side panel, front ventilation, three rotor assemblies, rear cable path and isolated feet."},
