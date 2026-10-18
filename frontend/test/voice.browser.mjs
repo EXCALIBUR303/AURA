@@ -66,9 +66,25 @@ try {
     assert.equal((await calls(permission, 'voice.startSession')).length, 1); assert.equal((await calls(permission, 'voice.startListening')).length, 1);
     assert.equal((await calls(permission, 'ai.sendMessage')).length, 0);
     await axe(permission, 'review'); await permission.screenshot({ path: path.join(artifacts, 'transcript-review.png') });
+    await permission.setViewportSize({ width: 1100, height: 700 });
+    assert.ok(await permission.getByText('VOICE DRAFT · NOT SENT', { exact: true }).isVisible(), 'short windows keep final-draft guidance visible');
+    await permission.screenshot({ path: path.join(artifacts, 'transcript-review-1100.png') });
+    await permission.setViewportSize({ width: 1440, height: 900 });
     await permission.getByRole('button', { name: 'Send message', exact: true }).click();
     await permission.locator('.assistant-markdown').waitFor();
     assert.equal((await calls(permission, 'ai.sendMessage')).length, 1); assert.equal((await calls(permission, 'voice.speakReply')).length, 0);
+  });
+  await check('Speech mute is visible in compact and expanded layouts and prevents a silent Read aloud action', async () => {
+    await permission.getByRole('button', { name: 'Mute speech', exact: true }).click();
+    assert.ok(await permission.getByText('· Speech muted', { exact: true }).isVisible());
+    assert.ok(await permission.getByRole('button', { name: 'Read aloud', exact: true }).isDisabled());
+    await permission.getByRole('button', { name: 'Collapse conversation', exact: true }).click();
+    assert.ok(await permission.getByText('· Speech muted', { exact: true }).isVisible());
+    await axe(permission, 'muted-compact'); await permission.screenshot({ path: path.join(artifacts, 'muted-compact.png') });
+    await permission.getByRole('button', { name: 'Unmute speech', exact: true }).click();
+    await permission.getByRole('button', { name: 'Expand conversation', exact: true }).click();
+    assert.ok(await permission.getByRole('button', { name: 'Read aloud', exact: true }).isEnabled());
+    assert.equal((await calls(permission, 'voice.speakReply')).length, 0);
   });
   const automatic = await open({ autoSpeak: true, delayStart: 350 });
   await check('Automatic spoken send happens once despite events preceding the start reply, and uses the accepted stream id', async () => {
@@ -112,6 +128,7 @@ try {
   await check('End voice stays ended across draft edits, and does not end the text conversation', async () => {
     await held.getByRole('button', { name: 'End voice', exact: true }).click();
     await held.getByRole('button', { name: 'End voice', exact: true }).waitFor({ state: 'hidden' });
+    await held.waitForFunction(() => document.activeElement?.classList.contains('voice-talk'));
     const binds = (await calls(held, 'voice.startSession')).length;
     await draft(held).fill('Continue in text');
     assert.equal((await calls(held, 'voice.startSession')).length, binds); assert.equal((await calls(held, 'ai.endConversation')).length, 0);
@@ -189,6 +206,36 @@ try {
     }
     assert.equal(await held.locator('.voice-level').getAttribute('data-static'), 'true');
   });
+  await check('Keyboard Cancel and long spoken captions stay usable in all three layouts and four desktop sizes', async () => {
+    const captions = await open({ interval: 1000 });
+    await talk(captions);
+    await captions.getByRole('button', { name: 'Cancel listening', exact: true }).focus();
+    await captions.keyboard.press('Enter');
+    await captions.waitForFunction(() => document.activeElement?.classList.contains('voice-talk'));
+    // Shared-mock playback supplies actual progress events; repeated sentences
+    // keep the same long caption on screen while the window layouts are checked.
+    await captions.evaluate(() => window.__voiceTest.request('voice.speak', { text: ('Mock caption for keyboard scrolling '.repeat(10) + '. ').repeat(10) }));
+    const caption = captions.getByRole('region', { name: 'Current spoken sentence', exact: true });
+    await caption.focus(); await captions.keyboard.press('End');
+    await captions.waitForFunction(() => document.querySelector('.voice-caption')?.scrollTop > 0);
+    assert.notEqual(await caption.evaluate(node => getComputedStyle(node).outlineStyle), 'none');
+    await axe(captions, 'long-caption');
+    for (const [width, height] of [[1100, 700], [1280, 800], [1440, 900], [1728, 1117]]) {
+      await captions.setViewportSize({ width, height });
+      for (const layout of ['expanded', 'focus', 'compact']) {
+        if (layout === 'expanded' && await captions.getByRole('button', { name: 'Expand conversation', exact: true }).isVisible()) await captions.getByRole('button', { name: 'Expand conversation', exact: true }).click();
+        if (layout === 'focus') await captions.getByRole('button', { name: 'Enter focus mode', exact: true }).click();
+        if (layout === 'compact') await captions.getByRole('button', { name: 'Collapse conversation', exact: true }).click();
+        assert.equal(await captions.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+        assert.equal(await captions.locator('.voice-rail').evaluate(node => node.scrollWidth > node.clientWidth), false);
+        assert.ok(await caption.isVisible());
+        if (layout !== 'compact') assert.ok(await captions.locator('.conversation-transcript').evaluate(node => node.clientHeight >= 96), `${layout} ${width} keeps readable conversation space`);
+        if (width === 1100 || width === 1440) await captions.locator('.companion-workspace').screenshot({ path: path.join(artifacts, `long-caption-${layout}-${width}.png`) });
+      }
+    }
+    await captions.getByRole('button', { name: 'Stop speaking', exact: true }).click();
+    assert.equal((await calls(captions, 'ai.sendMessage')).length, 0);
+  });
   const scene = await open({ scene: true, interval: 160 });
   await check('Actual GLB responds to shared-mock TTS levels; Stop and Reduce Motion settle the jaw without adding scene complexity', async () => {
     await scene.emulateMedia({ reducedMotion: 'no-preference' });
@@ -204,8 +251,11 @@ try {
     assert.equal(await scene.evaluate(() => window.__AURA_DIAGNOSTICS__.rig.jawAngle), 0);
     await scene.getByRole('button', { name: 'Read aloud', exact: true }).click();
     await scene.waitForFunction(() => window.__AURA_DIAGNOSTICS__?.rig?.jawAngle > .005);
+    assert.ok(await scene.getByRole('region', { name: 'Current spoken sentence', exact: true }).isVisible());
     await scene.screenshot({ path: path.join(artifacts, 'scene-speaking.png') });
-    await scene.getByRole('button', { name: 'Stop speaking', exact: true }).click();
+    await scene.getByRole('button', { name: 'Stop speaking', exact: true }).focus();
+    await scene.keyboard.press('Enter');
+    await scene.waitForFunction(() => document.activeElement?.classList.contains('voice-talk'));
     await scene.waitForFunction(() => window.__AURA_DIAGNOSTICS__.rig.jawAngle < .003);
     await scene.emulateMedia({ reducedMotion: 'reduce' });
     await scene.getByRole('button', { name: 'Read aloud', exact: true }).click();

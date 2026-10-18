@@ -1,11 +1,13 @@
 # Phase 3C-D — Astra voice frontend
 
-## Current checkpoint: Phases 3–4 implementation
+## Current checkpoint: Phase 5 visual and interaction audit
 
-The production voice frontend and existing-rig reactions are implemented. This is
-the implementation checkpoint before the owner's required **Phase 5 visual audit**,
-not the final release or native hardware acceptance report. Phases 0–2 were saved
-in `ce0fa3eef6a3690e66b6670473115506bcc1a3e1` and continued without restarting.
+Phases 0–5 are complete. The running production voice frontend has been visually
+audited and refined from implementation commit
+`bc9f92c6b940c213abedb17e4d090e196b6d148f`. The owner's required **Phase 6 full QA**
+and **Phase 7 engineering handoff** are still pending. This is not a release or
+native hardware acceptance report. The earlier design checkpoint is
+`ce0fa3eef6a3690e66b6670473115506bcc1a3e1`; completed work was not restarted.
 
 - Branch: `codex/phase3c-d-voice-experience`, created directly from remote
   `claude/phase3c-d-voice`.
@@ -15,6 +17,81 @@ in `ce0fa3eef6a3690e66b6670473115506bcc1a3e1` and continued without restarting.
   those changes was performed.
 - No push, merge, native service edit, platform edit or contract change.
 - `/Applications/AURA.app` has not been touched.
+
+## Phase 5 refinements
+
+- Quiet voice states use a neutral rail with one explicit microphone status. The
+  level display appears only during starting, listening or speaking. Listening
+  stays teal; output and preparation of spoken replies use blue.
+- Stop speaking is the primary playback action, preceding the secondary Talk
+  control in both visual and keyboard order. Its tooltip explains that Talk stops
+  speech and starts listening. Color changes are immediate to avoid a transient
+  white-on-white label during the filled-to-outline transition. Existing restrained
+  hover effects and global Reduce Motion rules remain in place.
+- Mute is stated in text in compact and expanded views. Read aloud is disabled
+  while muted, with an explanation, rather than accepting a silent action. No
+  session mute or saved auto-speak behavior was changed.
+- Live text and final voice drafts are explicitly marked **not sent**. The final
+  draft label now sits inside the composer, so short-window and compact layouts
+  cannot hide it with secondary preferences.
+- Captions are a named, keyboard-focusable region with a visible focus ring and
+  keyboard scrolling. Short windows cap caption height at 76 px and reserve at
+  least 96 px for conversation messages. The composer can shrink and scroll when
+  necessary instead of squeezing away the message area.
+- Stop, Cancel and End return keyboard focus to an available voice control if
+  their originating button disappears. They do not override focus already moved
+  elsewhere. Compact headers now describe the session, and voice settings use the
+  existing action accent with stable device-control spacing.
+
+Changes are confined to `CompanionWorkspace.tsx`, `voice/VoiceRail.tsx`,
+`voice/voice.css`, `test/voice.browser.mjs`, this handoff and an appended `TASKS.md`
+entry. The coordinator, React voice hook, conversation service, Studio/Astra code,
+native source, shared contracts, platform adapter, assets and dependencies were
+not changed in Phase 5.
+
+### Phase 5 verification and screenshots
+
+- TypeScript and production build: passed, 1,064 modules, no chunk-size warning.
+  Initial JS is 1,389.26 kB / 385.94 kB gzip; CSS is 63.38 kB / 13.37 kB gzip.
+  Lazy Voice Settings remains 5.16 kB / 1.90 kB gzip. No new dependencies.
+- Frontend voice controller: **18/18**, zero failed or skipped.
+- Shared bridge: **19/19**, zero failed or skipped. `npm --prefix frontend test`
+  passes; direct `node shared/test/bridge.test.ts` also confirms each test because
+  the sandbox's Node runner otherwise reports the containing file as one test.
+- Updated production voice browser suite: **20/20**, zero failed; **nine axe scans,
+  zero violations**. Covers native-shaped shared mocks only. No browser microphone
+  calls, page errors or external asset requests occurred.
+- The suite now covers visible mute and disabled Read aloud, short-window unsent
+  draft guidance, keyboard focus after End/Cancel/Stop, and scrolling a long spoken
+  sentence in compact/expanded/focus at 1100×700, 1280×800, 1440×900 and 1728×1117.
+  A preceding focused visual audit also verified these 12 layout combinations.
+- Original GLB loading, jaw response, Stop settling and Reduce Motion still pass.
+  The final cloud sample was **2 fps, DPR 1, ANGLE SwiftShader**, with one canvas,
+  **14 draw calls and 79,802 triangles**. This software-renderer observation is not
+  Mac M5 performance acceptance. The source and built GLB retain SHA-256
+  `e9984ddc7e04a1b39d72f5ab5e1ba9fe459fc42e773f851bf52068b357eb76c1`;
+  original XRProfXR / CC BY 4.0 attribution remains visible.
+
+| Evidence outside Git | Location |
+|---|---|
+| Final 20-check voice results and nine axe scans | `/workspace/aura-phase3c-d/quality/final/results.json` and `axe-*.json` |
+| Before: production idle, compact, mute, listening and short-window settings | `/workspace/aura-phase3c-d/quality/before-*.png` |
+| Before: production playback | `/workspace/aura-phase3c-d/implementation/scene-speaking.png` |
+| After: production playback with original Astra | `/workspace/aura-phase3c-d/quality/final/scene-speaking.png` and `scene-1100.png` |
+| After: short-window final draft and compact mute | `/workspace/aura-phase3c-d/quality/final/transcript-review-1100.png` and `muted-compact.png` |
+| After: long captions across layouts | `/workspace/aura-phase3c-d/quality/final/long-caption-{expanded,focus,compact}-{1100,1440}.png` |
+| Focused audit: idle/listening/settings and layout evidence | `/workspace/aura-phase3c-d/quality/layouts/` |
+
+Screenshots contain the offline shared mock, never real microphone capture,
+live inference or private repository data. No screenshots or binaries are committed.
+Existing Node, Chromium, Playwright and axe installations were reused; only the
+existing Vite service needed restarting. No environment configuration changes were
+needed. No public preview link was attempted.
+
+The full Astra, GitHub and Studio regression matrix must be run in Phase 6; earlier
+implementation results below are retained as historical evidence, not substituted
+for that final QA pass. Mac physical voice and accessibility acceptance remains
+pending under the instructions at the end of this handoff.
 
 ## Production frontend implementation
 
@@ -58,7 +135,7 @@ falls back to native `voice.speak` only on `not_found`, with assistant reply tex
 never tool results or cancelled/failed replies. Native planning remains responsible
 for speech omissions and the character limit.
 
-### Implementation verification
+### Phases 3–4 implementation verification (historical checkpoint)
 
 TypeScript and production build pass. Controller tests pass **18/18**; the shared
 bridge suite passes **19/19** (also invoked directly with `node shared/test/bridge.test.ts`
@@ -113,15 +190,11 @@ coverage.
 
 ### Remaining phase checkpoints
 
-1. **Phase 5: GPT-6 Astra / Extra High.** Audit the running production voice UI and
-   refine hierarchy, status/caption clarity, ergonomics, panel spacing and motion.
-   Preserve the working controller/bridge integration. Screenshots below and the
-   original design study are references; do not replace native code for cosmetics.
-2. **Phase 6: GPT-6 Luna / Medium.** Perform the full specified regression and
+1. **Phase 6: GPT-6 Luna / Medium.** Perform the full specified regression and
    accessibility matrix, including GitHub, permission/device failures, cancellation,
-   all window sizes and reduced motion. Implementation checks below do not mark
-   that phase complete.
-3. **Phase 7: GPT-6.1 Sol / High.** Final combined engineering review and exact
+   all window sizes and reduced motion. Continue this branch without repeating
+   design or implementation. Phase 5 checks do not mark that phase complete.
+2. **Phase 7: GPT-6.1 Sol / High.** Final combined engineering review and exact
    commit/handoff, then stop for owner review. No push or merge without approval.
 
 Physical microphone/speakers, real Bluetooth switching, OS permission prompts,

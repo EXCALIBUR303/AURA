@@ -33,18 +33,29 @@ export function VoiceRail({ controller, view, enabled, disabled, reduced, settin
   const capturing = !!status?.listening, recognizing = status?.phase === "recognizing", output = !!status?.speaking;
   const available = enabled && capabilities?.recognition !== "unavailable" && !!capabilities && status?.phase !== "unavailable";
   const denied = status?.microphone === "denied" || status?.microphone === "restricted" || capabilities?.requiresSpeechRecognitionPermission && ["denied", "restricted"].includes(status?.speechRecognition ?? "");
-  const tone = status?.phase === "error" || denied || view.issue ? "error" : status?.phase === "interrupted" ? "warning" : status?.phase === "speaking" ? "output" : "input";
+  const tone = status?.phase === "error" || denied || view.issue ? "error" : status?.phase === "interrupted" ? "warning" : output ? "output" : capturing || recognizing ? "input" : "quiet";
   const recovery = status?.issue?.recovery ?? [];
+  async function finishAction(button: HTMLButtonElement, action: () => Promise<void>) {
+    const rail = button.closest("section");
+    await action();
+    requestAnimationFrame(() => {
+      // A disappearing Stop/Cancel/End control must not strand keyboard focus.
+      // Do not take focus back if the user has already moved to another control.
+      if (document.hasFocus() && !document.querySelector("dialog[open]") && (document.activeElement === button || !button.isConnected && document.activeElement === document.body)) {
+        (rail?.querySelector<HTMLButtonElement>(".voice-talk:not(:disabled)") ?? rail?.querySelector<HTMLButtonElement>(".voice-rail-actions button:not(:disabled)"))?.focus({ preventScroll: true });
+      }
+    });
+  }
   async function recover(action: VoiceRecovery) {
     if (action === "retry") await controller.start();
     else if (action === "install_speech_assets") await controller.install();
     else await controller.openSettings(action === "choose_input" ? "sound_input" : action === "open_microphone_settings" ? "microphone" : "speech_recognition");
   }
-  return <section className="voice-rail" aria-label="Astra voice" data-phase={status?.phase ?? "unavailable"} data-tone={tone} data-active={capturing || recognizing || output || !!status?.issue || !!view.issue || !!view.final}>
-    <div className="voice-rail-heading"><span className="voice-state-icon"><VoiceIcon speaker={output} off={!capturing && !output} /></span><div><strong role="status" aria-live="polite" aria-atomic="true">{enabled ? label : "Voice is turned off"}</strong><small title={status?.inputDevice?.name}>{capturing ? "Microphone on" : "Microphone off"}</small></div><button className="voice-icon-button" type="button" aria-label="Voice settings" title="Voice settings" onClick={settings}><UiIcon name="settings" /></button></div>
+  return <section className="voice-rail" aria-label="Astra voice" data-phase={status?.phase ?? "unavailable"} data-tone={tone} data-output={output} data-session={status?.sessionActive ?? false} data-active={capturing || recognizing || output || !!status?.outputMuted || !!status?.issue || !!view.issue || !!view.final || !!view.notice}>
+    <div className="voice-rail-heading"><span className="voice-state-icon"><VoiceIcon speaker={output} off={!capturing && !output} /></span><div><strong role="status" aria-live="polite" aria-atomic="true">{enabled ? label : "Voice is turned off"}</strong><small title={status?.inputDevice?.name}>{capturing ? "Microphone on" : "Microphone off"}{status?.outputMuted && <span className="voice-muted-label"> · Speech muted</span>}</small></div><button className="voice-icon-button" type="button" aria-label="Voice settings" title="Voice settings" onClick={settings}><UiIcon name="settings" /></button></div>
     <Level controller={controller} reduced={reduced} view={view} />
-    {view.partial && <div className="voice-partial"><span>LIVE TRANSCRIPT</span><label className="sr-only" htmlFor="voice-partial">Live speech transcript, not yet sent</label><textarea id="voice-partial" readOnly value={view.partial} rows={2} aria-live="off" /></div>}
-    {view.caption && <div className="voice-caption" aria-live="off"><span>ASTRA IS SAYING</span><p>{view.caption}</p></div>}
+    {view.partial && <div className="voice-partial"><span>LIVE TRANSCRIPT · NOT SENT</span><label className="sr-only" htmlFor="voice-partial">Live speech transcript, not yet sent</label><textarea id="voice-partial" readOnly value={view.partial} rows={2} aria-live="off" /></div>}
+    {view.caption && <div className="voice-caption" role="region" aria-label="Current spoken sentence" tabIndex={0} aria-live="off"><span>ASTRA IS SAYING</span><p>{view.caption}</p></div>}
     {status?.issue && <p className="voice-issue">{status.issue.message}</p>}
     {view.issue && <p className="voice-call-error" role="alert">{view.issue}</p>}
     {!available && !view.loading && !view.issue && status?.phase === "unavailable" && <p className="voice-issue">Voice unavailable in this host. Use the bundled AURA.app for native voice.</p>}
@@ -54,11 +65,11 @@ export function VoiceRail({ controller, view, enabled, disabled, reduced, settin
       {!recovery.includes("choose_input") && capabilities?.input === "unavailable" && status?.phase !== "unavailable" && <button type="button" onClick={() => void controller.openSettings("sound_input")}>Choose microphone</button>}
     </div>
     <div className="voice-rail-actions">
-      {available && !denied && capabilities?.input !== "unavailable" && <button type="button" className="voice-talk" disabled={view.busy || recognizing || !capturing && disabled} onClick={() => void (capturing ? controller.finish() : controller.start())}><VoiceIcon />{view.busy ? "Preparing…" : capturing ? "Finish listening" : recognizing ? "Finishing…" : "Talk with Astra"}</button>}
-      {(capturing || recognizing || view.busy) && <button type="button" className="voice-cancel" onClick={() => void controller.cancel()}>Cancel listening</button>}
-      {output && <button type="button" className="voice-stop" onClick={() => void controller.stopSpeaking()}><UiIcon name="stop" />Stop speaking</button>}
+      {output && <button type="button" className="voice-stop" onClick={(event) => void finishAction(event.currentTarget, controller.stopSpeaking)}><UiIcon name="stop" />Stop speaking</button>}
+      {available && !denied && capabilities?.input !== "unavailable" && <button type="button" className="voice-talk" title={output ? "Stop speech and start listening" : capturing ? "Finish the current transcript" : "Talk, or hold ⌥Space"} disabled={view.busy || recognizing || !capturing && disabled} onClick={() => void (capturing ? controller.finish() : controller.start())}><VoiceIcon />{view.busy ? "Preparing…" : capturing ? "Finish listening" : recognizing ? "Finishing…" : "Talk with Astra"}</button>}
+      {(capturing || recognizing || view.busy) && <button type="button" className="voice-cancel" onClick={(event) => void finishAction(event.currentTarget, controller.cancel)}>Cancel listening</button>}
       {status && status.phase !== "unavailable" && <button type="button" className="voice-icon-button" aria-label={status.outputMuted ? "Unmute speech" : "Mute speech"} aria-pressed={status.outputMuted} title={status.outputMuted ? "Unmute speech" : "Mute speech"} onClick={() => void controller.mute(!status.outputMuted)}><VoiceIcon speaker off={status.outputMuted} /></button>}
-      {status?.sessionActive && <button type="button" className="voice-end" onClick={(event) => { const rail = event.currentTarget.closest("section"); void controller.end().then(() => rail?.querySelector<HTMLButtonElement>(".voice-talk")?.focus()); }}>End voice</button>}
+      {status?.sessionActive && <button type="button" className="voice-end" onClick={(event) => void finishAction(event.currentTarget, controller.end)}>End voice</button>}
     </div>
     {capturing && <p className="voice-hint">{status.mode === "push_to_talk" ? "Release ⌥Space to finish" : "Pause to finish"} · Esc to cancel</p>}
     {view.notice && <p className="voice-notice" role="status">{view.notice}<button type="button" aria-label="Dismiss voice notice" onClick={controller.clearIssue}><UiIcon name="close" /></button></p>}
