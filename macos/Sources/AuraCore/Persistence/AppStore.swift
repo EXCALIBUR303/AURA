@@ -50,12 +50,25 @@ public struct AppStore: Sendable {
         }
     }
 
+    /// When a newer AURA saved the world values (`world.isSupported == false`), the stored
+    /// `world` object is written back unchanged instead of this build's defaults.
     public func savePreferences(_ preferences: Preferences) async throws {
-        let json = String(decoding: try BridgeCoding.encoder.encode(preferences), as: UTF8.self)
+        var data = try BridgeCoding.encoder.encode(preferences)
+        if !preferences.world.isSupported, case .object(var fields) = try JSONValue(encoding: preferences),
+           let stored = try await storedPreferencesJSON(), case .object(let old) = stored, let world = old["world"] {
+            fields["world"] = world
+            data = try BridgeCoding.encoder.encode(JSONValue.object(fields))
+        }
+        let json = String(decoding: data, as: UTF8.self)
         try await database.execute(
             "INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
             [.text(Self.preferencesKey), .text(json), .text(Self.now())]
         )
+    }
+
+    private func storedPreferencesJSON() async throws -> JSONValue? {
+        guard let json = try await database.query("SELECT value FROM kv WHERE key = ?", [.text(Self.preferencesKey)]).first?["value"]?.stringValue else { return nil }
+        return try? BridgeCoding.decoder.decode(JSONValue.self, from: Data(json.utf8))
     }
 
     // MARK: other settings
