@@ -21,7 +21,7 @@ enum VoiceProbe {
     }
     static var isEnabled: Bool { scenario != nil }
 
-    private static let prelude = """
+    static let prelude = """
         if (!window.__vp) {
           const events = []; const counts = {};
           const bridge = window.__AURA_BRIDGE__;
@@ -305,7 +305,7 @@ enum VoiceProbe {
         (try? String(data: JSONEncoder().encode(text), encoding: .utf8)) ?? "\"\""
     }
 
-    private static func js(_ w: WKWebView, _ body: String) async -> String? {
+    static func js(_ w: WKWebView, _ body: String) async -> String? {
         do { return try await w.callAsyncJavaScript(body, contentWorld: .page) as? String } catch {
             log.error("voice probe js error: \(error.localizedDescription, privacy: .public)")
             return nil
