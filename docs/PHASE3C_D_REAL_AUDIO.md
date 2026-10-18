@@ -57,7 +57,45 @@ The idle samples showed a few frames over 20.9 ms in a 60-frame window (typical 
 
 ## 6. Not tested
 
-Airdopes earbuds and error -10875 on hardware, Bluetooth disconnect, input/output switching, no-audio detection, the GitHub vocabulary fix with live speech, pause/resume/replay by ear, real sleep and lock, enhanced voices, VoiceOver with speech, the macOS 15–25 recogniser. Hands-free barge-in stays unavailable.
+Airdopes earbuds and error -10875 on hardware, Bluetooth disconnect, input/output switching, no-audio detection, the GitHub vocabulary fix beyond one run (§6a), pause/resume/replay by ear, real sleep and lock, VoiceOver with speech, the macOS 15–25 recogniser. Hands-free barge-in stays unavailable.
+
+## 6a. Follow-up: premium voice and built-in microphone (owner present)
+
+**Voice availability.** Inside AURA's sandbox, `AVSpeechSynthesisVoice.speechVoices()` does not return Apple's Siri and neural system voices ("Voice 1" Riya, "Voice 2" Simone), although command-line tools can use them. Downloaded Enhanced and Premium voices are returned. This is macOS behaviour, not an AURA bug, so no code change was needed.
+- Before the download, the sandbox reported 180 voices, none enhanced or premium.
+- The owner downloaded **Ava (Premium)** (`com.apple.voice.premium.en-US.Ava`, 280 MB, Apple) in System Settings › Accessibility › Read & Speak › System voice ⓘ › Voice. In macOS 27 the page is "Read & Speak" and voices are added from the ⓘ sheet.
+- After the download, the sandbox reported 181 voices, 1 premium (Ava).
+- Ava follows the Apple pace curve: native rate 0.3 = 0.82×, 0.55 = 1.30×, natural pace 176 wpm. Rendered peak 0.71, so no clipping.
+
+**Selection.** Ava is saved as AURA's voice (`synthesisVoiceId = com.apple.voice.premium.en-US.Ava`), pace 0.85, auto-speak off. If the voice is removed later, AURA falls back to the best installed voice.
+
+**Playback through the real output (wired External Headphones).** The preview ran in AURA and its log confirmed `com.apple.voice.premium.en-US.Ava`, pace 0.85, native rate 0.3375.
+
+| Item | Result |
+|---|---|
+| Clarity | Clear, natural (owner) |
+| Pronunciation | Good, including "macOS" (owner) |
+| Loudness | Comfortable (owner) |
+| Pace and pauses | Right at 0.85× (owner) |
+| First audio | 1.44 s after the click (first use of Ava in the process) |
+| Whole preview | About 10.7 s for 2 sentences |
+
+**Built-in microphone, one phrase** (MacBook Air Microphone). All timings are measured from the Talk click.
+
+| Item | Result |
+|---|---|
+| Capture start | `starting` after 109 ms, `listening` after 291 ms |
+| Input levels | Received, peak 0.19 |
+| Live transcript | Partials arrived while speaking ("Show me my G…", "Show me my Gitub projects") |
+| Final transcript | Exactly one: "Show me my GitHub projects.", 91 ms after the microphone closed |
+| Accuracy | 100%. "GitHub" was correct in the final, which the earlier run had heard as "guitar" and "Githav". One run is not proof the vocabulary list fixed it |
+| End of listening | By itself after the pause (auto end) |
+| Mic cleanup | Status idle, `listening: false`, log "finished (transcript)". Indicator off not separately reported this time |
+| No AI request | The final stayed an unsent draft (default Edit before sending) |
+
+**Interaction note.** AURA only opens the microphone and plays speech when it is the active app, and does nothing otherwise. A Talk click on an inactive AURA only activates the window (the standard macOS first click). Several owner attempts did not reach AURA for this reason; only recorded runs are reported here.
+
+Bluetooth, device switching, sleep/lock and echo tests were not run in this follow-up, as requested.
 
 ## 7. Automated regression
 
