@@ -16,13 +16,15 @@ export type WorldCameraHandle={capture:()=>CameraPose|undefined};
 export function WorldNavigation({controller,snapshot,reducedMotion,active,report,revision,cameraHandle}:{controller:WorldController;snapshot:WorldSnapshot;reducedMotion:boolean;active:boolean;report:Report;revision:number;cameraHandle?:Ref<WorldCameraHandle>}){
   const {camera,gl}=useThree();const orbit=useRef<Orbit>(null);const keys=useRef(new Set<string>());
   const latest=useRef({snapshot,active});latest.current={snapshot,active};
-  const geometry=useMemo(()=>worldGeometry(snapshot.loaded,snapshot.options),[snapshot.loaded,snapshot.options.chairSlot]);
+  const geometry=useMemo(()=>worldGeometry(snapshot.loaded,snapshot.options,snapshot.inspectionZone),[snapshot.loaded,snapshot.options.chairSlot,snapshot.inspectionZone]);
   const requestId=useRef(-1);const goal=useRef<CameraPose|null>(null);const settled=useRef(true);
   const plan=useRef<TravelPlan|null>(null),elapsed=useRef(0),velocity=useRef(new Vector3()),veil=useRef<HTMLDivElement|null>(null),veilValue=useRef(0);
   const setVeil=(value:number)=>{const v=Math.round(value*100)/100;if(v===veilValue.current)return;veilValue.current=v;if(veil.current)veil.current.style.opacity=String(v);};
   const safe=useRef<CameraPose>(controller.capture());const look=useRef(new Euler(0,0,0,"YXZ"));const direction=useRef(new Vector3());
   const point=useRef(new Vector3()),target=useRef(new Vector3());
   const releaseInput=useRef<()=>void>(()=>{});
+  /** Zoom limits apply to the zone that is active after arrival; set them before controls resume so they never clamp the arrival pose. */
+  const applyLimits=(zone:"hardware"|undefined)=>{const o=orbit.current;if(o){o.minDistance=zone?0.16:0.65;o.maxDistance=zone?1.3:7;}};
   useImperativeHandle(cameraHandle,()=>({capture:()=>orbit.current?{position:camera.position.toArray(),target:orbit.current.target.toArray(),room:controller.getSnapshot().room}:undefined}),[camera,controller]);
   useEffect(()=>{
     if(snapshot.request)return;const pose=controller.capture();camera.position.fromArray(pose.position);orbit.current?.target.fromArray(pose.target);orbit.current?.update();
@@ -42,7 +44,7 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
     const route=walkway?cameraPath(from,destination.position,geometry.floors,geometry.colliders):[];
     plan.current=planTravel({from:{position:from,target:(orbit.current?.target.toArray()??destination.target) as Point},to:destination,route,geometry,reduced:reducedMotion,instant:!!request.instant,carryVeil:veilValue.current});elapsed.current=0;
     if(orbit.current)orbit.current.enabled=false;
-    if(plan.current.kind==="cut"){setVeil(0);camera.position.fromArray(destination.position);target.current.fromArray(destination.target);orbit.current?.target.copy(target.current);orbit.current?.update();}
+    if(plan.current.kind==="cut"){setVeil(0);applyLimits(controller.zoneAfterArrival());camera.position.fromArray(destination.position);target.current.fromArray(destination.target);orbit.current?.target.copy(target.current);orbit.current?.update();}
     settled.current=false;report({zone:snapshot.selectedZone,cameraRevision:revision,cameraSettled:false,travel:{kind:plan.current.kind,plannedMs:Math.round(plan.current.duration*1000)}});
   },[snapshot.request,snapshot.loaded,snapshot.selectedZone,geometry,camera,controller,gl,report,revision,reducedMotion]);
   useEffect(()=>{if(snapshot.phase!=="idle")settled.current=false;report({world:{room:snapshot.room,mode:snapshot.mode,phase:snapshot.phase,loadedRooms:snapshot.loaded,pending:snapshot.pending,loadTiming:snapshot.loadTiming},...(snapshot.phase!=="idle"?{cameraSettled:false}: {})});},[report,snapshot.room,snapshot.mode,snapshot.phase,snapshot.loaded,snapshot.pending,snapshot.loadTiming]);
@@ -53,7 +55,7 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
     if(active||!request||!controls||!destination)return;
     keys.current.clear();velocity.current.set(0,0,0);setVeil(0);
     if(plan.current)report({travel:{kind:plan.current.kind,plannedMs:Math.round(plan.current.duration*1000),elapsedMs:Math.round(elapsed.current*1000),outcome:"settled-inactive"}});
-    plan.current=null;controls.enabled=false;
+    plan.current=null;controls.enabled=false;applyLimits(controller.zoneAfterArrival());
     camera.position.fromArray(destination.position);controls.target.fromArray(destination.target);controls.update();
     safe.current={...destination,room:request.room};goal.current=null;
     controller.arrive(request.id);controller.updatePose(safe.current);settled.current=true;
@@ -140,7 +142,7 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
       camera.position.fromArray(sample.position);controls.target.fromArray(sample.target);camera.lookAt(controls.target);setVeil(sample.veil);
       controller.updatePose({position:sample.position,target:sample.target,room:roomAt(sample.position,snapshot.loaded)??snapshot.room});
       if(elapsed.current>=travel.duration){
-        const destination=goal.current;camera.position.fromArray(destination.position);controls.target.fromArray(destination.target);controls.update();setVeil(0);
+        const destination=goal.current;applyLimits(controller.zoneAfterArrival());camera.position.fromArray(destination.position);controls.target.fromArray(destination.target);controls.update();setVeil(0);
         goal.current=null;plan.current=null;controller.arrive(request.id);settled.current=true;safe.current={position:camera.position.toArray(),target:controls.target.toArray(),room:request.room};controller.updatePose(safe.current);
         report({cameraSettled:true,cameraRevision:revision,zone:snapshot.selectedZone,cameraSampledAt:Date.now(),travel:{kind:travel.kind,plannedMs:Math.round(travel.duration*1000),elapsedMs:Math.round((skipped?shown:elapsed.current)*1000),outcome:skipped?"skipped":"arrived"},camera:{position:camera.position.toArray(),target:controls.target.toArray(),fov:camera instanceof PerspectiveCamera?camera.fov:undefined}});
       }
@@ -181,5 +183,5 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
     safe.current={position:camera.position.toArray(),target:controls.target.toArray(),room:snapshot.room};controller.updatePose(safe.current);
     if(!settled.current){settled.current=true;report({cameraSettled:true});}
   });
-  return <OrbitControls ref={orbit} makeDefault enablePan={false} enableDamping={!reducedMotion} minDistance={.65} maxDistance={7} minPolarAngle={.2} maxPolarAngle={1.65} rotateSpeed={.45} zoomSpeed={.6}/>;
+  return <OrbitControls ref={orbit} makeDefault enablePan={false} enableDamping={!reducedMotion} minDistance={snapshot.inspectionZone && !snapshot.request ? 0.16 : 0.65} maxDistance={snapshot.inspectionZone && !snapshot.request ? 1.3 : 7} minPolarAngle={.2} maxPolarAngle={1.65} rotateSpeed={.45} zoomSpeed={.6}/>;
 }

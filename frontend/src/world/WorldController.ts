@@ -32,6 +32,8 @@ export class WorldController {
   private async request(room:RoomId,pose:CameraPose,kind:"travel"|"workspace"|"door"|"restore",arrivalMode:"inspect"|"explore"="inspect"){
     const definition=ROOMS[room];
     if(definition.availability!=="available"){this.patch({error:definition.reason});return;}
+    // Any request that is not an inspection of the zone (exit, workspace change, room travel, restore, retry) ends the zone on arrival.
+    if(this.zoneRequested){this.zoneRequested=false;this.clearZoneOnArrive=false;}else if(this.snapshot.inspectionZone)this.clearZoneOnArrive=true;
     const id=++this.generation;this.retryRequest={room,pose,kind,arrivalMode};
     this.patch({loadTiming:{room,startedAt:performance.now()},phase:"preparing",pending:room,error:undefined,request:undefined,skip:undefined,mode:kind==="door"?this.snapshot.mode:"cinematic"});
     try{
@@ -74,10 +76,19 @@ export class WorldController {
     this.patch({selectedZone:zone});const room=restore?.room&&ROOMS[restore.room].availability==="available"?restore.room:"project-hub";
     void this.request(room,restore??zonePose(zone),"workspace");
   };
-  inspect=(pose:CameraPose)=>{void this.request(pose.room??this.snapshot.room,pose,"travel");};
-  retry=()=>{const r=this.retryRequest;if(r)void this.request(r.room,r.pose,r.kind,r.arrivalMode);};
+  private clearZoneOnArrive=false;
+  /** The inspection zone that will be active once the current request arrives (an exit clears it). Lets the camera rig switch zoom limits at the arrival frame, not one render later. */
+  zoneAfterArrival=():"hardware"|undefined=>this.clearZoneOnArrive?undefined:this.snapshot.inspectionZone;
+  /** Frames a pose in the current room. `zone` opens close inspection of a desk object; a later inspect without it (the exit) keeps that allowance until the camera has arrived. */
+  private zoneRequested=false;
+  inspect=(pose:CameraPose,zone?:"hardware")=>{
+    if(zone){this.zoneRequested=true;if(this.snapshot.inspectionZone!==zone)this.patch({inspectionZone:zone});}
+    void this.request(pose.room??this.snapshot.room,pose,"travel");
+  };
+  retry=()=>{const r=this.retryRequest;if(r){if(this.snapshot.inspectionZone&&!this.clearZoneOnArrive)this.zoneRequested=true;void this.request(r.room,r.pose,r.kind,r.arrivalMode);}};
   arrive=(id:number)=>{const request=this.snapshot.request;if(!request||request.id!==id)return;const previousRoom=this.snapshot.room;this.lastPose=request.pose;
     const loaded=this.snapshot.loaded.filter(r=>r===request.room||!!connectionFor(r,request.room));const modules:Partial<Record<RoomId,RoomModule>>={};for(const r of loaded)modules[r]=this.snapshot.modules[r];
+    if(this.clearZoneOnArrive){this.clearZoneOnArrive=false;this.snapshot={...this.snapshot,inspectionZone:undefined};}
     this.patch({loaded,modules,skip:undefined,room:request.room,pending:undefined,phase:"idle",mode:request.arrivalMode??"inspect",request:undefined,error:undefined,loadTiming:this.snapshot.loadTiming?{...this.snapshot.loadTiming,settledMs:Math.round(performance.now()-this.snapshot.loadTiming.startedAt)}:undefined});
     if(request.kind!=="restore"&&request.room!==previousRoom)this.userChange({type:"room",value:request.room});
   };
@@ -88,6 +99,7 @@ export class WorldController {
   cancel=()=>{
     ++this.generation;
     if(!this.snapshot.loaded.length){this.patch({phase:"error",mode:"inspect",pending:undefined,request:undefined,error:"World startup was cancelled. Choose Retry room to load the studio."});return;}
+    if(this.snapshot.inspectionZone)this.clearZoneOnArrive=true;
     const safe=safeLanding(this.lastPose.position,this.snapshot.loaded);
     const pose:CameraPose={position:safe.position,target:[safe.position[0],1.62,safe.position[2]-1],room:safe.room};this.lastPose=pose;
     this.patch({phase:"travelling",mode:"cinematic",room:safe.room,pending:undefined,error:undefined,request:{id:this.generation,room:safe.room,pose,kind:"restore",instant:true}});

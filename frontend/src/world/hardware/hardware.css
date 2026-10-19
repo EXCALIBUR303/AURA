@@ -1,0 +1,21 @@
+.hardware-inspector { display:flex; flex-direction:column; gap:8px; }
+.equipment-panel { --hw-bg:#f5f3ec; }
+.spatial-os .equipment-panel { --hw-bg:#122133; }
+/* Always reachable while the part information scrolls. */
+.hardware-inspector .equipment-actions { margin-top:0; position:sticky; top:0; z-index:2; padding:8px 0; background:var(--hw-bg); }
+.hardware-inspector button { min-height:32px; }
+.hardware-inspector button:focus-visible { outline:2px solid #9cdeeb; outline-offset:2px; }
+.hw-hint,.hw-note { margin:0; font-size:12px; line-height:1.5; }
+.hw-note { font-size:11px; padding-top:8px; border-top:1px solid currentColor; opacity:.78; }
+/* Group label and its chips share a row so the whole part list stays short and the detail below stays on screen. */
+.hw-group { display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; }
+.hw-group .equipment-components { margin-top:0; gap:5px; display:contents; }
+.hardware-inspector .equipment-components button { padding:5px 8px; min-height:28px; }
+.hw-group-label { flex:0 0 auto; font-size:10px; letter-spacing:.09em; text-transform:uppercase; opacity:.78; }
+.hw-detail { scroll-margin-bottom:8px; }
+.hw-detail h3 { margin:6px 0 4px; font-size:14px; }
+.hw-detail dl { margin:0; display:grid; gap:2px; }
+.hw-detail dt { margin-top:6px; font-size:10px; letter-spacing:.09em; text-transform:uppercase; opacity:.78; }
+.hw-detail dd { margin:0; font-size:12px; line-height:1.5; }
+.hw-detail p { margin:0; }
+.hardware-inspector .equipment-actions button[aria-pressed=true] { outline:1px solid #9cdeeb; }

@@ -48,9 +48,17 @@ export function zonePose(zone:ZoneId):CameraPose {
     companion:{position:[.5,1.9,-10.1],target:[-1.25,.9,-12.5]},
   }; return {...poses[zone],room:"project-hub"};
 }
-export function worldGeometry(loaded:readonly RoomId[],options:RoomOptions=DEFAULT_ROOM_OPTIONS) {
+/** While the Hardware PC is inspected, its desk is a low slab (plus monitor and the case itself) so the camera can orbit just above it; the chair and everything else keep their colliders. */
+const HARDWARE_DESK_ID="desk.-3.25.-2.5";
+export const HARDWARE_INSPECTION_COLLIDERS:readonly Collider[]=[
+  {id:"hardware.slab",minX:-4.5,maxX:-2,minZ:-14.08,maxZ:-12.92,minY:0,maxY:.784},
+  {id:"hardware.monitor",minX:-3.55,maxX:-2.6,minZ:-13.84,maxZ:-13.72,minY:.784,maxY:1.7},
+  {id:"hardware.case",minX:-4.25,maxX:-4.05,minZ:-13.7,maxZ:-13.2,minY:.784,maxY:1.28},
+];
+export function worldGeometry(loaded:readonly RoomId[],options:RoomOptions=DEFAULT_ROOM_OPTIONS,zone?:"hardware") {
   const floors=loaded.map(id=>ROOMS[id].floor);
-  const colliders=loaded.flatMap(id=>ROOMS[id].colliders.map(c=>c.id==="living.chair"&&options.chairSlot==="conversation"?{...c,minZ:c.minZ+.8,maxZ:c.maxZ+.8}:c));
+  const colliders=loaded.flatMap(id=>ROOMS[id].colliders.filter(c=>!(zone==="hardware"&&c.id===HARDWARE_DESK_ID)).map(c=>c.id==="living.chair"&&options.chairSlot==="conversation"?{...c,minZ:c.minZ+.8,maxZ:c.maxZ+.8}:c));
+  if(zone==="hardware"&&loaded.includes("project-hub"))colliders.push(...HARDWARE_INSPECTION_COLLIDERS);
   for(const e of CONNECTIONS){
     if(!loaded.includes(e.from)&&!loaded.includes(e.to))continue;
     if(loaded.includes(e.from)&&loaded.includes(e.to)){
