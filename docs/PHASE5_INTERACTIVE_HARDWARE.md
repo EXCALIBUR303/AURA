@@ -125,6 +125,21 @@ The five original GLBs, including the Astra Lumen II avatar, are gitignored and 
 - hub-level draw call and triangle figures below are for a stand-in Hub and say nothing about the real one;
 - the "Astra could not load" card was hidden by the test harness so it could not cover the canvas.
 
+### Final verification
+
+Run on the final source tree (commit `c6630c7`; the only change after it is this document). Node 24.22.0, Linux, headless Chromium on SwiftShader (software GL), stand-in models. **None of this is native Mac M5 validation.**
+
+| Check | Result |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run build` (production) | succeeded |
+| `node --test … hardware.test.ts` combined non-voice command above | 87 tests, 87 pass, 0 fail, 0 skipped (voice tests excluded) |
+| `hardware.test.ts` alone | 10 / 10 |
+| `node test/hardware.browser.mjs` | 15 / 15 checks passed, exit 0 (14 feature checks + no page errors / no external runtime requests) |
+| axe WCAG 2 A/AA + 2.1 AA scan of the inspector | 0 violations at 1440 px and 1100 px width |
+| GPU resources over 3 open/explode/close cycles | geometries, textures and programs identical each cycle |
+| Existing equipment / navigation / spatial suites | same outcome as unmodified `origin/main` (see the regression table); not a regression |
+
 ## Measurements
 
 **These are from a software renderer in the cloud. They are not native Mac M5 numbers and must not be read as performance evidence.** Frame rate was not measured.
