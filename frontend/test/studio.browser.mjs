@@ -156,6 +156,10 @@ try {
     await page.mouse.move(box.x + 8, box.y + 8); await page.mouse.down();
     await page.mouse.move(box.x + 148, box.y + 58, { steps: 12 }); await page.mouse.up();
     await page.waitForFunction((start) => window.__AURA_DIAGNOSTICS__.camera.position.some((value, index) => Math.abs(value - start[index]) > 0.1), before);
+    // The prior orbit can face a desk or wall. Restore a known clear route before
+    // measuring zoom so collision protection is not mistaken for broken controls.
+    await page.getByRole('button', { name: 'Reset overview', exact: true }).click();
+    await page.waitForFunction((pose) => window.__AURA_DIAGNOSTICS__.camera.position.every((value, i) => Math.abs(value - pose[i]) < 0.03), getZone('studio').camera);
     const distance = () => page.evaluate(() => { const c = window.__AURA_DIAGNOSTICS__.camera; return Math.hypot(...c.position.map((value, i) => value - c.target[i])); });
     const originalDistance = await distance();
     await page.mouse.move(box.x + 8, box.y + 8); await page.mouse.wheel(0, 350);

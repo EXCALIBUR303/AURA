@@ -2,14 +2,15 @@
 
 ## Current checkpoint
 
-M7 visual polish, drag Explore, inactive travel completion and load investigation
-are implemented on `codex/phase4-living-universe`, continuing from M6
-`a22d343ff757b9b59057db4525669ccb098648eb`. Claude's native branch was fetched at
-`694726313c85e48cfea26c693944c14edc67b768` and read without merging/cherry-picking.
-His M3–M6 M5 measurements are baseline evidence, not M7 revalidation. Preference
-integration hooks are prepared; native wiring remains pending approved integration.
-**Stop after the M7 commit. Recommend GPT-6 Luna / Medium for M8 independent QA.**
-Voice development/testing remains frozen. M8/M9 have not started.
+M7 visual polish is committed at `35a499d9dc19d5151632baaeedb965b79316f443` on
+`codex/phase4-living-universe`. M8 continued after the owner's CONTINUE and completed
+the broad non-voice frontend regression described below. Its only source changes
+update two inherited browser-test assumptions to match M7's side dock and safe
+camera zoom. Product code remains at the verified M7 commit. Claude's native branch
+`694726313c85e48cfea26c693944c14edc67b768` was reviewed but not merged; M5 hardware
+results remain baseline evidence, not M7/M8 revalidation. Preference hooks are
+prepared, while native wiring awaits approved integration. Voice development/testing
+remains frozen. M9 and native Mac acceptance have not started.
 
 ## Milestone 0: audit and migration plan
 
@@ -627,3 +628,64 @@ exact ownership/integration limits are in `WORLD_CODEX_TO_CLAUDE_HANDOFF.md`.
 visual, keyboard/accessibility and broader non-voice regression QA from this state.
 Do not restart M3–M7, merge Claude, push, resume voice, or start M8 without the
 owner's next instruction. M9 remains a later engineering/handoff checkpoint.
+
+## Milestone 8: independent non-voice regression review
+
+The owner continued from M7 commit `35a499d9dc19d5151632baaeedb965b79316f443`.
+Rendered M7 before/after screenshots were reviewed; no new visual redesign or
+runtime feature was needed. Broader testing exposed two old assertions that no longer
+represented M7: one required the compact Astra dock to remain centered despite M7's
+intentional side placement; another zoomed toward desk/wall collision after orbiting
+into the safe camera boundary. The regression now checks dock fit and separation
+from the open project inspector. It confirms orbit first, resets to the clear Hub
+overview, and then measures zoom. Collision behavior was preserved.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| TypeScript + production build | Pass; same 1,099-module production build |
+| World controller/settings/collision | 26/26 pass |
+| Non-voice shared bridge | 16/16 pass; four voice tests excluded |
+| Game lifecycle unit tests | 6/6 pass |
+| Design prototype browser regressions | 13/13 pass; five zero-violation axe scans |
+| GitHub browser regressions | 23/23 pass; seven zero-violation axe scans |
+| Astra/conversation browser regressions | 28/28 pass; six zero-violation axe scans; one voice-specific check excluded |
+| Studio browser regressions | 26 pass, two voice-specific checks skipped; one zero-violation axe scan |
+
+The four browser suites total **90 passed non-voice checks and 19 zero-violation axe
+scans**, with no page errors or external requests. Together with 48 passing unit/bridge
+checks, this is focused regression evidence, not every possible AppKit acceptance.
+The tests use the existing typed shared mock and local renderer: GitHub/Astra results
+do not demonstrate live services or native authorization. Voice checks and the
+microphone browser scenario remain excluded under the owner's freeze.
+
+### Cloud render diagnostics
+
+The existing six-zone audit completed at DPR2 in Chromium SwiftShader. Every zone
+measured **2–4 FPS**, below the M5 target and expected for this CPU software renderer.
+These figures verify the diagnostics still run; they do not revalidate the M5 or claim
+a performance regression on Apple hardware. Measured calls/triangles were:
+
+| Zone | Calls | Triangles | SwiftShader FPS sample range |
+|---|---:|---:|---:|
+| Studio | 55 | 249,360 | 2–3 |
+| Hardware | 42 | 248,964 | 3 |
+| Software | 42 | 248,964 | 2–4 |
+| AI Lab | 42 | 248,964 | 2–4 |
+| GitHub | 43 | 248,976 | 2–4 |
+| Companion | 45 | 249,300 | 2–3 |
+
+No Swift/bridge/permission changes, external calls, new dependencies or binary
+assets. Performance and attribution checks remain as in M7. Test artifacts are
+outside Git in `/workspace/aura-phase4/m8/`; `performance/performance.json` contains
+all six underlying samples.
+
+### Stop after M8
+
+M8 only changes two non-voice regression assertions. The changes are locally committed
+on the same Codex branch after verification. Voice remains frozen. Native M5 55–60 FPS,
+WKWebView drag/lifecycle acceptance, cold Living first-frame measurement, native
+preference persistence after approved integration and VoiceOver/system behavior are
+still pending. The doorway draw-call cases documented above also remain for native
+profiling. M9 final engineering handoff has not started.
