@@ -75,6 +75,8 @@ export class WorldController {
     void this.request(room,restore??zonePose(zone),"workspace");
   };
   private clearZoneOnArrive=false;
+  /** The inspection zone that will be active once the current request arrives (an exit clears it). Lets the camera rig switch zoom limits at the arrival frame, not one render later. */
+  zoneAfterArrival=():"hardware"|undefined=>this.clearZoneOnArrive?undefined:this.snapshot.inspectionZone;
   /** Frames a pose in the current room. `zone` opens close inspection of a desk object; a later inspect without it (the exit) keeps that allowance until the camera has arrived. */
   inspect=(pose:CameraPose,zone?:"hardware")=>{
     if(zone){this.clearZoneOnArrive=false;if(this.snapshot.inspectionZone!==zone)this.patch({inspectionZone:zone});}
