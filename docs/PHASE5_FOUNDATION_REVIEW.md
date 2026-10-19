@@ -2,7 +2,7 @@
 
 Status: review complete, 2026-10-19. Branch `claude/phase5-spatial-engineering`, worktree `~/Developer/AURA-phase5`, started from Codex `470fdafe83f782b413b1e27a7cf422f8e0043f1c` (base `29cb3a3`, PR #4). Nothing pushed, merged or installed; `/Applications/AURA.app` unchanged (binary md5 `992894b8…`). No voice, microphone, speech, TTS or audio work or tests.
 
-Verdict: the Codex foundation holds up on the real Mac. Two confirmed layout defects were fixed; the design is otherwise preserved. One measurement (WebContent memory) needs a controlled A/B before Phase 9 can sign off.
+Verdict: the Codex foundation holds up on the real Mac. Two confirmed layout defects were fixed; the design is otherwise preserved. The WebContent memory question raised here was resolved in Phase 2 (GC peak, not a leak).
 
 ## Evidence
 
@@ -49,7 +49,7 @@ Scenario `AURA_DEV_WORLD_PROBE=1`: one cold pass through all four rooms, four re
 - Lifecycle: minimized and app-hidden both stop frames; restore resumes at 60 fps, p95 17 ms, no long tasks, context ready.
 - Draw calls/triangles match Codex's software-rendered counts exactly, so the +1 call/+208 triangles plinth delta is confirmed.
 
-**Memory — open item.** At probe end: app 47 MB, WebKit GPU 422 MB, WebContent 1,454–1,519 MB. Phase 4's report recorded WebContent 508–598 MB and GPU 128–204 MB, but under the `m9` scenario. A same-scenario A/B against the Phase 4 build could not be completed: the screen locked during the runs, so the window was occluded and rendered no frames (those runs read 287–540 MB, which is not comparable). Nothing in the Phase 5 diff (CSS, SVG, one extra mesh) obviously explains +900 MB, so this is **unverified, not a confirmed regression**. Phase 2 starts with a controlled A/B (same scenario, active window, both builds).
+**Memory — resolved in Phase 2 (not a leak).** The 1.45–1.52 GB WebContent reading was a peak before WebKit garbage collection. Same-scenario runs (`AURA_DEV_WORLD_PROBE=1`, footprint every 6 s): Codex `470fdaf` peaked 703/745 MB and ended 558/608 MB; `4f13a64` peaked 1,060 MB and fell to 589 MB; the Phase 2 build peaked 770 MB and settled at 515 MB after two idle minutes. A stage bisect (`AURA_DEV_WORLD_PROBE=leak`) showed dialog, workspace and console cycling flat; only room-to-room travel raises the peak, and it is reclaimed. Peaks vary 0.7–1.5 GB with GC timing, so a single end-of-run sample is not a reliable memory figure.
 
 ## Visual review
 
@@ -113,4 +113,4 @@ The rules are the same throughout: one Canvas, one camera owner (`WorldControlle
 
 ## Pending (owner-present or later phases)
 
-Controlled WebContent memory A/B; VoiceOver labels and focus; system Reduce Motion/Transparency in the native app; live text AI and read-only GitHub inside the native app under existing authorisation; long soak; the Phase 4 manual world-preference discrepancy (record only). Voice and audio remain frozen.
+VoiceOver labels and focus; system Reduce Motion/Transparency in the native app; live text AI and read-only GitHub inside the native app under existing authorisation; long soak; the Phase 4 manual world-preference discrepancy (record only). Voice and audio remain frozen.
