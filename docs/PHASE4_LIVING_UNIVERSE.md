@@ -10,7 +10,8 @@ camera zoom. Product code remains at the verified M7 commit. Claude's native bra
 `694726313c85e48cfea26c693944c14edc67b768` was reviewed but not merged; M5 hardware
 results remain baseline evidence, not M7/M8 revalidation. Preference hooks are
 prepared, while native wiring awaits approved integration. Voice development/testing
-remains frozen. M9 and native Mac acceptance have not started.
+remains frozen. M9 consolidates the final frontend handoff in
+`WORLD_CODEX_TO_CLAUDE_HANDOFF.md`; native integration and Mac acceptance are pending.
 
 ## Milestone 0: audit and migration plan
 
@@ -651,9 +652,9 @@ overview, and then measures zoom. Collision behavior was preserved.
 | Design prototype browser regressions | 13/13 pass; five zero-violation axe scans |
 | GitHub browser regressions | 23/23 pass; seven zero-violation axe scans |
 | Astra/conversation browser regressions | 28/28 pass; six zero-violation axe scans; one voice-specific check excluded |
-| Studio browser regressions | 26 pass, two voice-specific checks skipped; one zero-violation axe scan |
+| Studio browser regressions | 26 pass, two voice-specific checks skipped; two zero-violation axe scans |
 
-The four browser suites total **90 passed non-voice checks and 19 zero-violation axe
+The four browser suites total **90 passed non-voice checks and 20 zero-violation axe
 scans**, with no page errors or external requests. Together with 48 passing unit/bridge
 checks, this is focused regression evidence, not every possible AppKit acceptance.
 The tests use the existing typed shared mock and local renderer: GitHub/Astra results
@@ -688,4 +689,42 @@ on the same Codex branch after verification. Voice remains frozen. Native M5 55â
 WKWebView drag/lifecycle acceptance, cold Living first-frame measurement, native
 preference persistence after approved integration and VoiceOver/system behavior are
 still pending. The doorway draw-call cases documented above also remain for native
-profiling. M9 final engineering handoff has not started.
+profiling. This was the M8 stop; the owner subsequently continued to the M9 handoff below.
+
+## Milestone 9: final frontend engineering handoff
+
+Continued from M8 `a9fe3e3e4d45d05fe3bcd4e4c9ddbb6f34754af7`. This milestone
+changes documentation and a text-only asset checksum checklist; application and
+test behavior remain at the verified M8 state. No full browser/unit rerun was needed
+for these documentation changes. Evidence was audited directly, including all
+saved results, accessibility JSON, original asset bytes and native ownership paths.
+
+**Reporting correction:** the M8 summary counted only Studio's initial axe scan.
+`studio-final/accessibility-1100.json` is also present with zero violations. The
+correct M8 total is **20** (Design5 + GitHub7 + Astra6 + Studio2), not19. The M8 ZIP
+is retained as a historical artifact; the M9 bundle supplies corrected totals and
+all20 raw scans. No additional scan was performed to produce this correction.
+
+Read-only remote verification found Codex still at M6 `a22d343` and Claude still at
+`6947263`. M7/M8 and the M9 handoff are local. A portable incremental Git bundle
+contains the Codex commits after M6 so the owner can review on the Mac without a
+GitHub push. It requires the published M6 history and contains no GLBs/screenshots.
+The separate review ZIP includes documentation, original before/after screenshots,
+measured diagnostics, raw test evidence and a SHA-256 checklist. Final hashes and
+the M9 commit id are in its generated README, avoiding a self-referential Git hash.
+
+`WORLD_CODEX_TO_CLAUDE_HANDOFF.md` is the final entry point: source/branch anchors,
+frontend versus native acceptance matrix, exact asset/license requirements, safe
+Mac worktree import, frontend checks and future approved native validation. The
+new `frontend/asset-pipeline/PHASE4_SHA256SUMS.txt` checks all five original assets
+from the repository root. Digests agree with the existing kit manifests, furniture
+credits and Astra inventory; the asset files and credits are unchanged.
+
+M9 completes the frontend milestone handoff, **not integrated Phase4 acceptance**.
+P4-N1 live wiring is deliberately deferred until owner-approved native integration;
+settings still say session-only. M7 Explore/lifecycle changes, the Living preload
+and native first-frame/performance/accessibility acceptance need Mac revalidation.
+Atrium+Hub and Gaming+Atrium budget debt, long soak and existing source-approval
+snapshot recovery limitations remain explicit in the handoff. Voice stays frozen.
+No push, merge, cherry-pick, Swift/platform/service change, binary commit or
+`/Applications/AURA.app` modification. Stop for the owner's review after this commit.

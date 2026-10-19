@@ -71,3 +71,12 @@ Regenerate the ignored GLB and its manifest together; the current file digest is
 in `workstation.manifest.json`. Previous milestone hashes are historical evidence,
 not the expected current export. None of these changes touches licensed Astra or
 reviewed furniture originals.
+
+## Final Phase 4 handoff verification
+
+From the repository root, `shasum -a 256 -c frontend/asset-pipeline/PHASE4_SHA256SUMS.txt`
+checks the current two kits, both unchanged furniture originals and Astra. This
+text checklist records the existing manifests/credits at handoff; it does not
+regenerate, modify, download or publish assets. Prefer copying verified originals
+from the validated Mac worktree. See `docs/WORLD_CODEX_TO_CLAUDE_HANDOFF.md` for the
+exact new-worktree paths and remaining native integration/validation gates.
