@@ -27,6 +27,7 @@ import { AssetCredits } from "./world/AssetCredits.tsx";
 import { EquipmentPanel } from "./world/interactions/EquipmentPanel.tsx";
 import { interactionById } from "./world/interactions/registry.ts";
 import { WorldSettingsDialog } from "./world/WorldSettings.tsx";
+import { useWorldPreferences } from "./world/worldPreferences.ts";
 import { WorldHUD } from "./world/WorldHUD.tsx";
 import { ROOMS } from "./world/registry.ts";
 import "./studio.css";
@@ -47,6 +48,7 @@ export function App() {
   const [worldMapOpen,setWorldMapOpen] = useState(false);
   const openWorldMap=useCallback(()=>setWorldMapOpen(true),[]);
   useEffect(()=>{ worldController.focusWorkspace(studio.zone,restorePose); },[worldController,studio.zone,studio.revision,restorePose]);
+  const worldPersistence = useWorldPreferences(worldController, studio.prefs, studio.prefs === null && studio.error !== null, studio.revision, world.phase);
   const [layout, setLayout] = useState<ConversationLayout>("compact");
   const layoutRef = useRef(layout); layoutRef.current = layout;
   const zoneRef = useRef(studio.zone); zoneRef.current = studio.zone;
@@ -141,7 +143,7 @@ export function App() {
       {inspectorOpen && layout === "compact" && <Inspector visible={inHub} zone={studio.zone} navigate={navigate} workspace={github} useInConversation={useProject} close={() => setInspectorOpen(false)} />}
     </main>
     <footer className="app-footer"><span>AURA{appInfo ? ` / ${appInfo.appVersion}` : ""}<span className="footer-divider">/</span>Spatial workspace<button className="asset-credit-trigger" onClick={()=>setCreditsOpen(true)}>World asset credits</button></span><span className="model-credit">“Astra Lumen II, a rigged companion android” by <a href="https://sketchfab.com/pinckneyb" target="_blank" rel="noreferrer">XRProfXR</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a> · <a href="https://sketchfab.com/3d-models/astra-lumen-ii-a-rigged-companion-android-84761f55aa17493d9b226bb1f7101428" target="_blank" rel="noreferrer">Source</a></span></footer>
-    {settingsOpen&&<WorldSettingsDialog controller={worldController} snapshot={world} nativeReduced={studio.reducedMotion} close={()=>setSettingsOpen(false)}/>}
+    {settingsOpen&&<WorldSettingsDialog controller={worldController} snapshot={world} nativeReduced={studio.reducedMotion} persistence={worldPersistence} close={()=>setSettingsOpen(false)}/>}
     {creditsOpen&&<AssetCredits close={()=>setCreditsOpen(false)}/>}
     {gamesOpen&&<GameLibrary session={gameSession} snapshot={game} close={()=>{void gameSession.exit().then(()=>setGamesOpen(false));}}/>}
     {commandOpen && <Modal title="Go somewhere useful" subtitle="AURA / COMMANDS" close={() => { setCommandOpen(false); setCommandQuery(""); }}><div className="ui-dialog-body"><label className="ui-field">Find a command<input data-initial-focus value={commandQuery} onChange={(event) => setCommandQuery(event.target.value)} placeholder="Search destinations and actions…" /></label><div className="command-list" role="group" aria-label="Available commands" onKeyDown={(event) => {
