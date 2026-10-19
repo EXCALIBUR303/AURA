@@ -17,10 +17,10 @@ export type RoomDefinition = {
   colliders: readonly Collider[]; load?: () => Promise<RoomModule>;
 };
 export type Connection = { id: string; from: RoomId; to: RoomId; floor: Rect; fromPoint: Point; toPoint: Point };
-export type CameraRequest = { id: number; room: RoomId; pose: CameraPose; kind: "travel" | "workspace" | "restore"; instant?: boolean };
+export type CameraRequest = { id: number; room: RoomId; pose: CameraPose; kind: "travel" | "workspace" | "restore"; instant?: boolean; arrivalMode?: "inspect"|"explore" };
 export type WorldSnapshot = {
   room: RoomId; mode: CameraMode; phase: "preparing" | "travelling" | "idle" | "error";
-  settings:WorldSettings; options:RoomOptions; pending?: RoomId; error?: string; request?: CameraRequest;
+  settings:WorldSettings; options:RoomOptions; loadTiming?:{room:RoomId;startedAt:number;readyMs?:number;settledMs?:number}; pending?: RoomId; error?: string; request?: CameraRequest;
   modules: Readonly<Partial<Record<RoomId, RoomModule>>>;
   loaded: readonly RoomId[]; selectedZone: ZoneId;
 };

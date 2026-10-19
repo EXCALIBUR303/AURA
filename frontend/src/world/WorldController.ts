@@ -5,13 +5,19 @@ import { ROOMS, zonePose, connectionFor, worldGeometry } from "./registry.ts";
 import { safeLanding, safePoint } from "./collision.ts";
 import type { CameraMode, CameraPose, RoomId, RoomModule, WorldSnapshot } from "./types.ts";
 
+/** Frontend intents for a future adapter to the host-owned Preferences.world contract.
+ * Restore/sync does not emit user changes; room intents only follow settled travel/passage. */
+export type WorldUserChange={type:"settings";value:WorldSettings}|{type:"camera";value:"inspect"|"explore"}|{type:"room";value:RoomId};
 export class WorldController {
   private snapshot:WorldSnapshot={settings:{...DEFAULT_WORLD_SETTINGS},options:{...DEFAULT_ROOM_OPTIONS},room:"project-hub",mode:"inspect",phase:"preparing",modules:{},loaded:[],selectedZone:"studio"};
   private listeners=new Set<()=>void>();
   private generation=0;
+  private userListeners=new Set<(change:WorldUserChange)=>void>();
+  subscribeUserChanges=(listener:(change:WorldUserChange)=>void)=>{this.userListeners.add(listener);return()=>{this.userListeners.delete(listener);};};
+  private userChange(change:WorldUserChange){this.userListeners.forEach(listener=>listener(change));}
   private pendingLoads=new Map<RoomId,Promise<RoomModule>>();
   private lastPose:CameraPose={...zonePose("studio")};
-  private retryRequest:{room:RoomId;pose:CameraPose;kind:"workspace"|"travel"|"door"} | undefined;
+  private retryRequest:{room:RoomId;pose:CameraPose;kind:"workspace"|"travel"|"door"|"restore";arrivalMode:"inspect"|"explore"} | undefined;
   constructor(privateLoader?:(id:RoomId)=>Promise<RoomModule>){this.loader=privateLoader??(id=>ROOMS[id].load!());}
   private loader:(id:RoomId)=>Promise<RoomModule>;
   getSnapshot=()=>this.snapshot;
@@ -23,18 +29,19 @@ export class WorldController {
     if(!promise){promise=this.loader(id);this.pendingLoads.set(id,promise);}
     try{return await promise;}finally{if(this.pendingLoads.get(id)===promise)this.pendingLoads.delete(id);}
   }
-  private async request(room:RoomId,pose:CameraPose,kind:"travel"|"workspace"|"door"){
+  private async request(room:RoomId,pose:CameraPose,kind:"travel"|"workspace"|"door"|"restore",arrivalMode:"inspect"|"explore"="inspect"){
     const definition=ROOMS[room];
     if(definition.availability!=="available"){this.patch({error:definition.reason});return;}
-    const id=++this.generation;this.retryRequest={room,pose,kind};
-    this.patch({phase:"preparing",pending:room,error:undefined,request:undefined,mode:kind==="door"?this.snapshot.mode:"cinematic"});
+    const id=++this.generation;this.retryRequest={room,pose,kind,arrivalMode};
+    this.patch({loadTiming:{room,startedAt:performance.now()},phase:"preparing",pending:room,error:undefined,request:undefined,mode:kind==="door"?this.snapshot.mode:"cinematic"});
     try{
       const module=await this.load(room);if(id!==this.generation)return;
       // Only current + destination room instances are retained; shared Astra lives above these modules.
       const keep=[...new Set([this.snapshot.room,room])].filter(r=>r===room||!!connectionFor(r,room)&&this.snapshot.modules[r]);
       const modules:Partial<Record<RoomId,RoomModule>>={};for(const r of keep)modules[r]=r===room?module:this.snapshot.modules[r];
-      if(kind==="door")this.patch({phase:"idle",pending:undefined,error:undefined,loaded:keep,modules,request:undefined});
-      else this.patch({phase:"travelling",loaded:keep,modules,request:{id,room,pose:{...pose,room},kind}});
+      const loadTiming={...this.snapshot.loadTiming!,readyMs:Math.round(performance.now()-this.snapshot.loadTiming!.startedAt)};
+      if(kind==="door")this.patch({loadTiming,phase:"idle",pending:undefined,error:undefined,loaded:keep,modules,request:undefined});
+      else this.patch({loadTiming,phase:"travelling",loaded:keep,modules,request:{id,room,pose:{...pose,room},kind,arrivalMode,instant:kind==="restore"}});
     }catch{
       if(id!==this.generation)return;
       this.patch({phase:"error",pending:undefined,request:undefined,mode:"inspect",error:`${definition.title} could not load. Your current room and tools are still available.`});
@@ -46,19 +53,32 @@ export class WorldController {
     if(options.chairSlot!==this.snapshot.options.chairSlot&&this.snapshot.room==="living"){const geometry=worldGeometry(this.snapshot.loaded,options);if(!safePoint(this.lastPose.position,geometry.floors,geometry.colliders)){this.patch({error:"Move away from the chair before changing its position."});return;}}
     this.patch({options,error:undefined});
   };
-  setWorldSettings=(patch:Partial<WorldSettings>)=>this.patch({settings:worldSettingsPatch(this.snapshot.settings,patch)});
+  setWorldSettings=(patch:Partial<WorldSettings>)=>{
+    const settings=worldSettingsPatch(this.snapshot.settings,patch);
+    if(JSON.stringify(settings)===JSON.stringify(this.snapshot.settings))return;
+    this.patch({settings});this.userChange({type:"settings",value:settings});
+  };
+  /** Adapter calls this only after checking the native schema version. No bridge casts/storage. */
+  restoreWorld=(settings:WorldSettings,room:string,mode:"inspect"|"explore")=>{
+    if(settings.schemaVersion!==1)return false;
+    const available=Object.values(ROOMS).find(r=>r.id===room&&r.availability==="available")?.id??"project-hub";
+    this.patch({settings:worldSettingsPatch(this.snapshot.settings,settings)});
+    void this.request(available,ROOMS[available].introduction,"restore",mode);return true;
+  };
   clearIssue=()=>this.patch({error:undefined});
   focusWorkspace=(zone:ZoneId,restore?:CameraPose|null)=>{
     this.patch({selectedZone:zone});const room=restore?.room&&ROOMS[restore.room].availability==="available"?restore.room:"project-hub";
     void this.request(room,restore??zonePose(zone),"workspace");
   };
   inspect=(pose:CameraPose)=>{void this.request(pose.room??this.snapshot.room,pose,"travel");};
-  retry=()=>{const r=this.retryRequest;if(r)void this.request(r.room,r.pose,r.kind);};
-  arrive=(id:number)=>{const request=this.snapshot.request;if(!request||request.id!==id)return;this.lastPose=request.pose;this.patch({room:request.room,pending:undefined,phase:"idle",mode:"inspect",request:undefined,error:undefined});};
+  retry=()=>{const r=this.retryRequest;if(r)void this.request(r.room,r.pose,r.kind,r.arrivalMode);};
+  arrive=(id:number)=>{const request=this.snapshot.request;if(!request||request.id!==id)return;const previousRoom=this.snapshot.room;this.lastPose=request.pose;this.patch({room:request.room,pending:undefined,phase:"idle",mode:request.arrivalMode??"inspect",request:undefined,error:undefined,loadTiming:this.snapshot.loadTiming?{...this.snapshot.loadTiming,settledMs:Math.round(performance.now()-this.snapshot.loadTiming.startedAt)}:undefined});
+    if(request.kind!=="restore"&&request.room!==previousRoom)this.userChange({type:"room",value:request.room});
+  };
   updatePose=(pose:CameraPose)=>{this.lastPose={position:[...pose.position],target:[...pose.target],room:pose.room??this.snapshot.room};};
   capture=():CameraPose=>({...this.lastPose,position:[...this.lastPose.position],target:[...this.lastPose.target]});
-  setMode=(mode:CameraMode)=>{if(mode==="cinematic"||this.snapshot.phase!=="idle"&&!(mode==="inspect"&&this.snapshot.phase==="preparing"&&this.retryRequest?.kind==="door"))return;this.patch({mode,error:undefined});};
-  enter=(room:RoomId)=>{if(this.snapshot.loaded.includes(room)&&room!==this.snapshot.room)this.patch({room});};
+  setMode=(mode:CameraMode)=>{if(mode==="cinematic"||this.snapshot.phase!=="idle"&&!(mode==="inspect"&&this.snapshot.phase==="preparing"&&this.retryRequest?.kind==="door"))return;if(mode===this.snapshot.mode)return;this.patch({mode,error:undefined});this.userChange({type:"camera",value:mode});};
+  enter=(room:RoomId)=>{if(this.snapshot.phase==="idle"&&this.snapshot.loaded.includes(room)&&room!==this.snapshot.room){this.patch({room});this.userChange({type:"room",value:room});}};
   cancel=()=>{
     ++this.generation;
     if(!this.snapshot.loaded.length){this.patch({phase:"error",mode:"inspect",pending:undefined,request:undefined,error:"World startup was cancelled. Choose Retry room to load the studio."});return;}

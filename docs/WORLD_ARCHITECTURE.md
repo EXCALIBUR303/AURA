@@ -1,8 +1,10 @@
-# World architecture — M3 runtime and extension blueprint
+# World architecture — M7 runtime and extension blueprint
 
-M3–5 implement the four rooms, equipment/assets/interactions, session room options
-and game lifecycle interface. Global environment/presentation customization remains
-M6; durable native preferences remain an unapproved extension proposal.
+M3–6 implement four rooms, assets/interactions, session room options, bounded
+presentation and the game lifecycle interface. M7 refines materials/framing and
+adds drag Explore, inactive travel completion and staged load diagnostics. Claude
+implemented durable preferences on his separate native branch; it is fetched and
+reviewed, intentionally not merged into this Codex branch.
 `src/world/types.ts`, `registry.ts`, `WorldController.ts`, `collision.ts`,
 `WorldNavigation.tsx`, `WorldScene.tsx`, `WorldHUD.tsx` and `rooms/*` are the
 current modules. `useWorld.ts` owns the external store; App retains native state.
@@ -126,11 +128,11 @@ Canvas text is bounded plain text. The atlas updates on state changes and at mos
 
 ## Camera, input and collision
 
-- **Explore:** explicit user action requests pointer lock. WASD only while the
-  canvas owns input and no modal/editor is active. Escape releases it; blur,
-  occlusion, dialogue, game exit and failure restore a safe mode/focus. Pointer-lock
-  support/denial in WKWebView needs real validation; no native delegate exists now.
-  If unavailable, show a truthful limitation and keep direct map/inspect navigation.
+- **Explore (M7):** explicit selection focuses the canvas. Drag to look, WASD to
+  walk, arrows to look, E to open a nearby passage. Focus/modal/active-state gates
+  release held input; Esc returns to Inspect. A look drag cannot activate an object
+  on release. Optional Capture pointer requires a separate user gesture; denial
+  leaves drag Explore usable. Native WKWebView refusal is confirmed by Claude.
 - **Inspect:** one selected object, bounded orbit/zoom, data panel, supported action
   and exact prior room/pose restore. Do not let OrbitControls and explore controls
   mutate the same camera in the same frame.
@@ -441,7 +443,8 @@ finite intensity0…1, daylight/sunset/night and optional world motion reduction
 Unsupported future schema patches are ignored. System/native Reduce Motion takes
 precedence; no alternate localStorage, prefs payload or unbounded saved layout.
 `WorldSettingsDialog` states this clearly and resets only supported scene options.
-The P4-N1 native proposal remains unimplemented and requires Claude's review.
+At M6, P4-N1 awaited Claude. It is now implemented on his separate native
+branch; this Codex branch intentionally remains session-only until integration.
 
 The authored monitor now has separate stand/panel roots. Stands stay in static
 material batches; panel bodies instance shared geometry; four screen planes share
@@ -487,3 +490,36 @@ navigation intent and rendered-room pins. Counts support overlapping Canvas root
 and StrictMode without disposing shared live assets. Pending canceled imports
 still dispose when unowned. Fan/panel InstancedMesh objects explicitly release
 their owned instance buffers; source geometry/materials stay with the cache.
+
+
+## M7 lifecycle, loading and integration preparation
+
+An inactive or hidden window now completes already-authorized camera travel at its
+loaded, collision-checked destination from an effect, rather than waiting for an
+active render frame. This fixes the native report's stalled travel while preserving
+30 fps inactive / no hidden rendering. Input release includes pointer capture and
+held keys, so restore cannot resume a stale drag or walk. Native revalidation remains
+pending; browser tests emit the existing native-shaped window event.
+
+After the Atrium is idle for 700 ms, the frontend may warm at most 8.1 MB of local
+Living GLB bytes. It does not parse another room, allocate its GPU resources or open
+its floor. Navigation consumes a prefetched request; leaving/hidden state aborts
+unconsumed requests. Failures cannot poison the ordinary load/retry path. The M6
+rendered-root asset pins/disposal order remain intact. `assets` diagnostics now
+include download/decode milliseconds and prefetch provenance; `world.loadTiming`
+separates request-to-ready from request-to-camera-settle. These are not GPU upload
+timers or native FPS benchmarks.
+
+Visual refinements reuse the original meshes: quieter quarter-sawn wood, softer
+key/fill balance, restrained room palettes, wider composition and clearer signs.
+HomeShell's finish plane is raised 3 mm above its structural slab to eliminate
+coplanar depth fighting. Hub ceiling strips were removed to offset the wider view.
+ACES/sRGB, one 1024² shadow map, existing fan/display motion and room leases remain.
+The mounted compact companion moves to the right; it shifts left when object panels
+open. Voice implementation and tests are frozen.
+
+P4-N1 is implemented on Claude commit `6947263`, but intentionally unmerged here.
+`restoreWorld` and `subscribeUserChanges` provide a checked frontend seam without
+copying native contracts or sending unsupported payloads. Settings still honestly
+say session-only. See `frontend/WORLD_PREFERENCES_INTEGRATION.md` for the remaining
+host wiring, debounce, reconciliation and integrated test requirements.

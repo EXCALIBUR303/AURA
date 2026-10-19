@@ -5,20 +5,19 @@ import type { RoomShellProps } from "../types.ts";
 export default function ProjectHub({children,travel,connected}:RoomShellProps){
   return <ArchitectureBatch><group position={[0,0,-11]}>
     <Block at={[0,-.08,0]} size={[12,.16,9]} color="#b4aca0"/>
-    <Block at={[0,1.8,-4.59]} size={[12.36,3.6,.18]} color="#414b50"/>
-    {[-6.09,6.09].map(x=><Block key={x} at={[x,1.8,0]} size={[.18,3.6,9]} color="#7e898a"/>)}
-    {[-3.6,3.6].map(x=><Block key={x} at={[x,1.8,4.59]} size={[4.8,3.6,.18]} color="#a4aca7"/>)}
-    <Block at={[0,3.28,4.59]} size={[2.4,.64,.18]} color="#a4aca7"/>
-    <Block at={[0,3.69,0]} size={[12.36,.18,9.36]} color="#c3c6bf"/>
+    <Block at={[0,1.8,-4.59]} size={[12.36,3.6,.18]} color="#586963"/>
+    {[-6.09,6.09].map(x=><Block key={x} at={[x,1.8,0]} size={[.18,3.6,9]} color="#a3aaa0"/>)}
+    {[-3.6,3.6].map(x=><Block key={x} at={[x,1.8,4.59]} size={[4.8,3.6,.18]} color="#bbc3b6"/>)}
+    <Block at={[0,3.28,4.59]} size={[2.4,.64,.18]} color="#bbc3b6"/>
+    <Block at={[0,3.69,0]} size={[12.36,.18,9.36]} color="#dddccf"/>
     {[-4.8,-4.5,-4.2,4.2,4.5,4.8].map(x=><Block key={x} at={[x,1.9,-4.46]} size={[.06,2.8,.08]} color="#90735d"/>)}
     <Portal side="south" at={[0,0,4.5]} open={connected.includes("atrium")} label="CENTRAL ATRIUM" detail="World map · Living · Gaming" onSelect={()=>travel("atrium")}/>
     <FloorSurface size={[12,9]}/>
     {STATIONS.map(s=><group key={s.id} position={[s.x,0,s.z]} rotation={[0,s.z>0?Math.PI:0,0]}>
-      <mesh position={[0,.009,.25]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[2.9,2.6]}/><meshStandardMaterial color={s.accent} roughness={1}/></mesh>
-      <Sign label={s.label.toUpperCase()} detail={s.id==="hardware"?"Design · build · understand":s.id==="software"?"Code · projects · craft":s.id==="ai-lab"?"Models · context · conversation":"Repositories · commits · projects"} position={[0,2.55,-1.91]} rotation={0}/>
+      <mesh position={[0,.009,.25]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[2.9,2.6]}/><meshStandardMaterial color={s.id==="hardware"?"#64847c":s.id==="software"?"#6b7f97":s.id==="ai-lab"?"#81778b":"#7c8a6d"} roughness={1}/></mesh>
+      <Sign label={s.label.toUpperCase()} detail={s.id==="hardware"?"Design · build · understand":s.id==="software"?"Code · projects · craft":s.id==="ai-lab"?"Models · context · conversation":"Repositories · commits · projects"} position={[0,2.48,-1.91]} rotation={0}/>
       <Block at={[0,1.91,-1.75]} size={[2.35,.04,.32]} color="#92745b"/>
-      <Block at={[0,2.2,-1.89]} size={[2.45,.4,.035]} color={s.accent}/>
-      <mesh position={[0,3.1,-.15]} rotation={[Math.PI/2,0,0]}><planeGeometry args={[2.3,.14]}/><meshBasicMaterial color="#f6dec1"/></mesh>
+      <Block at={[0,2.10,-1.89]} size={[2.3,.13,.035]} color={s.accent}/>
     </group>)}
     {children}
   </group></ArchitectureBatch>;

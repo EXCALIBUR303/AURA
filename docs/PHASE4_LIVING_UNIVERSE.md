@@ -2,12 +2,14 @@
 
 ## Current checkpoint
 
-M3–6 world, workstation, separate-room and customization features are implemented on `codex/phase4-living-universe` after the
-owner's manual model checkpoint. Atrium + Project Hub form the verified vertical
-slice. Living and Gaming are distinct furnished modules with functional scene controls
-and a truthful upcoming game library. M6 adds bounded session presentation, lighting
-and motion. Final M6 regression results are recorded below. **Required next checkpoint:
-GPT-6 Astra / Extra High for M7 visual audit.** M7–9 and native acceptance remain.
+M7 visual polish, drag Explore, inactive travel completion and load investigation
+are implemented on `codex/phase4-living-universe`, continuing from M6
+`a22d343ff757b9b59057db4525669ccb098648eb`. Claude's native branch was fetched at
+`694726313c85e48cfea26c693944c14edc67b768` and read without merging/cherry-picking.
+His M3–M6 M5 measurements are baseline evidence, not M7 revalidation. Preference
+integration hooks are prepared; native wiring remains pending approved integration.
+**Stop after the M7 commit. Recommend GPT-6 Luna / Medium for M8 independent QA.**
+Voice development/testing remains frozen. M8/M9 have not started.
 
 ## Milestone 0: audit and migration plan
 
@@ -447,3 +449,181 @@ settings 1440/1100 and fan close-ups. Before views are in M0/M3/M4 artifacts.
 M7 continues from this committed implementation. Stop for the owner's manual switch;
 M7 visual audit, M8 broad legacy regressions/optimization, M9 final handoff and all
 native Mac acceptance remain outstanding. No push/merge/install is authorized here.
+
+
+## Milestone 7: visual polish and native-feedback fixes
+
+### Scope and visual evidence
+
+Started from the exact M6 commit and verified Claude's remote tip and ancestry.
+Read native report §§5–8, the handoff and world architecture. No native merge or
+cherry-pick. Actual M6 room renders were inspected and a fresh baseline was captured
+at 1440×900 before editing. Matching after images and final laptop/panel/preset
+captures live under `/workspace/aura-phase4/m7/`, outside Git.
+
+- **Hub:** quieter walnut and stone, sage architecture, narrower station accent
+  bands, clearer signs, wider framing that fits the workstations and Astra. Removed
+  decorative ceiling strips to offset the wider camera's visible draw calls.
+- **Living:** warm walnut, olive accent wall, velvet/terracotta contrast, softer
+  lighting and framing that reveals the sofa/table/chair relationship. Raised the
+  floor finish 3 mm: it previously fought the coplanar structural slab in depth.
+- **Gaming:** blue/slate architecture, clearer workstation/display/arcade framing,
+  visible seating and table, restrained warm/cool balance. Same separate room and
+  honest upcoming-game library.
+- **Atrium:** coherent warm stone/sage/brass inlay and improved floor/portal framing.
+  The native doorway draw-call debt remains a separate M8 review item.
+- **UI:** compact companion docks to a side and moves left for object panels;
+  diagnostics stay reachable, object panels sit below the status pill, and widths
+  account for the project inspector. The companion remains mounted with its draft.
+
+No new GLB/geometry, external art, postprocess, package or shadow map. ACES/sRGB and
+one 1024² shadow map stay. Real equipment fan animation, bounded display motion,
+object hit proxies, keyboard selection and exact camera return are preserved.
+
+### Behavior fixes and cold-load investigation
+
+Primary Explore is mouse drag + WASD, with keyboard arrows for look, E for passages
+and Esc for Inspect. Optional pointer capture has a separate explicit button; its
+failure keeps Explore functional. Modal/editor/focus/lifecycle gates clear held
+input. Testing found that an interrupted press could become a portal click after
+restore; the cancellation path now suppresses that click as well as clearing drag.
+
+The old navigation frame handler returned whenever the native window was inactive,
+so its active-frame-only arrival could stall indefinitely. M7 completes an already
+loaded, collision-checked request from an effect on deactivation/hidden state,
+without changing render throttling or applying elapsed hidden time on restoration.
+
+Living's files total 8,017,424 bytes (room kit + sofa + chair). The old path did all
+fetch/decode on entry and provided no stage measurements. M7 warms at most 8.1 MB
+of local bytes after 700 ms idle in the Atrium, transferring ownership to a real
+load or aborting unused requests. It creates no parsed room, texture, floor or third
+room owner. Errors remain retryable. Native upload/shader compilation is not timed
+by this byte warmup: a new native probe is required before claiming the reported
+five-second cold visit is fixed. Diagnostics expose per-asset download/decode times
+and per-room readiness/settle times; they do not pretend to measure GPU upload.
+
+Final focused browser observations: prefetched Living ready209ms/settled386ms;
+direct Living ready307ms/settled661ms. These are SwiftShader/browser observations,
+not a statistical performance comparison or Mac measurements. Final samples are
+in `layout-final/results.json`; different runs/contexts naturally differ.
+
+### Persisted preferences preparation
+
+The user explicitly prohibited merging/cherry-picking Claude during M7. The current
+Codex shared types therefore still lack his `Preferences.world`. M7 adds frontend
+`restoreWorld` and `subscribeUserChanges` seams: safe registry fallback, schema
+rejection, no restore/save echo, explicit settings/camera intents and settled room
+arrival/door entry. It does not duplicate or cast around native contracts and sends
+no unsupported world patch. Session-only UI remains accurate. Required future
+load/sync/debounce/save/error wiring and tests are specified in
+`frontend/WORLD_PREFERENCES_INTEGRATION.md` against Claude's actual contract.
+
+### Remaining native/integration acceptance
+
+- Re-run the native probe on the approved integrated M7 branch, keeping the same
+  M5 1280×800/DPR2/active-window conditions. Preserve Claude's measured 57–60 FPS
+  baseline; do not describe this cloud session as Mac revalidation.
+- Validate drag/WASD/arrows/E/Esc with physical input in Release and Debug, selection
+  after drag, window deactivation/minimize/hide during travel/press and restoration.
+- Measure direct and prefetched first Living visits, including first presented
+  frame and shader/texture upload. Review Atrium+Hub/Gaming+Atrium budget debt in M8.
+- After approved integration, wire actual persisted world preferences and test
+  relaunch, newer schema, invalid room, debounce and authoritative error recovery.
+- Native WebGL failure/retry/context loss, long soak, VoiceOver, Reduce Motion/
+  Transparency and small/large window/dialog acceptance remain pending. Broader
+  non-voice GitHub/Astra regressions belong to the authorized M8 plan.
+- Voice remains frozen. No Swift, Keychain, AI/GitHub service, voice implementation,
+  native permission, `/Applications/AURA.app` or dependency changes in M7.
+
+### M7 focused verification
+
+| Check | Result |
+|---|---|
+| TypeScript app/node checks and production build | Pass; 1,099 modules, no new dependencies |
+| World controller/collision/settings unit tests | 26/26 pass, including failed restore retry with Explore preserved |
+| Non-voice shared bridge tests | 16/16 pass; four voice tests excluded by name |
+| M7 input/lifecycle/loading/layout browser suite | 12/12 pass; eight axe scans |
+| Equipment browser regression | 6/6 pass; two axe scans |
+| Rooms/loading/resource regression | 8/8 pass; six axe scans |
+| Customization/preset/motion/corridor regression | 8/8 pass; two axe scans |
+| World/navigation/context regression | 12/12 pass; three axe scans; one microphone scenario explicitly skipped |
+
+The five browser suites total **46 passed checks and 21 zero-violation accessibility
+scans**. They report no page errors or external requests. Twenty room visits and
+twelve furniture-resource cycles retain the existing bounded scene/lifecycle
+behavior. The production output is 72.50 kB CSS, 530.56 kB main JS and 918.10 kB
+shared architecture JS (uncompressed). These are build sizes, not load benchmarks.
+
+After the final panel-spacing and preload/retry review, the affected four browser
+checks passed again with five zero-violation axe scans, no page errors or external
+requests (`layout-final/results.json`). These repeat checks are not added to the
+46 unique checks above. Isolated reruns initially exposed test-helper assumptions
+about an earlier Atrium visit and visiting the current room; the helper/setup now
+supports those focused reruns. No unresolved test failure remains.
+
+Commands used (Node 24.19.0; browser tools installed outside the repository):
+
+```bash
+npm --prefix frontend run build   # includes both TypeScript checks
+node --test --test-isolation=none frontend/test/world.test.ts
+node --test --test-isolation=none --test-skip-pattern='mock voice' shared/test/bridge.test.ts
+# Local Vite server; provide AURA_PLAYWRIGHT_MODULE / AURA_AXE_MODULE if installed externally.
+node frontend/test/polish.browser.mjs
+node frontend/test/equipment.browser.mjs
+node frontend/test/rooms.browser.mjs
+node frontend/test/customization.browser.mjs
+AURA_SKIP_TESTS=microphone node frontend/test/world.browser.mjs
+```
+
+Cloud Chromium uses SwiftShader, DPR1 and the existing shared mock; native-shaped
+window events test frontend handling only. Full `npm test`, voice/controller suites
+and hardware voice tests were deliberately not run because voice testing is frozen.
+Do not count their exclusion as a pass. `--test-isolation=none` keeps the Node runner's
+individual test results visible in this container.
+
+All five original GLB SHA-256 values match the existing manifests/credits and Astra
+baseline. CC BY credits remain visible. No changes to `macos`, `shared`,
+`frontend/src/platform`, `assets`, companion implementation or the dependency lock.
+Changed-file credential-pattern review found no credentials, private keys, binaries
+or screenshots in the changes. Native contracts and permission boundaries are
+unchanged. No binary/screenshot is staged, and no push/merge is authorized.
+
+### Matching rendered comparison and handoff
+
+The before/after route is Hub → Atrium → Living → Gaming, at 1440×900/DPR1 with
+system Reduce Motion and the existing browser mock. Counters are actual samples
+after each screenshot, so retained adjacent rooms are explicitly included:
+
+| View | Before calls / triangles | After calls / triangles | Before / after software FPS |
+|---|---:|---:|---:|
+| Project Hub | 56 / 249,352 | 55 / 249,360 | 2 / 3 |
+| Atrium + retained Hub | 75 / 250,556 | 73 / 250,552 | 3 / 3 |
+| Living + retained Atrium | 52 / 114,532 | 52 / 114,532 | 3 / 4 |
+| Gaming | 70 / 83,012 | 70 / 83,012 | 3 / 4 |
+
+The small triangle differences follow framing/culling, not a new model. One Canvas,
+at most two rooms, the original asset geometry and one shadow map remain. Native
+55–60 FPS acceptance is still pending; these SwiftShader samples are not comparable
+to Claude's M5 results. Atrium+Hub exceeds its proposed 40-call standalone target;
+the separate Gaming+Atrium route still reaches 72 calls against a 70-call target.
+Retain these explicit M8 profiling items instead of claiming every budget passed.
+
+Review bundle: **`/workspace/AURA-Phase4-M7-Visual-Review.zip`**, outside Git, with
+`index.html`, four matching before/after pairs, final laptop/panel views, selected
+lighting presets, measured diagnostics, test logs, handoff notes and SHA256SUMS.
+Unzip and open `index.html` locally. Source evidence:
+`/workspace/aura-phase4/m7/{before,after,final-polish,final-equipment,final-rooms,final-customization,final-world,layout-final}`.
+No page errors occurred in the final four-room capture. The images are actual
+rendered screenshots, not generated artwork; they contain shared mock data only.
+
+Files changed: frontend App/Studio layout and camera framing; world navigation,
+controller, HUD, lifecycle/loading/diagnostics/types; room architecture, surfaces,
+environment/registry and scoped CSS; focused world/browser tests and npm script;
+`frontend/WORLD_PREFERENCES_INTEGRATION.md`; these three world reports and appended
+`TASKS.md`. No dependency or original asset change. Native recheck commands and
+exact ownership/integration limits are in `WORLD_CODEX_TO_CLAUDE_HANDOFF.md`.
+
+**M7 stops at the local commit.** M8 should use GPT-6 Luna / Medium for independent
+visual, keyboard/accessibility and broader non-voice regression QA from this state.
+Do not restart M3–M7, merge Claude, push, resume voice, or start M8 without the
+owner's next instruction. M9 remains a later engineering/handoff checkpoint.

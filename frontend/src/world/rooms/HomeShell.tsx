@@ -14,18 +14,18 @@ function WindowView({lighting}:{lighting:LightingPreset}){
  return <mesh position={[0,1.92,-4.16]}><planeGeometry args={[4.2,1.86]}/><meshBasicMaterial map={texture} toneMapped={false}/></mesh>;
 }
 export function HomeShell({kind,connected,travel,children,lighting}:{lighting:LightingPreset;kind:"living"|"gaming";connected:readonly RoomId[];travel:(room:RoomId)=>void;children:ReactNode}){
- const living=kind==="living",entry=living?1:-1,wall=living?"#c4b69c":"#333b53";
- const wood=useMemo(()=>{const t=surfaceTexture("walnut");t.repeat.set(2,6);return t;},[]);useEffect(()=>()=>wood.dispose(),[wood]);
+ const living=kind==="living",entry=living?1:-1,wall=living?"#c2b59f":"#454b63";
+ const wood=useMemo(()=>{const t=surfaceTexture("walnut");t.repeat.set(2,2);return t;},[]);useEffect(()=>()=>wood.dispose(),[wood]);
  return <ArchitectureBatch><group position={[living?-11:11,0,0]}>
   <Block at={[0,-.08,0]} size={[9,.16,8]} color="#6a5f50"/>
-  <mesh rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[9,8]}/><meshStandardMaterial map={wood} color={living?"#c6b59d":"#726b67"} roughness={.7}/></mesh>
-  <Block at={[-entry*4.59,1.6,0]} size={[.18,3.2,8]} color={wall}/>
+  <mesh position={[0,.003,0]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[9,8]}/><meshStandardMaterial map={wood} color={living?"#d8c8b2":"#a5a6b4"} roughness={.82}/></mesh>
+  <Block at={[-entry*4.59,1.6,0]} size={[.18,3.2,8]} color={living?"#73816b":"#394d5a"}/>
   {[-2.6,2.6].map(z=><Block key={z} at={[entry*4.59,1.6,z]} size={[.18,3.2,2.8]} color={wall}/>)}
   <Block at={[entry*4.59,3.04,0]} size={[.18,.32,2.4]} color={wall}/>
   <Block at={[0,1.6,4.09]} size={[9.36,3.2,.18]} color={wall}/>
   {[-3.35,3.35].map(x=><Block key={x} at={[x,1.6,-4.09]} size={[2.3,3.2,.18]} color={wall}/>)}
   <Block at={[0,.5,-4.09]} size={[4.2,1,.18]} color={wall}/><Block at={[0,3.02,-4.09]} size={[4.2,.36,.18]} color={wall}/>
-  <Block at={[0,3.29,0]} size={[9.36,.18,8.36]} color={living?"#c6bca7":"#737786"}/>
+  <Block at={[0,3.29,0]} size={[9.36,.18,8.36]} color={living?"#e3dbc7":"#737c8e"}/>
   <WindowView lighting={lighting}/>
   {[-2.14,0,2.14].map(x=><Block key={x} at={[x,1.92,-4.03]} size={[.05,1.9,.07]} color="#6d6b5d"/>)}
   {[.98,2.86].map(y=><Block key={y} at={[0,y,-4]} size={[4.35,.06,.20]} color="#6d6b5d"/>)}

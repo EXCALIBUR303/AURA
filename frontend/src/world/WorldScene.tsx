@@ -18,7 +18,7 @@ export function WorldScene({snapshot,travel,openMap,children,act,active,reduced,
     <color attach="background" args={[environment.background]}/><fog attach="fog" args={[environment.background,28,65]}/>
     <hemisphereLight args={[environment.sky,environment.ground,environment.ambient]}/>
     <primitive object={keyTarget}/>
-    <directionalLight position={[room.origin[0]-3,room.ceiling-.35,room.origin[2]+1]} target={keyTarget} color={environment.key} intensity={environment.keyPower*windowFactor} castShadow shadow-mapSize={[1024,1024]} shadow-camera-left={-8} shadow-camera-right={8} shadow-camera-top={8} shadow-camera-bottom={-8} shadow-bias={-.0008}/>
+    <directionalLight position={[room.origin[0]-3,room.ceiling-.35,room.origin[2]+1]} target={keyTarget} color={environment.key} intensity={environment.keyPower*windowFactor} castShadow shadow-mapSize={[1024,1024]} shadow-camera-left={-8} shadow-camera-right={8} shadow-camera-top={8} shadow-camera-bottom={-8} shadow-bias={-.0008} shadow-normalBias={.018} shadow-radius={3}/>
     <directionalLight position={[room.origin[0]+3,3,room.origin[2]+3]} target={keyTarget} intensity={environment.fillPower} color={environment.fill}/>
     {snapshot.loaded.map(id=>{const Shell=snapshot.modules[id]?.default;return Shell?<RoomAssetScope key={id} room={id}><Shell connected={snapshot.loaded} travel={travel} openMap={openMap} motion={motion} settings={snapshot.settings} options={snapshot.options} active={active&&id===snapshot.room} reduced={reduced} act={act}>{id==="project-hub"?children:null}</Shell></RoomAssetScope>:null;})}
     {CONNECTIONS.filter(e=>snapshot.loaded.includes(e.from)&&snapshot.loaded.includes(e.to)).map(e=>{

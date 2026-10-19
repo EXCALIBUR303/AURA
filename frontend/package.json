@@ -26,7 +26,8 @@
     "assets:rooms": "blender -b --factory-startup --disable-autoexec --python asset-pipeline/rooms.py -- --output public/world/room-kit.glb",
     "test:games": "node test/games.test.ts",
     "test:rooms:browser": "node test/rooms.browser.mjs",
-    "test:customization:browser": "node test/customization.browser.mjs"
+    "test:customization:browser": "node test/customization.browser.mjs",
+    "test:polish:browser": "node test/polish.browser.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

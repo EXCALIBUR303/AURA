@@ -114,3 +114,33 @@ test("approved chair relocation moves collision with the model and refuses an oc
  c.updatePose({position:[-7.7,1.62,0],target:[-11,1.62,0],room:"living"});c.setRoomOptions({chairSlot:"conversation"});assert.equal(c.getSnapshot().options.chairSlot,"conversation");g=worldGeometry(c.getSnapshot().loaded,c.getSnapshot().options);
  assert.equal(safePoint([-13.4,1.62,1.5],g.floors,g.colliders),false);assert.equal(safePoint([-13.4,1.62,.7],g.floors,g.colliders),true);assert.equal(c.getSnapshot().selectedZone,"studio");
 });
+
+test("host integration seam restores only supported world settings, with a safe room fallback and no save echo",async()=>{
+ const {DEFAULT_WORLD_SETTINGS}=await import("../src/world/settings.ts");const c=await ready();const events:unknown[]=[];c.subscribeUserChanges(e=>events.push(e));
+ assert.equal(c.restoreWorld({...DEFAULT_WORLD_SETTINGS,presentation:"hybrid",floatIntensity:.7},"removed-room","explore"),true);
+ await tick();const r=c.getSnapshot().request!;assert.equal(r.room,"project-hub");assert.equal(r.instant,true);c.arrive(r.id);
+ assert.equal(c.getSnapshot().mode,"explore");assert.equal(c.getSnapshot().settings.floatIntensity,.7);assert.deepEqual(events,[]);
+ assert.equal(c.getSnapshot().selectedZone,"studio");
+ assert.equal(c.restoreWorld({...DEFAULT_WORLD_SETTINGS,schemaVersion:2} as unknown as typeof DEFAULT_WORLD_SETTINGS,"living","inspect"),false);
+ assert.equal(c.getSnapshot().room,"project-hub");assert.equal(c.getSnapshot().settings.presentation,"hybrid");
+});
+test("persistence intents distinguish user settings and camera choice from settled room arrival",async()=>{
+ const c=await ready();const events:unknown[]=[];const stop=c.subscribeUserChanges(e=>events.push(e));
+ c.setMode("explore");c.setWorldSettings({lightingPreset:"sunset"});c.setWorldSettings({lightingPreset:"sunset"});
+ assert.equal(events.length,2);c.travel("living");assert.equal(events.length,2);await tick();assert.equal(events.length,2);c.arrive(c.getSnapshot().request!.id);
+ assert.deepEqual(events.at(-1),{type:"room",value:"living"});assert.ok(c.getSnapshot().loadTiming!.settledMs!>=c.getSnapshot().loadTiming!.readyMs!);
+ stop();c.setMode("explore");assert.equal(events.length,3);
+});
+test("a failed host restore can retry without losing Explore or emitting a save echo",async()=>{
+ const {DEFAULT_WORLD_SETTINGS}=await import("../src/world/settings.ts");let fail=true;
+ const c=new WorldController(async()=>{if(fail)throw Error("local model unavailable");return module;});
+ const events:unknown[]=[];c.subscribeUserChanges(e=>events.push(e));
+ c.restoreWorld(DEFAULT_WORLD_SETTINGS,"living","explore");await tick();assert.equal(c.getSnapshot().phase,"error");
+ fail=false;c.retry();await tick();const request=c.getSnapshot().request!;assert.equal(request.instant,true);c.arrive(request.id);
+ assert.equal(c.getSnapshot().room,"living");assert.equal(c.getSnapshot().mode,"explore");assert.deepEqual(events,[]);
+});
+test("door preparation does not save a room until continuous entry and ignores entry while travelling",async()=>{
+ const c=await ready();const events:unknown[]=[];c.subscribeUserChanges(e=>events.push(e));
+ c.openDoor("atrium");await tick();assert.equal(events.length,0);c.enter("atrium");assert.deepEqual(events,[{type:"room",value:"atrium"}]);
+ c.travel("project-hub");c.enter("project-hub");assert.equal(c.getSnapshot().room,"atrium");await tick();
+});

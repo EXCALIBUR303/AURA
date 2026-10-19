@@ -220,7 +220,7 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
   const showHotspots = world.room === "project-hub" && world.mode === "inspect" && world.phase === "idle";
   return <>
     <SceneBoundary onError={() => report({ context: "ready", graphicsAvailable: false, status: "error", error: "The renderer could not start. Check WebGL2 support and retry the scene." })}>
-      <Canvas className="scene-canvas" shadows="percentage" camera={{ position: getZone("studio").camera, fov: 46, near: 0.05, far: 80 }} dpr={[1, dpr]}
+      <Canvas className="scene-canvas" shadows="percentage" camera={{ position: getZone("studio").camera, fov: 50, near: 0.05, far: 80 }} dpr={[1, dpr]}
         frameloop={!rendering ? "never" : throttled ? "demand" : "always"}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         fallback={<p>WebGL2 is unavailable. Your workstation and companion controls remain accessible.</p>}

@@ -21,3 +21,40 @@
 .room-switch input {accent-color:#2b6266;width:16px;height:16px;}
 .game-library {padding:22px;}.game-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0;}.game-grid article{border:1px solid #ccd3cd;border-radius:14px;padding:17px;background:#f0f2ec;}.game-grid h3{font-size:16px;margin:14px 0 8px;}.game-grid p,.game-grid small{font-size:12px;line-height:1.6;color:#4c606a;}.game-grid small{display:block;}.game-grid button{padding:9px 12px;margin-top:14px;font-size:12px;border:1px solid #c5cec7;border-radius:8px;color:#4e6269;}.game-cover{height:114px;display:grid;place-items:center;border-radius:9px;background:#313e59;color:#adb7cc;}.game-grid article+article .game-cover{background:#4b5b69;color:#c0cfc7;}.game-runtime{min-height:280px;border:1px solid #bac8c4;}.game-runtime[hidden]{display:none;}.asset-credits{padding:22px;}.asset-credits h3{font-size:15px;}.asset-credits p{font-size:12px;line-height:1.7;}.asset-credits a{text-decoration:underline;}.asset-credit-trigger{font-size:11px;color:#456269;text-decoration:underline;background:transparent;margin-left:9px;}
 .world-settings{padding:22px;display:grid;gap:13px;}.world-settings output{float:right;font-size:12px;font-weight:500;}.world-settings input[type=range]{accent-color:#2e696b;width:100%;}.world-settings>.ui-field{gap:8px;}.world-settings>.help{margin:0;font-size:12px;line-height:1.7;}
+
+/* M7: leave the centre of the room open; preserve the mounted companion and its controls. */
+.experience .companion-workspace[data-layout="compact"]{left:auto;right:22px;bottom:20px;translate:none;width:440px;max-width:calc(100% - 44px)}
+.experience[data-inspector="true"] .companion-workspace[data-layout="compact"]{left:22px;right:auto;width:440px;max-width:calc(100% - 352px)}
+.experience[data-world-panel="true"] .companion-workspace[data-layout="compact"]{left:22px;right:auto;max-width:calc(100% - 400px)}
+.experience .viewport-heading{max-width:300px;padding:12px 15px;border-radius:10px}
+.experience .viewport-heading h1{font-size:22px;line-height:1.22;margin-block:8px}
+.experience .viewport-heading>p{font-size:12px;line-height:1.5}
+.experience .viewport-heading .view-actions{flex-wrap:wrap;gap:8px}
+.experience .viewport-heading .view-actions>span{font-size:11px}
+.world-feedback{top:235px;left:22px;max-width:min(480px,calc(100% - 44px));flex-wrap:wrap;box-shadow:0 6px 24px #23372e18}
+.world-feedback small{flex-basis:100%;font-size:11px;line-height:1.5;color:#52616a}
+.explore-hint{bottom:14px;left:22px;transform:none;max-width:calc(100% - 506px);white-space:normal;font-size:11px;line-height:1.6}
+.experience[data-camera-mode="explore"] .scene-canvas canvas{cursor:grab;touch-action:none}
+.experience[data-camera-mode="explore"] .scene-canvas canvas:active{cursor:grabbing}
+.experience[data-camera-mode="explore"] .viewport-heading{display:none}
+.experience[data-camera-mode="explore"] .viewport-tools{bottom:72px}
+.world-hud{gap:2px}
+@media(max-width:1250px){
+ .experience .companion-workspace[data-layout="compact"]{right:16px;bottom:16px;width:400px}
+ .experience[data-inspector="true"] .companion-workspace[data-layout="compact"],.experience[data-world-panel="true"] .companion-workspace[data-layout="compact"]{left:16px;right:auto;width:400px}
+ .experience .viewport-heading{max-width:270px}
+ .explore-hint{max-width:calc(100% - 450px)}
+}
+@media(max-height:800px){.world-feedback{top:164px}.experience .viewport-heading h1{font-size:20px}}
+.experience[data-layout="expanded"] .world-hud,.experience[data-layout="focus"] .world-hud{left:14px;right:14px;transform:none;max-width:none;flex-wrap:wrap;justify-content:center}
+.experience[data-layout="expanded"] .world-room-name,.experience[data-layout="focus"] .world-room-name{display:none}
+.experience[data-layout="focus"] .equipment-trigger{top:100px}
+.experience[data-layout="focus"] .viewport-heading{top:147px;max-width:calc(100% - 32px)}
+.experience[data-layout="expanded"] .explore-hint,.experience[data-layout="focus"] .explore-hint{max-width:calc(100% - 44px)}
+
+.experience[data-world-panel="true"][data-inspector="true"] .companion-workspace[data-layout="compact"]{width:400px;max-width:calc(100% - 710px)}
+.experience[data-layout="expanded"] .world-hud{right:140px}
+/* Object panels sit below the status pill; diagnostics stay reachable beside navigation. */
+.equipment-panel{top:136px;bottom:20px}
+.experience[data-layout="compact"][data-world-panel="true"] .viewport-tools,
+.experience[data-layout="compact"][data-inspector="true"] .viewport-tools{top:16px;bottom:auto;left:22px;z-index:4}

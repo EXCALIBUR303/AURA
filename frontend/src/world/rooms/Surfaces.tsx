@@ -5,13 +5,22 @@ import type { Point } from "../types.ts";
 export function surfaceTexture(kind:"stone"|"walnut"){
  const canvas=document.createElement("canvas");canvas.width=512;canvas.height=512;const c=canvas.getContext("2d")!;
  let seed=413;const random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
- c.fillStyle=kind==="stone"?"#8c908a":"#927352";c.fillRect(0,0,512,512);
- for(let i=0;i<(kind==="stone"?15000:1500);i++){
-  const light=random()>.5;c.fillStyle=light?"#ffffff09":"#201a200c";
-  if(kind==="stone")c.fillRect(random()*512,random()*512,1+random()*3,1+random()*3);
-  else{c.beginPath();const x=random()*512,y=random()*512;c.lineWidth=.4+random();c.strokeStyle=light?"#e3c59c38":"#3d251f29";c.moveTo(x,y);c.bezierCurveTo(x+100,y+3,x+240,y-3,x+400,y);c.stroke();}
+ c.fillStyle=kind==="stone"?"#b9b7ac":"#92795f";c.fillRect(0,0,512,512);
+ if(kind==="walnut"){
+  // Quiet quarter-sawn boards: low-contrast fibres at a credible physical scale.
+  for(let board=0;board<4;board++){
+   const y=board*128;c.fillStyle=["#92795f","#8f765d","#957b61","#91785e"][board]!;c.fillRect(0,y,512,128);
+   for(let line=0;line<64;line++){
+    const v=y+random()*128;c.beginPath();c.lineWidth=.35+random()*.5;
+    c.strokeStyle=random()>.5?"#efe3cc14":"#362b2512";c.moveTo(0,v);c.bezierCurveTo(160,v-2,330,v+2,512,v);c.stroke();
+   }
+   c.fillStyle="#42382c24";c.fillRect(0,y,512,1);
+   c.fillRect(board%2?330:100,y,1,128);
+  }
+ }else{
+  for(let i=0;i<12000;i++){c.fillStyle=random()>.5?"#ffffff0a":"#40474007";c.fillRect(random()*512,random()*512,1+random()*2,1+random()*2);}
+  c.strokeStyle="#626b6024";c.lineWidth=1;c.strokeRect(.5,.5,511,511);
  }
- if(kind==="stone"){c.strokeStyle="#535d5544";c.lineWidth=1;c.strokeRect(.5,.5,511,511);}
  const texture=new CanvasTexture(canvas);texture.colorSpace=SRGBColorSpace;texture.wrapS=texture.wrapT=RepeatWrapping;texture.repeat.set(kind==="stone"?4:1,kind==="stone"?3:1);texture.anisotropy=4;return texture;
 }
 export function FloorSurface({size,position=[0,.003,0]}:{size:[number,number];position?:Point}){
