@@ -10,7 +10,8 @@ async function loadHub(){const [module]=await Promise.all([import("./rooms/Proje
 
 const wall = (id: string, x: number, z: number, w: number, d: number, h = 3.6): Collider => ({ id, minX: x-w/2, maxX:x+w/2, minZ:z-d/2, maxZ:z+d/2, minY:0, maxY:h });
 export const HUB_ORIGIN: Point = [0, 0, -11];
-export const ASTRA_HOME: Point = [-1.25, 0, -12.5];
+/** On the hub's centre axis (x = 0), between the Hardware and Software desks and in line with the atrium doorway. The camera, pedestal and hit proxy all derive from this. */
+export const ASTRA_HOME: Point = [0, 0, -12.5];
 export const CONNECTIONS: readonly Connection[] = [
   { id:"atrium-hub", from:"atrium", to:"project-hub", floor:{minX:-1.2,maxX:1.2,minZ:-6.5,maxZ:-4}, fromPoint:[0,1.62,-4], toPoint:[0,1.62,-6.5] },
   { id:"atrium-living", from:"atrium", to:"living", floor:{minX:-6.5,maxX:-4,minZ:-1.2,maxZ:1.2}, fromPoint:[-4,1.62,0], toPoint:[-6.5,1.62,0] },
@@ -29,7 +30,7 @@ function homeColliders(id:"living"|"gaming"):Collider[]{
 }
 
 export const ROOMS: Readonly<Record<RoomId,RoomDefinition>> = {
-  "project-hub": {id:"project-hub",title:"Project Hub",description:"Hardware, software, AI and GitHub. Your original tools, together.",accent:"#287d83",availability:"available",origin:HUB_ORIGIN,floor:{minX:-6,maxX:6,minZ:-15.5,maxZ:-6.5},ceiling:3.6,landing:[0,1.62,-7.3],introduction:{position:[0,2.5,-7.05],target:[-.8,1.08,-12.5]},colliders:[...hubWalls,...hubProps,wall("astra",ASTRA_HOME[0],ASTRA_HOME[2],1.44,1.44,1.9)],load:loadHub},
+  "project-hub": {id:"project-hub",title:"Project Hub",description:"Hardware, software, AI and GitHub. Your original tools, together.",accent:"#287d83",availability:"available",origin:HUB_ORIGIN,floor:{minX:-6,maxX:6,minZ:-15.5,maxZ:-6.5},ceiling:3.6,landing:[0,1.62,-7.3],introduction:{position:[0,2.5,-7.05],target:[0,1.08,-12.5]},colliders:[...hubWalls,...hubProps,wall("astra",ASTRA_HOME[0],ASTRA_HOME[2],1.44,1.44,1.9)],load:loadHub},
   atrium:{id:"atrium",title:"Central Atrium",description:"A stone crossing connecting AURA’s three destinations.",accent:"#305a9d",availability:"available",origin:[0,0,0],floor:{minX:-4,maxX:4,minZ:-4,maxZ:4},ceiling:4.6,landing:[0,1.62,-2.7],introduction:{position:[-.4,2.5,3.45],target:[0,1.5,-.9]},colliders:[...atriumWalls,wall("map",2.5,2.4,1.2,.5,1.3)],load:()=>import("./rooms/Atrium.tsx")},
   living:{id:"living",title:"Personal Living Space",description:"Walnut, soft fabric and a quieter pace.",accent:"#48634f",availability:"available",origin:[-11,0,0],floor:{minX:-15.5,maxX:-6.5,minZ:-4,maxZ:4},ceiling:3.2,landing:[-7.7,1.62,0],introduction:{position:[-7.35,2.25,3.15],target:[-11.85,.9,-.5]},colliders:homeColliders("living"),load:()=>loadRoom("living")},
   gaming:{id:"gaming",title:"Gaming & Entertainment",description:"A separate destination for play and a future game library.",accent:"#514a7b",availability:"available",origin:[11,0,0],floor:{minX:6.5,maxX:15.5,minZ:-4,maxZ:4},ceiling:3.2,landing:[7.7,1.62,0],introduction:{position:[8.65,2.35,3.3],target:[11.1,1.05,-1.3]},colliders:homeColliders("gaming"),load:()=>loadRoom("gaming")},
@@ -42,10 +43,10 @@ export function zonePose(zone:ZoneId):CameraPose {
   const poses:Record<ZoneId,CameraPose> = {
     studio:ROOMS["project-hub"].introduction,
     hardware:{position:[-.6,2,-11.5],target:[-3.25,1.2,-13.5]},
-    software:{position:[.6,2,-11.7],target:[3.25,1.2,-13.5]},
+    software:{position:[.6,2,-11.5],target:[3.25,1.2,-13.5]},
     "ai-lab":{position:[-.6,2,-10.4],target:[-3.25,1.2,-8.5]},
     github:{position:[.6,2,-10.4],target:[3.25,1.2,-8.5]},
-    companion:{position:[.5,1.9,-10.1],target:[-1.25,.9,-12.5]},
+    companion:{position:[0,1.9,-10.2],target:[ASTRA_HOME[0],.95,ASTRA_HOME[2]]},
   }; return {...poses[zone],room:"project-hub"};
 }
 /** While the Hardware PC is inspected, its desk is a low slab (plus monitor and the case itself) so the camera can orbit just above it; the chair and everything else keep their colliders. */

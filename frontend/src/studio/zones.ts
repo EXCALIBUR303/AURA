@@ -26,7 +26,7 @@ export const ZONES: Zone[] = [
 // Physical coordinates are frontend-only; the six native identifiers are unchanged.
 for (const zone of ZONES) {
   const pose=zonePose(zone.id);zone.camera=pose.position;zone.target=pose.target;
-  zone.anchor=zone.id==="companion"?[-1.25,2.1,-12.5]:zone.id==="studio"?[0,.1,-7]:[zone.id==="hardware"||zone.id==="ai-lab"?-3.25:3.25,1.8,zone.id==="hardware"||zone.id==="software"?-13.5:-8.5];
+  zone.anchor=zone.id==="companion"?[0,2.1,-12.5]:zone.id==="studio"?[0,.1,-7]:[zone.id==="hardware"||zone.id==="ai-lab"?-3.25:3.25,1.8,zone.id==="hardware"||zone.id==="software"?-13.5:-8.5];
 }
 
 export function getZone(id: ZoneId): Zone {
