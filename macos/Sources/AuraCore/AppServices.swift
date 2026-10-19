@@ -87,7 +87,7 @@ public final class AppServices {
 
         router.register(.prefsGet, Empty.self) { _ in try await store.loadPreferences() }
         router.register(.prefsUpdate, PreferencesPatch.self) { [weak self] patch in
-            let next = patch.applied(to: try await store.loadPreferences())
+            let next = try patch.validatedApplied(to: try await store.loadPreferences())
             try await store.savePreferences(next)
             events.emit(.prefsChanged, next)
             self?.preferencesDidChange?(next)

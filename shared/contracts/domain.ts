@@ -77,6 +77,44 @@ export interface Preferences {
     /** Upper bound for devicePixelRatio passed to the renderer. */
     maxPixelRatio: number;
   };
+  /**
+   * Phase 4 world (P4-N1). Rows saved before Phase 4 read as the defaults
+   * (static presentation). Motion is still governed by `reduceMotion` above
+   * and the system setting; the world has no separate reduce-motion key.
+   */
+  world: WorldPreferences;
+}
+
+/** The world preference schema this contract describes. */
+export const WORLD_PREFERENCES_VERSION = 1;
+
+export type WorldPresentation = "static" | "floating" | "hybrid";
+export type WorldLightingPreset = "daylight" | "sunset" | "night";
+/** Persisted camera modes only; the transient "cinematic" travel mode is never stored. */
+export type WorldCameraMode = "inspect" | "explore";
+
+/** Room ids are frontend registry ids, never ZoneIds: `^[a-z][a-z0-9-]{0,47}$`. */
+export const WORLD_ROOM_ID_PATTERN = /^[a-z][a-z0-9-]{0,47}$/;
+
+export interface WorldPreferences {
+  /**
+   * WORLD_PREFERENCES_VERSION when the host understands the stored values.
+   * A larger number means a newer AURA saved them: the other fields are the
+   * defaults, the stored values are kept untouched, and any `world` patch
+   * fails with invalid_request. Treat the world settings as session-only then.
+   */
+  schemaVersion: number;
+  presentation: WorldPresentation;
+  /** 0–1; the host clamps patches into range. Only used when presentation is not "static". */
+  floatIntensity: number;
+  lightingPreset: WorldLightingPreset;
+  cameraMode: WorldCameraMode;
+  /**
+   * Last physical room the user settled in (WORLD_ROOM_ID_PATTERN). The host
+   * checks the format only: the frontend must check the room still exists and
+   * is available, and fall back to "project-hub". Kept separate from lastZone.
+   */
+  lastRoomId: string;
 }
 
 /** Partial update; nested objects are merged one level deep. */
@@ -86,6 +124,8 @@ export interface PreferencesPatch {
   voice?: Partial<Preferences["voice"]>;
   ai?: Partial<Preferences["ai"]>;
   graphics?: Partial<Preferences["graphics"]>;
+  /** Merged one level deep like the others. An invalid enum or room id rejects the whole patch (invalid_request). */
+  world?: Partial<Omit<WorldPreferences, "schemaVersion">>;
 }
 
 // ---------------------------------------------------------------- github

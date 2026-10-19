@@ -7,10 +7,13 @@ import { readFileSync } from "node:fs";
 import {
   BRIDGE_ERROR_CODES,
   BRIDGE_PROTOCOL_VERSION,
+  WORLD_PREFERENCES_VERSION,
+  WORLD_ROOM_ID_PATTERN,
   ZONE_IDS,
   isBridgeEventMessage,
   isBridgeResponse,
 } from "../contracts/index.ts";
+import type { WorldPreferences } from "../contracts/index.ts";
 import { BridgeCallError, createBridgeClient, createMockTransport } from "../bridge/index.ts";
 
 const fixtures = JSON.parse(readFileSync(new URL("../fixtures/bridge-messages.json", import.meta.url), "utf8")) as {
@@ -388,4 +391,49 @@ test("mock voice: a reply is spoken sentence by sentence and can be stopped", as
   await bridge.call("voice.stopSpeaking", {});
   assert.equal((await bridge.call("voice.getStatus", {})).speaking, false);
   bridge.dispose();
+});
+
+test("world preferences: defaults, one-level merge, clamping and validation (P4-N1)", async () => {
+  const bridge = createBridgeClient(createMockTransport());
+  const initial = await bridge.call("prefs.get", {});
+  assert.deepEqual(initial.world, {
+    schemaVersion: WORLD_PREFERENCES_VERSION, presentation: "static", floatIntensity: 0.35,
+    lightingPreset: "daylight", cameraMode: "inspect", lastRoomId: "project-hub",
+  });
+
+  const seen: string[] = [];
+  const off = bridge.on("prefs.changed", (prefs) => seen.push(prefs.world.lightingPreset));
+  let prefs = await bridge.call("prefs.update", { world: { presentation: "floating", floatIntensity: 3, lastRoomId: "living" } });
+  assert.equal(prefs.world.presentation, "floating");
+  assert.equal(prefs.world.floatIntensity, 1, "clamped like the native host");
+  assert.equal(prefs.world.lightingPreset, "daylight", "untouched world field kept");
+  prefs = await bridge.call("prefs.update", { world: { floatIntensity: -1, lightingPreset: "night" } });
+  assert.equal(prefs.world.floatIntensity, 0);
+  assert.equal(prefs.world.lastRoomId, "living");
+  assert.equal(prefs.voice.speechRate, 0.85, "other sections untouched");
+
+  for (const world of [
+    { presentation: "orbiting" }, { cameraMode: "cinematic" }, { lastRoomId: "../studio" },
+    { lastRoomId: "Living" }, { lastRoomId: "" }, { lastRoomId: "a".repeat(49) }, { floatIntensity: Number.NaN },
+  ]) {
+    await assert.rejects(bridge.call("prefs.update", { lastZone: "github", world } as never), { code: "invalid_request" }, JSON.stringify(world));
+  }
+  const after = await bridge.call("prefs.get", {});
+  assert.equal(after.lastZone, "studio", "a rejected patch writes nothing");
+  assert.equal(after.world.lightingPreset, "night");
+  assert.deepEqual(seen, ["daylight", "night"]);
+  off();
+  bridge.dispose();
+});
+
+test("world fixtures match the room id pattern and persisted camera modes", () => {
+  const all = JSON.parse(readFileSync(new URL("../fixtures/bridge-messages.json", import.meta.url), "utf8")) as {
+    valid: { name: string; message: { params?: { world?: { lastRoomId?: string } }; result?: { world?: WorldPreferences }; payload?: { world?: WorldPreferences } } }[];
+  };
+  const worlds = all.valid.flatMap(({ message }) => [message.params?.world, message.result?.world, message.payload?.world]).filter((w) => w !== undefined);
+  assert.ok(worlds.length >= 3);
+  for (const world of worlds) {
+    if (world.lastRoomId !== undefined) assert.match(world.lastRoomId, WORLD_ROOM_ID_PATTERN);
+    if ("cameraMode" in world) assert.notEqual(world.cameraMode, "cinematic");
+  }
 });
