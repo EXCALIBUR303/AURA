@@ -158,6 +158,13 @@ try{
     await panel(page).getByRole('button',{name:'Return from equipment inspection',exact:true}).click();await arrived(page,hub.target,0.03);
     assert.equal(await draft.inputValue(),'Hardware inspection keeps my draft');
   });
+  await check('Leaving through "Open hardware workspace" restores ordinary camera limits (regression: the inspection zoom cap must not outlive inspection)',async()=>{
+    await openInspector(page);await panel(page).getByRole('button',{name:'Graphics card',exact:true}).click();await arrived(page,focusPose('gpu',false).target);
+    await panel(page).getByRole('button',{name:'Open hardware workspace',exact:true}).click();
+    await page.waitForFunction(()=>window.__AURA_DIAGNOSTICS__.world.phase==='idle'&&window.__AURA_DIAGNOSTICS__.cameraSettled&&document.querySelector('.experience').dataset.zone==='hardware',null,{timeout:120000});
+    await page.waitForTimeout(800);const cam=await camera(page);
+    assert.ok(dist(cam.position,cam.target)>1.6,'workspace framing is not clamped to the 1.3 m inspection maximum: '+dist(cam.position,cam.target));
+  });
   await page.context().close();
 
   await check('Reduced motion: view changes apply at once, fans and lighting hold still',async()=>{

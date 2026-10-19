@@ -25,14 +25,17 @@ export function HardwareInspector({ world, close, reduced }: { world: WorldContr
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
   }, [close]);
+  // Keep the selected part's information in view without moving the part list.
+  const detail = useRef<HTMLElement>(null);
+  useEffect(() => { if (view.selected) detail.current?.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" }); }, [view.selected, reduced]);
   const info = view.selected ? componentById(view.selected)?.info : undefined;
   const selected = view.selected ? componentById(view.selected) : undefined;
   return <div ref={root} className="hardware-inspector">
     <div className="equipment-actions" role="group" aria-label="Hardware view">
       <button type="button" className="primary" aria-pressed={view.exploded} onClick={hardwareInspection.toggleExploded}>{view.exploded ? "Reassemble" : "Explode view"}</button>
       <button type="button" onClick={hardwareInspection.reset}>Reset view</button>
+      <button type="button" onClick={close}>Exit inspection</button>
     </div>
-    <p className="hw-hint">Drag to rotate. Scroll or pinch to zoom. Click a part in the scene, or choose it below.{reduced ? " Reduced motion: view changes apply instantly." : ""}</p>
     {GROUPS.map((group) => <div key={group} role="group" aria-label={group} className="hw-group">
       <span className="hw-group-label" aria-hidden="true">{group}</span>
       <div className="equipment-components">
@@ -40,7 +43,7 @@ export function HardwareInspector({ world, close, reduced }: { world: WorldContr
           <button type="button" key={c.id} aria-pressed={view.selected === c.id} onClick={() => hardwareInspection.select(view.selected === c.id ? null : c.id)}>{c.label}</button>)}
       </div>
     </div>)}
-    <section aria-live="polite" className="hw-detail">
+    <section ref={detail} aria-live="polite" className="hw-detail">
       {selected && info ? <>
         <h3>{selected.label}</h3>
         <dl>
@@ -50,8 +53,9 @@ export function HardwareInspector({ world, close, reduced }: { world: WorldContr
           <dt>Cooling</dt><dd>{info.cooling}</dd>
           <dt>How it works</dt><dd>{info.explanation}</dd>
         </dl>
-      </> : <p>Choose a component to frame it and read how it works. Use Explode view to separate the parts. The cooler covers the processor until the view is exploded.</p>}
+      </> : <p>Choose a component to frame it and read how it works. Explode view separates the parts; the cooler covers the processor until then.</p>}
     </section>
+    <p className="hw-hint">Drag to rotate. Scroll or pinch to zoom. Click a part in the scene, or choose it above.{reduced ? " Reduced motion: view changes apply instantly." : ""}</p>
     <p className="hw-note" role="note">An original, generic illustration. Spinning fans and lighting are decorative and simulated: AURA does not read temperatures, fan speeds or usage from your computer, and no figure here is measured.</p>
   </div>;
 }

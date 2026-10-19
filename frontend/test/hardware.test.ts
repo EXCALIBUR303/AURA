@@ -118,3 +118,14 @@ test("world controller: close inspection allowance is held until the exit travel
   await tick(); c.arrive(c.getSnapshot().request!.id); assert.equal(c.getSnapshot().inspectionZone, undefined, "cleared on arrival");
   assert.ok(dist(c.capture().position, before.position) < 1e-9, "exact return to the captured pose");
 });
+
+test("world controller: any other camera request ends the inspection allowance on arrival (workspace change, room travel, cancel)", async () => {
+  const start = async () => { const c = new WorldController(async () => module); c.focusWorkspace("studio"); await tick(); c.arrive(c.getSnapshot().request!.id); c.inspect(focusPose("gpu", false), "hardware"); await tick(); c.arrive(c.getSnapshot().request!.id); assert.equal(c.getSnapshot().inspectionZone, "hardware"); return c; };
+  // "Open hardware workspace" from the panel leaves through focusWorkspace, not through inspect().
+  let c = await start(); c.focusWorkspace("hardware"); assert.equal(c.zoneAfterArrival(), undefined, "limits for the destination are the ordinary ones");
+  await tick(); c.arrive(c.getSnapshot().request!.id); assert.equal(c.getSnapshot().inspectionZone, undefined);
+  c = await start(); c.travel("atrium"); await tick(); c.arrive(c.getSnapshot().request!.id); assert.equal(c.getSnapshot().inspectionZone, undefined);
+  c = await start(); c.inspect(focusPose("cpu", true), "hardware"); await tick(); assert.equal(c.zoneAfterArrival(), "hardware", "a new hardware inspection keeps the zone");
+  c.arrive(c.getSnapshot().request!.id); assert.equal(c.getSnapshot().inspectionZone, "hardware");
+  c = await start(); c.cancel(); c.arrive(c.getSnapshot().request!.id); assert.equal(c.getSnapshot().inspectionZone, undefined, "Escape-cancel lands in the ordinary geometry");
+});
