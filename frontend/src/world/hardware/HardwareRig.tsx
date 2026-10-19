@@ -29,6 +29,7 @@ const PROXIES: Partial<Record<ComponentId, Box[]>> = {
   psu: [{ center: [0, 0.066, -0.145], size: [0.22, 0.072, 0.18] }],
   case: [{ center: [0, 0.4775, 0], size: [0.25, 0.025, 0.49] }, { center: [0, 0.015, 0], size: [0.25, 0.03, 0.49] }],
 };
+let loadTiming = { materialsMs: 0, geometryMs: 0 }; // last rig build, read by the diagnostics below
 const SPIN_RADIANS_PER_SECOND = 3.5; // decorative; not a measured fan speed
 
 /** One-time resources for the whole tower: shared materials, the merged assembled geometry and the instanced rotor. */
@@ -37,8 +38,10 @@ function useRig(): Rig | null {
   const [rig, setRig] = useState<Rig | null>(null);
   // Created in an effect (not useMemo) so React StrictMode's mount, cleanup, mount cycle never leaves a disposed rig in use.
   useEffect(() => {
-    const materials = createHardwareMaterials(gl);
+    const t0 = performance.now();
+    const materials = createHardwareMaterials(gl), t1 = performance.now();
     const parts = buildComponents(), assembled = mergeAssembled(parts);
+    loadTiming = { materialsMs: Math.round(t1 - t0), geometryMs: Math.round(performance.now() - t1) };
     (Object.keys(parts) as ComponentId[]).forEach((id) => disposeParts(parts[id]));
     const unit = new BoxGeometry(1, 1, 1), edges = new EdgesGeometry(unit); unit.dispose();
     const next: Rig = { materials, assembled, rotor: rotorGeometry(), edges, dispose() { materials.dispose(); disposeParts(assembled); this.rotor.dispose(); edges.dispose(); } };
@@ -84,6 +87,7 @@ export function HardwareRig({ active, reduced }: { active: boolean; reduced: boo
   useEffect(() => {
     const host = window as unknown as { __AURA_HARDWARE__?: unknown };
     host.__AURA_HARDWARE__ = {
+      loadTiming: () => loadTiming,
       state: () => ({ progress: progress.current, detailMounted: detailMounted.current, spin: spin.current, fans: FANS.length }),
       resources: () => ({ geometries: gl.info.memory.geometries, textures: gl.info.memory.textures, programs: gl.info.programs?.length ?? 0, calls: gl.info.render.calls, triangles: gl.info.render.triangles }),
     };
@@ -94,14 +98,16 @@ export function HardwareRig({ active, reduced }: { active: boolean; reduced: boo
     if (!rig || !fans.current) return;
     const target: 0 | 1 = view.open && view.exploded ? 1 : 0;
     const spinning = active && !reduced;
-    if (active && progress.current !== target) { progress.current = stepProgress(progress.current, target, delta, reduced); dirty.current = true; }
+    let moved = dirty.current;
+    if (active && progress.current !== target) { progress.current = stepProgress(progress.current, target, delta, reduced); dirty.current = true; moved = true; }
     if (spinning) { spin.current = (spin.current + Math.min(delta, 0.05) * SPIN_RADIANS_PER_SECOND) % (Math.PI * 2); clock.current += Math.min(delta, 0.05); }
     // The subtle RGB accent breathes slowly; under reduced motion it holds a steady level.
-    (rig.materials.rgb).color.setScalar(spinning ? 0.8 + 0.2 * Math.sin(clock.current * 0.9) : 0.85);
+    const glow = spinning ? 0.8 + 0.2 * Math.sin(clock.current * 0.9) : 0.85;
+    if (Math.abs(rig.materials.rgb.color.r - glow) > 0.004) rig.materials.rgb.color.setScalar(glow);
     if (settling && !view.open && progress.current === 0) setSettling(false);
     if (!spinning && !dirty.current) return;
     dirty.current = false;
-    for (const def of COMPONENTS) {
+    if (moved) for (const def of COMPONENTS) {
       const f = separation(progress.current, def.delay);
       groups.current.get(def.id)?.position.set(def.offset[0] * f, def.offset[1] * f, def.offset[2] * f);
     }
