@@ -38,7 +38,7 @@ export function WorldHUD({controller,snapshot,mapOpen,setMapOpen,openSettings}:{
       <span>{snapshot.error??lockIssue??`${snapshot.phase==="preparing"?"Preparing":"Travelling to"} ${ROOMS[snapshot.pending??snapshot.room].title}…`}</span>
       {snapshot.phase==="preparing"&&<small>Loading local models and textures. The first visit can take a few seconds.</small>}
       {snapshot.phase==="error"&&<button onClick={controller.retry}>Retry room</button>}
-      {busy&&<button onClick={controller.cancel}>Cancel travel</button>}
+      {snapshot.phase==="travelling"&&<button onClick={controller.skip} title="Skip to arrival · Enter">Skip</button>}{busy&&<button onClick={controller.cancel}>Cancel travel</button>}
       {(lockIssue||snapshot.error)&&<button onClick={()=>{setLockIssue(null);controller.clearIssue();}}>Dismiss</button>}
     </div>}
     {mapOpen&&<Modal title="Your AURA world" subtitle="ASTRA / SPATIAL NAVIGATION" close={()=>setMapOpen(false)} wide>

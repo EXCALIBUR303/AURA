@@ -23,4 +23,6 @@ export type WorldSnapshot = {
   settings:WorldSettings; options:RoomOptions; loadTiming?:{room:RoomId;startedAt:number;readyMs?:number;settledMs?:number}; pending?: RoomId; error?: string; request?: CameraRequest;
   modules: Readonly<Partial<Record<RoomId, RoomModule>>>;
   loaded: readonly RoomId[]; selectedZone: ZoneId;
+  /** Request id whose cinematic travel should finish now (skip). */ skip?: number;
+  /** Session-only Explore look/turn multiplier. */ lookSensitivity: number;
 };

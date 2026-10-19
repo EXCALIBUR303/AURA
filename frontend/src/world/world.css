@@ -58,3 +58,5 @@
 .equipment-panel{top:136px;bottom:20px}
 .experience[data-layout="compact"][data-world-panel="true"] .viewport-tools,
 .experience[data-layout="compact"][data-inspector="true"] .viewport-tools{top:16px;bottom:auto;left:22px;z-index:4}
+/* Cinematic travel veil (canvas only). Opacity is set per frame by WorldNavigation. */
+.travel-veil { position:absolute; inset:0; pointer-events:none; opacity:0; background:radial-gradient(120% 90% at 50% 45%, #0b1729 0%, #050a12 70%); }

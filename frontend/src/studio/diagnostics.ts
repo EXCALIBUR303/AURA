@@ -29,6 +29,8 @@ export interface StudioDiagnostics extends AvatarDiagnostics {
   perZone: Partial<Record<ZoneId, FrameSample[]>>;
   perRoom?: Partial<Record<RoomId, FrameSample[]>>;
   world?: { room: RoomId; mode: CameraMode; phase: string; loadedRooms: readonly RoomId[]; pending?: RoomId; loadTiming?:WorldSnapshot["loadTiming"] };
+  /** Last cinematic travel plan: kind, planned duration and how it ended. */
+  travel?: { kind: "route" | "bridge" | "cut"; plannedMs: number; elapsedMs?: number; outcome?: "arrived" | "skipped" | "settled-inactive" | "replaced" };
 }
 
 export type Report = (patch: Partial<StudioDiagnostics>) => void;

@@ -5,7 +5,9 @@ import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as Orbit } from "three-stdlib";
 import { Euler, PerspectiveCamera, Vector3 } from "three";
 import { cameraPath, clearSegment, movePlayer, safePoint } from "./collision.ts";
-import { roomAt, ROOMS, CONNECTIONS, worldGeometry } from "./registry.ts";
+import { planTravel } from "./cinematic.ts";
+import type { TravelPlan } from "./cinematic.ts";
+import { connectionFor, roomAt, ROOMS, CONNECTIONS, worldGeometry } from "./registry.ts";
 import type { CameraPose, Point, WorldSnapshot } from "./types.ts";
 import type { WorldController } from "./WorldController.ts";
 import type { Report } from "../studio/diagnostics.ts";
@@ -15,7 +17,9 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
   const {camera,gl}=useThree();const orbit=useRef<Orbit>(null);const keys=useRef(new Set<string>());
   const latest=useRef({snapshot,active});latest.current={snapshot,active};
   const geometry=useMemo(()=>worldGeometry(snapshot.loaded,snapshot.options),[snapshot.loaded,snapshot.options.chairSlot]);
-  const path=useRef<Point[]>([]),requestId=useRef(-1);const goal=useRef<CameraPose|null>(null);const settled=useRef(true);
+  const requestId=useRef(-1);const goal=useRef<CameraPose|null>(null);const settled=useRef(true);
+  const plan=useRef<TravelPlan|null>(null),elapsed=useRef(0),velocity=useRef(new Vector3()),veil=useRef<HTMLDivElement|null>(null),veilValue=useRef(0);
+  const setVeil=(value:number)=>{const v=Math.round(value*100)/100;if(v===veilValue.current)return;veilValue.current=v;if(veil.current)veil.current.style.opacity=String(v);};
   const safe=useRef<CameraPose>(controller.capture());const look=useRef(new Euler(0,0,0,"YXZ"));const direction=useRef(new Vector3());
   const point=useRef(new Vector3()),target=useRef(new Vector3());
   const releaseInput=useRef<()=>void>(()=>{});
@@ -25,16 +29,21 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
     if(snapshot.phase==="idle")report({cameraSettled:true,cameraSampledAt:Date.now(),camera:{position:camera.position.toArray(),target:pose.target,fov:camera instanceof PerspectiveCamera?camera.fov:undefined}});
   },[camera,controller,report]);
   useEffect(()=>{
-    const request=snapshot.request;if(!request||requestId.current===request.id)return;requestId.current=request.id;keys.current.clear();gl.domElement.style.cursor="";
+    const request=snapshot.request;if(!request||requestId.current===request.id)return;
+    if(plan.current)report({travel:{kind:plan.current.kind,plannedMs:Math.round(plan.current.duration*1000),elapsedMs:Math.round(elapsed.current*1000),outcome:"replaced"}});
+    requestId.current=request.id;keys.current.clear();velocity.current.set(0,0,0);gl.domElement.style.cursor="";
     if(document.pointerLockElement===gl.domElement)document.exitPointerLock();
-    const destination=request.pose;goal.current=destination;
     const from=camera.position.toArray() as Point;
-    const valid=safePoint(destination.position,geometry.floors,geometry.colliders,.12,false);
-    // A map action may use explicit direct placement when a safe cinematic route is unavailable.
-    path.current=valid?cameraPath(from,destination.position,geometry.floors,geometry.colliders):[];
-    if(!valid){const landing=ROOMS[request.room].landing;goal.current={...destination,position:[...landing]};path.current=[];}
-    if(reducedMotion||request.instant||!path.current.length){camera.position.fromArray(goal.current.position);target.current.fromArray(goal.current.target);orbit.current?.target.copy(target.current);if(orbit.current){orbit.current.enabled=false;orbit.current.update();}path.current=[];}
-    settled.current=false;report({zone:snapshot.selectedZone,cameraRevision:revision,cameraSettled:false});
+    const valid=safePoint(request.pose.position,geometry.floors,geometry.colliders,.12,false);
+    // An unsafe requested pose falls back to the room's landing, framed by the bridge transition.
+    const destination:CameraPose=valid?request.pose:{...request.pose,position:[...ROOMS[request.room].landing]};goal.current=destination;
+    // Only rooms joined by a passage have a walkway; others use the depart/veil/arrive bridge.
+    const source=roomAt(from,snapshot.loaded);const walkway=valid&&(!source||source===request.room||!!connectionFor(source,request.room));
+    const route=walkway?cameraPath(from,destination.position,geometry.floors,geometry.colliders):[];
+    plan.current=planTravel({from:{position:from,target:(orbit.current?.target.toArray()??destination.target) as Point},to:destination,route,geometry,reduced:reducedMotion,instant:!!request.instant,carryVeil:veilValue.current});elapsed.current=0;
+    if(orbit.current)orbit.current.enabled=false;
+    if(plan.current.kind==="cut"){setVeil(0);camera.position.fromArray(destination.position);target.current.fromArray(destination.target);orbit.current?.target.copy(target.current);orbit.current?.update();}
+    settled.current=false;report({zone:snapshot.selectedZone,cameraRevision:revision,cameraSettled:false,travel:{kind:plan.current.kind,plannedMs:Math.round(plan.current.duration*1000)}});
   },[snapshot.request,snapshot.loaded,snapshot.selectedZone,geometry,camera,controller,gl,report,revision,reducedMotion]);
   useEffect(()=>{if(snapshot.phase!=="idle")settled.current=false;report({world:{room:snapshot.room,mode:snapshot.mode,phase:snapshot.phase,loadedRooms:snapshot.loaded,pending:snapshot.pending,loadTiming:snapshot.loadTiming},...(snapshot.phase!=="idle"?{cameraSettled:false}: {})});},[report,snapshot.room,snapshot.mode,snapshot.phase,snapshot.loaded,snapshot.pending,snapshot.loadTiming]);
   // Finish already-authorized travel even when native throttling stops frame callbacks.
@@ -42,12 +51,16 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
   useEffect(()=>{
     const request=snapshot.request,controls=orbit.current,destination=goal.current;
     if(active||!request||!controls||!destination)return;
-    keys.current.clear();path.current=[];controls.enabled=false;
+    keys.current.clear();velocity.current.set(0,0,0);setVeil(0);
+    if(plan.current)report({travel:{kind:plan.current.kind,plannedMs:Math.round(plan.current.duration*1000),elapsedMs:Math.round(elapsed.current*1000),outcome:"settled-inactive"}});
+    plan.current=null;controls.enabled=false;
     camera.position.fromArray(destination.position);controls.target.fromArray(destination.target);controls.update();
     safe.current={...destination,room:request.room};goal.current=null;
     controller.arrive(request.id);controller.updatePose(safe.current);settled.current=true;
     report({cameraSettled:true,cameraRevision:revision,cameraSampledAt:Date.now(),camera:{position:camera.position.toArray(),target:controls.target.toArray(),fov:camera instanceof PerspectiveCamera?camera.fov:undefined}});
   },[active,snapshot.request,camera,controller,report,revision]);
+  // A DOM veil over the canvas only (HUD and panels stay readable); opacity is driven per frame without React renders.
+  useEffect(()=>{const host=gl.domElement.parentElement;if(!host)return;const element=document.createElement("div");element.className="travel-veil";element.setAttribute("aria-hidden","true");element.style.opacity=String(veilValue.current);host.appendChild(element);veil.current=element;return()=>{element.remove();veil.current=null;};},[gl]);
   const previousMode=useRef(snapshot.mode);
   useEffect(()=>{
     if(orbit.current)orbit.current.enabled=active&&snapshot.mode==="inspect"&&snapshot.phase==="idle";
@@ -65,7 +78,7 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
     let drag:{id:number;x:number;y:number;distance:number}|undefined;
     let dragged=false;
     const stopInput=()=>{
-      keys.current.clear();
+      keys.current.clear();velocity.current.set(0,0,0);
       if(drag)dragged=true; // A cancelled press must not become a portal/equipment click.
       if(drag&&canvas.hasPointerCapture(drag.id))canvas.releasePointerCapture(drag.id);
       drag=undefined;
@@ -73,7 +86,7 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
     };
     releaseInput.current=stopInput;
     const canLook=()=>latest.current.active&&controller.getSnapshot().mode==="explore"&&controller.getSnapshot().phase==="idle"&&!blocked();
-    const turn=(x:number,y:number)=>{look.current.y-=x*.002;look.current.x=Math.max(-1.3,Math.min(1.3,look.current.x-y*.002));camera.quaternion.setFromEuler(look.current);};
+    const turn=(x:number,y:number)=>{const k=.002*latest.current.snapshot.lookSensitivity;look.current.y-=x*k;look.current.x=Math.max(-1.3,Math.min(1.3,look.current.x-y*k));camera.quaternion.setFromEuler(look.current);};
     const lock=()=>{keys.current.clear();if(document.pointerLockElement===canvas){if(!canLook()){document.exitPointerLock();return;}canvas.focus({preventScroll:true});}};
     const down=(e:KeyboardEvent)=>{
       if(e.defaultPrevented||blocked())return;
@@ -81,13 +94,15 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
         if(latest.current.snapshot.phase==="preparing"||latest.current.snapshot.phase==="travelling"){e.preventDefault();controller.cancel();}
         else if(controller.getSnapshot().mode==="explore"){e.preventDefault();stopInput();controller.setMode("inspect");}return;
       }
+      // Enter or Space skips to the arrival framing when nothing else on the page wants the key.
+      if((e.key==="Enter"||e.key===" ")&&controller.getSnapshot().phase==="travelling"&&(document.activeElement===canvas||document.activeElement===document.body)){e.preventDefault();controller.skip();return;}
       if(!canLook()||document.activeElement!==canvas||e.altKey||e.metaKey||e.ctrlKey||e.isComposing)return;
       if(e.code==="KeyE"&&!e.repeat){
         const room=controller.getSnapshot().room;
         const nearby=CONNECTIONS.filter(edge=>edge.from===room||edge.to===room).map(edge=>({edge,point:edge.from===room?edge.fromPoint:edge.toPoint})).sort((a,b)=>camera.position.distanceToSquared(point.current.fromArray(a.point))-camera.position.distanceToSquared(target.current.fromArray(b.point)))[0];
         if(nearby&&camera.position.distanceTo(point.current.fromArray(nearby.point))<=2.2){e.preventDefault();controller.openDoor(nearby.edge.from===room?nearby.edge.to:nearby.edge.from);}return;
       }
-      if(["KeyW","KeyA","KeyS","KeyD","ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.code)){e.preventDefault();keys.current.add(e.code);}
+      if(["KeyW","KeyA","KeyS","KeyD","ArrowLeft","ArrowRight","ArrowUp","ArrowDown","ShiftLeft","ShiftRight"].includes(e.code)){e.preventDefault();keys.current.add(e.code);}
     };
     const up=(e:KeyboardEvent)=>{keys.current.delete(e.code);};
     const pointerDown=(e:PointerEvent)=>{
@@ -116,29 +131,40 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
   useFrame((_,delta)=>{
     const controls=orbit.current;if(!controls||gl.getContext().isContextLost()||!active){keys.current.clear();return;}
     const request=snapshot.request;
-    if(request&&goal.current){
-      controls.enabled=false;const next=path.current[0];
-      if(next){point.current.fromArray(next);const distance=camera.position.distanceTo(point.current);const step=Math.min(distance,Math.min(delta,.05)*10);camera.position.addScaledVector(direction.current.copy(point.current).sub(camera.position).normalize(),step);if(distance<=step+.005)path.current.shift();}
-      target.current.fromArray(goal.current.target);controls.target.lerp(target.current,reducedMotion?1:1-Math.exp(-9*Math.min(delta,.05)));camera.lookAt(controls.target);
-      controller.updatePose({position:camera.position.toArray(),target:controls.target.toArray(),room:roomAt(camera.position.toArray(),snapshot.loaded)??snapshot.room});
-      if(!path.current.length&&(reducedMotion||controls.target.distanceTo(target.current)<.015)){camera.position.fromArray(goal.current.position);controls.target.copy(target.current);controls.update();goal.current=null;controller.arrive(request.id);settled.current=true;safe.current={position:camera.position.toArray(),target:controls.target.toArray(),room:request.room};controller.updatePose(safe.current);report({cameraSettled:true,cameraRevision:revision,zone:snapshot.selectedZone,cameraSampledAt:Date.now(),camera:{position:camera.position.toArray(),target:controls.target.toArray(),fov:camera instanceof PerspectiveCamera?camera.fov:undefined}});}
+    if(request&&goal.current&&plan.current){
+      controls.enabled=false;const travel=plan.current;
+      const skipped=snapshot.skip===request.id&&elapsed.current<travel.duration;
+      // Real time, capped at 1/30 s per frame: a room-mount hitch slows the move for one frame instead of jumping along the path.
+      const shown=elapsed.current;elapsed.current=skipped?travel.duration:elapsed.current+Math.min(delta,1/30);
+      const sample=travel.sample(elapsed.current);
+      camera.position.fromArray(sample.position);controls.target.fromArray(sample.target);camera.lookAt(controls.target);setVeil(sample.veil);
+      controller.updatePose({position:sample.position,target:sample.target,room:roomAt(sample.position,snapshot.loaded)??snapshot.room});
+      if(elapsed.current>=travel.duration){
+        const destination=goal.current;camera.position.fromArray(destination.position);controls.target.fromArray(destination.target);controls.update();setVeil(0);
+        goal.current=null;plan.current=null;controller.arrive(request.id);settled.current=true;safe.current={position:camera.position.toArray(),target:controls.target.toArray(),room:request.room};controller.updatePose(safe.current);
+        report({cameraSettled:true,cameraRevision:revision,zone:snapshot.selectedZone,cameraSampledAt:Date.now(),travel:{kind:travel.kind,plannedMs:Math.round(travel.duration*1000),elapsedMs:Math.round((skipped?shown:elapsed.current)*1000),outcome:skipped?"skipped":"arrived"},camera:{position:camera.position.toArray(),target:controls.target.toArray(),fov:camera instanceof PerspectiveCamera?camera.fov:undefined}});
+      }
       return;
     }
     if(snapshot.phase!=="idle"){controls.enabled=false;return;}
     if(snapshot.mode==="explore"){
       controls.enabled=false;
-      if(active&&keys.current.size){
-        if(document.querySelector("dialog[open]")||document.activeElement!==gl.domElement)keys.current.clear();
-        const turnSpeed=Math.min(delta,.05)*1.1;
+      const dt=Math.min(delta,.05),v=velocity.current;
+      if(keys.current.size&&(document.querySelector("dialog[open]")||document.activeElement!==gl.domElement))keys.current.clear();
+      if(keys.current.size){
+        const turnSpeed=dt*1.1*snapshot.lookSensitivity;
         look.current.y+=(Number(keys.current.has("ArrowLeft"))-Number(keys.current.has("ArrowRight")))*turnSpeed;
         look.current.x=Math.max(-1.3,Math.min(1.3,look.current.x+(Number(keys.current.has("ArrowUp"))-Number(keys.current.has("ArrowDown")))*turnSpeed));
         camera.quaternion.setFromEuler(look.current);
-        const forward=Number(keys.current.has("KeyW"))-Number(keys.current.has("KeyS"));const side=Number(keys.current.has("KeyD"))-Number(keys.current.has("KeyA"));
-        const norm=Math.hypot(forward,side)||1;const speed=2.2*Math.min(delta,.05)/norm;
-        const dx=(-Math.sin(look.current.y)*forward+Math.cos(look.current.y)*side)*speed;
-        const dz=(-Math.cos(look.current.y)*forward-Math.sin(look.current.y)*side)*speed;
-        camera.position.fromArray(movePlayer(camera.position.toArray(),dx,dz,geometry.floors,geometry.colliders));
       }
+      // Eased walking: velocity approaches the wanted speed (and zero on release) instead of starting or stopping dead.
+      const forward=Number(keys.current.has("KeyW"))-Number(keys.current.has("KeyS"));const side=Number(keys.current.has("KeyD"))-Number(keys.current.has("KeyA"));
+      const norm=Math.hypot(forward,side)||1;const speed=2.2*(keys.current.has("ShiftLeft")||keys.current.has("ShiftRight")?1.7:1)/norm;
+      const blend=1-Math.exp(-14*dt);
+      v.x+=((-Math.sin(look.current.y)*forward+Math.cos(look.current.y)*side)*speed-v.x)*blend;
+      v.z+=((-Math.cos(look.current.y)*forward-Math.sin(look.current.y)*side)*speed-v.z)*blend;
+      if(!forward&&!side&&Math.hypot(v.x,v.z)<.03)v.set(0,0,0);
+      if(v.x||v.z)camera.position.fromArray(movePlayer(camera.position.toArray(),v.x*dt,v.z*dt,geometry.floors,geometry.colliders));
       camera.getWorldDirection(direction.current);controls.target.copy(camera.position).add(direction.current);
       const room=roomAt(camera.position.toArray(),snapshot.loaded);if(room)controller.enter(room);
     }else{

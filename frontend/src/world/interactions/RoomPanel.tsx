@@ -1,11 +1,7 @@
 import { IconButton } from "../../components/ui.tsx";
 import type { RoomId } from "../types.ts";
+import { ROOM_OBJECTS } from "./registry.ts";
 import type { RoomOptions } from "../settings.ts";
-export const ROOM_OBJECTS={
- "living.books":{title:"AURA / Spatial Notes",detail:"Original decorative study volumes about proportion, material, light and movement. These authored scene objects do not read or modify files on your Mac."},
- "living.art":{title:"Hills / an AURA study",detail:"An original geometric landscape composed for this room. Walnut framing and the forest/terracotta palette connect it to the seating and window view."},
- "living.media":{title:"Media display",detail:"No media source or streaming account is connected. This physical display currently provides information only; playback is a future integration."},
-} as const;
 export function RoomPanel({room,options,change,selected,select,openGames,close}:{room:RoomId;options:RoomOptions;change:(patch:Partial<RoomOptions>)=>void;selected:string|null;select:(id:string)=>void;openGames:()=>void;close:()=>void}){
  const living=room==="living";const object=selected?ROOM_OBJECTS[selected as keyof typeof ROOM_OBJECTS]:undefined;
  return <aside className="equipment-panel room-controls" aria-label="Room controls" onKeyDown={e=>{if(e.key==="Escape"){e.stopPropagation();close();}}}>

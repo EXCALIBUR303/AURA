@@ -9,7 +9,7 @@ import type { CameraMode, CameraPose, RoomId, RoomModule, WorldSnapshot } from "
  * Restore/sync does not emit user changes; room intents only follow settled travel/passage. */
 export type WorldUserChange={type:"settings";value:WorldSettings}|{type:"camera";value:"inspect"|"explore"}|{type:"room";value:RoomId};
 export class WorldController {
-  private snapshot:WorldSnapshot={settings:{...DEFAULT_WORLD_SETTINGS},options:{...DEFAULT_ROOM_OPTIONS},room:"project-hub",mode:"inspect",phase:"preparing",modules:{},loaded:[],selectedZone:"studio"};
+  private snapshot:WorldSnapshot={settings:{...DEFAULT_WORLD_SETTINGS},options:{...DEFAULT_ROOM_OPTIONS},room:"project-hub",mode:"inspect",phase:"preparing",modules:{},loaded:[],selectedZone:"studio",lookSensitivity:1};
   private listeners=new Set<()=>void>();
   private generation=0;
   private userListeners=new Set<(change:WorldUserChange)=>void>();
@@ -33,11 +33,12 @@ export class WorldController {
     const definition=ROOMS[room];
     if(definition.availability!=="available"){this.patch({error:definition.reason});return;}
     const id=++this.generation;this.retryRequest={room,pose,kind,arrivalMode};
-    this.patch({loadTiming:{room,startedAt:performance.now()},phase:"preparing",pending:room,error:undefined,request:undefined,mode:kind==="door"?this.snapshot.mode:"cinematic"});
+    this.patch({loadTiming:{room,startedAt:performance.now()},phase:"preparing",pending:room,error:undefined,request:undefined,skip:undefined,mode:kind==="door"?this.snapshot.mode:"cinematic"});
     try{
       const module=await this.load(room);if(id!==this.generation)return;
-      // Only current + destination room instances are retained; shared Astra lives above these modules.
-      const keep=[...new Set([this.snapshot.room,room])].filter(r=>r===room||!!connectionFor(r,room)&&this.snapshot.modules[r]);
+      // At most two room instances: the destination and the room being left. A room that is not
+      // connected to the destination is released on arrival (see arrive), after the cinematic veil.
+      const keep=[...new Set([this.snapshot.room,room])].filter(r=>r===room||!!this.snapshot.modules[r]&&(kind!=="door"||!!connectionFor(r,room)));
       const modules:Partial<Record<RoomId,RoomModule>>={};for(const r of keep)modules[r]=r===room?module:this.snapshot.modules[r];
       const loadTiming={...this.snapshot.loadTiming!,readyMs:Math.round(performance.now()-this.snapshot.loadTiming!.startedAt)};
       if(kind==="door")this.patch({loadTiming,phase:"idle",pending:undefined,error:undefined,loaded:keep,modules,request:undefined});
@@ -66,13 +67,18 @@ export class WorldController {
     void this.request(available,ROOMS[available].introduction,"restore",mode);return true;
   };
   clearIssue=()=>this.patch({error:undefined});
+  /** Finish the current cinematic travel at its arrival pose. Cancel (Escape) instead stops at a safe landing. */
+  skip=()=>{const request=this.snapshot.request;if(this.snapshot.phase==="travelling"&&request&&this.snapshot.skip!==request.id)this.patch({skip:request.id});};
+  setLookSensitivity=(value:number)=>{if(!Number.isFinite(value))return;const next=Math.round(Math.min(2,Math.max(.4,value))*10)/10;if(next!==this.snapshot.lookSensitivity)this.patch({lookSensitivity:next});};
   focusWorkspace=(zone:ZoneId,restore?:CameraPose|null)=>{
     this.patch({selectedZone:zone});const room=restore?.room&&ROOMS[restore.room].availability==="available"?restore.room:"project-hub";
     void this.request(room,restore??zonePose(zone),"workspace");
   };
   inspect=(pose:CameraPose)=>{void this.request(pose.room??this.snapshot.room,pose,"travel");};
   retry=()=>{const r=this.retryRequest;if(r)void this.request(r.room,r.pose,r.kind,r.arrivalMode);};
-  arrive=(id:number)=>{const request=this.snapshot.request;if(!request||request.id!==id)return;const previousRoom=this.snapshot.room;this.lastPose=request.pose;this.patch({room:request.room,pending:undefined,phase:"idle",mode:request.arrivalMode??"inspect",request:undefined,error:undefined,loadTiming:this.snapshot.loadTiming?{...this.snapshot.loadTiming,settledMs:Math.round(performance.now()-this.snapshot.loadTiming.startedAt)}:undefined});
+  arrive=(id:number)=>{const request=this.snapshot.request;if(!request||request.id!==id)return;const previousRoom=this.snapshot.room;this.lastPose=request.pose;
+    const loaded=this.snapshot.loaded.filter(r=>r===request.room||!!connectionFor(r,request.room));const modules:Partial<Record<RoomId,RoomModule>>={};for(const r of loaded)modules[r]=this.snapshot.modules[r];
+    this.patch({loaded,modules,skip:undefined,room:request.room,pending:undefined,phase:"idle",mode:request.arrivalMode??"inspect",request:undefined,error:undefined,loadTiming:this.snapshot.loadTiming?{...this.snapshot.loadTiming,settledMs:Math.round(performance.now()-this.snapshot.loadTiming.startedAt)}:undefined});
     if(request.kind!=="restore"&&request.room!==previousRoom)this.userChange({type:"room",value:request.room});
   };
   updatePose=(pose:CameraPose)=>{this.lastPose={position:[...pose.position],target:[...pose.target],room:pose.room??this.snapshot.room};};

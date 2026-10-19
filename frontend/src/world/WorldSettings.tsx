@@ -7,7 +7,7 @@ import type { WorldPersistence } from "./worldPreferences.ts";
 
 const PERSISTENCE_COPY:Record<WorldPersistence,string>={
  loading:"Loading your saved world settings…",
- saved:"Presentation, lighting, float intensity, camera mode and your last room are saved on this Mac. Reduce world motion and room options stay session only.",
+ saved:"Presentation, lighting, float intensity, camera mode and your last room are saved on this Mac. Reduce world motion, look sensitivity and room options stay session only.",
  unsaved:"Could not save the latest change. It applies for this session; AURA will try again on your next change.",
  session:"Session only. These options are not saved to your Mac in this session. Developer, privacy and voice preferences stay in their existing native settings.",
 };
@@ -20,6 +20,8 @@ export function WorldSettingsDialog({controller,snapshot,nativeReduced,persisten
   <label className="ui-field">Float intensity <output>{Math.round(settings.floatIntensity*100)}%</output><input type="range" aria-label="Float intensity" aria-valuetext={`${Math.round(settings.floatIntensity*100)} percent`} min="0" max="1" step="0.05" value={settings.floatIntensity} disabled={settings.presentation==="static"||reduced} onChange={e=>controller.setWorldSettings({floatIntensity:Number(e.target.value)})}/></label>
   <label className="room-switch"><input type="checkbox" checked={reduced} disabled={nativeReduced} onChange={e=>controller.setWorldSettings({reduceMotion:e.target.checked})}/>Reduce world motion</label>
   <p className="help">{nativeReduced?"System or native Reduce Motion is active and takes precedence.":"Motion reduction grounds eligible displays and stops nonessential fan and ambient movement."} Floors, walls, furniture and collision boundaries always stay grounded.</p>
+  <label className="ui-field">Look sensitivity <output>{snapshot.lookSensitivity.toFixed(1)}×</output><input type="range" aria-label="Look sensitivity" aria-valuetext={`${snapshot.lookSensitivity.toFixed(1)} times`} min="0.4" max="2" step="0.1" value={snapshot.lookSensitivity} onChange={e=>controller.setLookSensitivity(Number(e.target.value))}/></label>
+  <p className="help">Free Explore drag and arrow-key turning speed. Hold Shift to walk faster. Session only.</p>
   <button className="ui-button" onClick={()=>{controller.setWorldSettings(DEFAULT_WORLD_SETTINGS);controller.setRoomOptions(DEFAULT_ROOM_OPTIONS);}}>Reset appearance</button>
  </div></Modal>;
 }
