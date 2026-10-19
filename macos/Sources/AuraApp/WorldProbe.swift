@@ -14,14 +14,18 @@ import WebKit
 enum WorldProbe {
     private static let log = Logger(subsystem: Log.subsystem, category: "world-probe")
 
-    static var isEnabled: Bool { ProcessInfo.processInfo.environment["AURA_DEV_WORLD_PROBE"] == "1" }
+    /// "1" = M6 baseline pass; "m9" = full M9 pass; "relaunch" = persistence check; "failure" = failed model + context loss.
+    static var scenario: String? { ProcessInfo.processInfo.environment["AURA_DEV_WORLD_PROBE"] }
+    static var isEnabled: Bool { ["1", "m9", "relaunch", "failure"].contains(scenario ?? "") }
 
     private static let counters = """
         const d = window.__AURA_DIAGNOSTICS__;
         const snap = { room: d.world?.room, mode: d.world?.mode, phase: d.world?.phase, loaded: d.world?.loadedRooms, status: d.status, context: d.context,
           appFps: d.fps, drawCalls: d.drawCalls, triangles: d.sceneTriangles, resources: d.resources,
           assets: d.assets?.map((a) => a.id + ':' + a.owners.join('+') + (a.ready ? '' : '!not-ready')),
-          dpr: d.renderer?.pixelRatio, gpu: d.renderer?.renderer, sampledAgeMs: Date.now() - (d.cameraSampledAt ?? 0) };
+          dpr: d.renderer?.pixelRatio, gpu: d.renderer?.renderer, sampledAgeMs: Date.now() - (d.cameraSampledAt ?? 0),
+          loadTiming: d.world?.loadTiming ? { room: d.world.loadTiming.room, readyMs: d.world.loadTiming.readyMs, settledMs: d.world.loadTiming.settledMs } : null,
+          settings: d.settings ? { p: d.settings.presentation, f: d.settings.floatIntensity, l: d.settings.lightingPreset, rm: d.settings.reduceMotion } : null };
         """
 
     static func run(webView: WKWebView, model: AppModel) async {
@@ -54,6 +58,12 @@ enum WorldProbe {
             """) ?? "nil"
         log.notice("world probe initial \(initial, privacy: .public)")
 
+        switch scenario {
+        case "m9": await m9(webView: webView, model: model, sampleMs: sampleMs, visits: visits); return
+        case "relaunch": await relaunch(webView: webView, model: model); return
+        case "failure": await failure(webView: webView); return
+        default: break
+        }
         // One pass through all four rooms (cold loads), then repeated visits.
         for room in ["project-hub", "atrium", "living", "atrium", "gaming", "atrium", "project-hub"] {
             await visit(room, webView: webView, sampleMs: sampleMs, label: "pass1")
@@ -104,6 +114,149 @@ enum WorldProbe {
         let sample = await DevProbe.evaluate(webView, appFpsSeries(ms: sampleMs) + DevProbe.sampler(ms: sampleMs).replacingOccurrences(of: "return JSON.stringify({", with: "return JSON.stringify({ appFpsSeries: series, appFpsMin: Math.min(...series), appFpsMedian: [...series].sort((a,b)=>a-b)[Math.floor(series.length/2)],")) ?? "nil"
         let state = await DevProbe.evaluate(webView, "\(counters) return JSON.stringify(snap)") ?? "nil"
         log.notice("world probe \(label, privacy: .public) room=\(room, privacy: .public) travelMs=\(travelMs, privacy: .public) \(sample, privacy: .public) state=\(state, privacy: .public)")
+    }
+
+    private static func js(_ webView: WKWebView, _ body: String) async -> String { await DevProbe.evaluate(webView, body) ?? "nil" }
+    private static func state(_ webView: WKWebView) async -> String { await js(webView, "\(counters) return JSON.stringify(snap)") }
+
+    /// Sets a World settings control the way the dialog does (React value setter + events), then closes the dialog.
+    private static func setSetting(_ webView: WKWebView, _ label: String, _ value: String) async -> String {
+        await js(webView, """
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+            if (!document.querySelector('[aria-label="World presentation"]')) { document.querySelector('button[aria-label="World settings"]')?.click(); await sleep(350); }
+            const el = document.querySelector('[aria-label="\(label)"]');
+            if (!el) return 'no-control';
+            const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+            Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, '\(value)');
+            el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+            await sleep(150);
+            const status = document.querySelector('.world-settings [role="status"]')?.textContent ?? '';
+            const close = [...document.querySelectorAll('dialog[open] button')].find((b) => /close/i.test(b.getAttribute('aria-label') ?? b.textContent ?? ''));
+            close?.click(); await sleep(250);
+            return (el.disabled ? 'disabled:' : 'set:') + status.slice(0, 40);
+            """)
+    }
+
+    private static func sample(_ webView: WKWebView, _ label: String, ms: Int) async {
+        let s = await js(webView, appFpsSeries(ms: ms) + DevProbe.sampler(ms: ms).replacingOccurrences(of: "return JSON.stringify({", with: "return JSON.stringify({ appFpsSeries: series, appFpsMin: Math.min(...series), appFpsMedian: [...series].sort((a,b)=>a-b)[Math.floor(series.length/2)],"))
+        let v1 = await state(webView)
+        log.notice("world probe sample \(label, privacy: .public) \(s, privacy: .public) state=\(v1, privacy: .public)")
+    }
+
+    private static func storedWorld(_ model: AppModel, _ label: String) async {
+        guard let store = model.services?.store, let prefs = try? await store.loadPreferences() else { return }
+        let w = prefs.world
+        log.notice("world probe stored \(label, privacy: .public): v\(w.schemaVersion, privacy: .public) \(w.presentation.rawValue, privacy: .public) f=\(w.floatIntensity, privacy: .public) \(w.lightingPreset.rawValue, privacy: .public) \(w.cameraMode.rawValue, privacy: .public) room=\(w.lastRoomId, privacy: .public) zone=\(prefs.lastZone.rawValue, privacy: .public) reduceMotion=\(prefs.reduceMotion, privacy: .public) voice=\(prefs.voice.synthesisVoiceId ?? "default", privacy: .public)@\(prefs.voice.speechRate, privacy: .public) ai=\(prefs.ai.defaultProviderId ?? "none", privacy: .public)/\(prefs.ai.privateRepositoryContext.rawValue, privacy: .public)")
+    }
+
+    /// Full M9 pass. Writes world preferences through the real settings dialog (back up the database first).
+    private static func m9(webView: WKWebView, model: AppModel, sampleMs: Int, visits: Int) async {
+        // First Living visit the way a person reaches it: Hub → Atrium (byte warm-up after 700 ms idle) → Living.
+        await visit("atrium", webView: webView, sampleMs: sampleMs, label: "pass1")
+        await visit("living", webView: webView, sampleMs: sampleMs, label: "pass1-cold-living")
+        for room in ["atrium", "gaming", "atrium", "project-hub"] {
+            await visit(room, webView: webView, sampleMs: sampleMs, label: "pass1")
+        }
+        for cycle in 1...visits {
+            for room in ["atrium", "living", "atrium", "gaming", "atrium", "project-hub"] {
+                await visit(room, webView: webView, sampleMs: 1500, label: "repeat\(cycle)")
+            }
+            let v2 = await js(webView, "\(counters) return JSON.stringify({ cycle: \(cycle), resources: snap.resources, loaded: snap.loaded, dom: document.getElementsByTagName('*').length });")
+            log.notice("world probe cycle-end \(v2, privacy: .public)")
+        }
+        // Lighting presets and presentation modes, measured in every room.
+        for room in ["project-hub", "living", "gaming", "atrium"] {
+            await visit(room, webView: webView, sampleMs: 1000, label: "presets")
+            for preset in ["daylight", "sunset", "night"] {
+                let v3 = await setSetting(webView, "World lighting", preset)
+                log.notice("world probe set lighting=\(preset, privacy: .public) \(v3, privacy: .public)")
+                try? await Task.sleep(for: .milliseconds(1200))
+                await sample(webView, "\(room)-\(preset)-static", ms: 2500)
+            }
+            for mode in ["floating", "hybrid"] {
+                let v4 = await setSetting(webView, "World presentation", mode)
+                log.notice("world probe set presentation=\(mode, privacy: .public) \(v4, privacy: .public)")
+                try? await Task.sleep(for: .milliseconds(1200))
+                await sample(webView, "\(room)-night-\(mode)", ms: 2500)
+            }
+            _ = await setSetting(webView, "World presentation", "static")
+        }
+        await windowLifecycle(webView: webView, model: model)
+
+        // Persistence: choose distinctive values through the dialog, end in Gaming, then quit normally.
+        _ = await setSetting(webView, "World lighting", "sunset")
+        _ = await setSetting(webView, "World presentation", "hybrid")
+        _ = await setSetting(webView, "Float intensity", "0.6")
+        await visit("gaming", webView: webView, sampleMs: 500, label: "persist")
+        try? await Task.sleep(for: .milliseconds(800))
+        await storedWorld(model, "before-quit")
+        log.notice("world probe done; quitting for the relaunch check")
+        NSApp.terminate(nil)
+    }
+
+    /// Relaunch: the world must come back in the saved room with the saved settings and no extra writes.
+    private static func relaunch(webView: WKWebView, model: AppModel) async {
+        await storedWorld(model, "at-launch")
+        _ = await DevProbe.waitFor(webView, "d.world?.room === 'gaming' && d.world.phase === 'idle' && d.cameraSettled", timeout: .seconds(30))
+        try? await Task.sleep(for: .milliseconds(1500))
+        let restored = await js(webView, """
+            \(counters)
+            document.querySelector('button[aria-label="World settings"]')?.click(); await new Promise((r) => setTimeout(r, 350));
+            const status = document.querySelector('.world-settings [role="status"]')?.textContent ?? '';
+            const ui = { presentation: document.querySelector('[aria-label="World presentation"]')?.value, lighting: document.querySelector('[aria-label="World lighting"]')?.value,
+              float: document.querySelector('[aria-label="Float intensity"]')?.value };
+            [...document.querySelectorAll('dialog[open] button')].find((b) => /close/i.test(b.getAttribute('aria-label') ?? b.textContent ?? ''))?.click();
+            return JSON.stringify({ ...snap, ui, status: status.slice(0, 60) });
+            """)
+        log.notice("world probe relaunch restored \(restored, privacy: .public)")
+        await storedWorld(model, "after-restore")
+        await sample(webView, "relaunch-gaming", ms: 3000)
+        log.notice("world probe done")
+    }
+
+    /// A failed model load (one rejected fetch) must show Retry and recover; then WebGL context loss and restore.
+    private static func failure(webView: WKWebView) async {
+        let armed = await js(webView, """
+            const original = window.fetch; let failures = 0;
+            window.fetch = (input, init) => { const url = String(input?.url ?? input);
+              if (url.includes('SheenChair') && failures === 0) { failures++; window.fetch = original; return Promise.reject(new TypeError('probe: injected network failure')); }
+              return original(input, init); };
+            return 'armed';
+            """)
+        log.notice("world probe failure \(armed, privacy: .public)")
+        _ = await js(webView, """
+            [...document.querySelectorAll('button')].find((b) => b.textContent.includes('World map'))?.click();
+            await new Promise((r) => setTimeout(r, 400));
+            document.querySelector('[data-room="living"] button')?.click(); return 'visit';
+            """)
+        let failed = await DevProbe.waitFor(webView, "d.world?.phase === 'error'", timeout: .seconds(30))
+        let errorUI = await js(webView, "\(counters) return JSON.stringify({ ...snap, feedback: document.querySelector('.world-feedback')?.textContent, retry: !![...document.querySelectorAll('button')].find((b) => b.textContent === 'Retry room') })")
+        log.notice("world probe failure shown=\(failed, privacy: .public) \(errorUI, privacy: .public)")
+        _ = await js(webView, "[...document.querySelectorAll('button')].find((b) => b.textContent === 'Retry room')?.click(); return 'retry'")
+        let recovered = await DevProbe.waitFor(webView, "d.world?.room === 'living' && d.world.phase === 'idle' && d.cameraSettled", timeout: .seconds(45))
+        let v5 = await state(webView)
+        log.notice("world probe failure recovered=\(recovered, privacy: .public) \(v5, privacy: .public)")
+        await sample(webView, "after-retry-living", ms: 3000)
+
+        let lost = await js(webView, """
+            const canvas = document.querySelector('.scene-canvas canvas');
+            const gl = canvas?.getContext('webgl2') ?? canvas?.getContext('webgl');
+            const ext = gl?.getExtension('WEBGL_lose_context');
+            if (!ext) return 'no-extension';
+            window.__probeLose = ext; ext.loseContext(); return 'lost';
+            """)
+        try? await Task.sleep(for: .seconds(2))
+        let v6 = await state(webView)
+        log.notice("world probe context \(lost, privacy: .public) during=\(v6, privacy: .public)")
+        _ = await js(webView, "window.__probeLose?.restoreContext(); return 'restore'")
+        let back = await DevProbe.waitFor(webView, "d.context === 'ready' && d.status === 'loaded'", timeout: .seconds(30))
+        try? await Task.sleep(for: .seconds(2))
+        let v7 = await state(webView)
+        log.notice("world probe context restored=\(back, privacy: .public) \(v7, privacy: .public)")
+        await sample(webView, "after-context-restore", ms: 3000)
+        await visit("atrium", webView: webView, sampleMs: 1500, label: "after-context")
+        await visit("project-hub", webView: webView, sampleMs: 1500, label: "after-context")
+        log.notice("world probe done")
     }
 
     /// Real window miniaturize and hide, then restore. Watches whether the page's

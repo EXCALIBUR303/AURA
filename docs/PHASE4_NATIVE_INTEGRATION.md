@@ -1,5 +1,7 @@
 # Phase 4: native foundation and integration
 
+> **Superseded for the final state:** the M9 import, P4-N1 frontend wiring and the final Mac M5 validation are in [PHASE4_FINAL_INTEGRATION.md](PHASE4_FINAL_INTEGRATION.md). This report remains the M3–M6 native baseline.
+
 - **Branch:** `claude/phase4-native-foundation`, worktree `~/Developer/AURA-phase4`.
 - **Base:** Codex `codex/phase4-living-universe` at `a22d343ff757b9b59057db4525669ccb098648eb` (M3–M6), verified against `origin` before branching. `origin/main` (`a67cda1`) is an ancestor.
 - **Commits:** `94ae238` (preferences), `c527d1e` (first report); the probe and this validation report are in the latest commit (see the branch tip).
