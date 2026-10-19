@@ -74,10 +74,17 @@ export class WorldController {
     this.patch({selectedZone:zone});const room=restore?.room&&ROOMS[restore.room].availability==="available"?restore.room:"project-hub";
     void this.request(room,restore??zonePose(zone),"workspace");
   };
-  inspect=(pose:CameraPose)=>{void this.request(pose.room??this.snapshot.room,pose,"travel");};
+  private clearZoneOnArrive=false;
+  /** Frames a pose in the current room. `zone` opens close inspection of a desk object; a later inspect without it (the exit) keeps that allowance until the camera has arrived. */
+  inspect=(pose:CameraPose,zone?:"hardware")=>{
+    if(zone){this.clearZoneOnArrive=false;if(this.snapshot.inspectionZone!==zone)this.patch({inspectionZone:zone});}
+    else if(this.snapshot.inspectionZone)this.clearZoneOnArrive=true;
+    void this.request(pose.room??this.snapshot.room,pose,"travel");
+  };
   retry=()=>{const r=this.retryRequest;if(r)void this.request(r.room,r.pose,r.kind,r.arrivalMode);};
   arrive=(id:number)=>{const request=this.snapshot.request;if(!request||request.id!==id)return;const previousRoom=this.snapshot.room;this.lastPose=request.pose;
     const loaded=this.snapshot.loaded.filter(r=>r===request.room||!!connectionFor(r,request.room));const modules:Partial<Record<RoomId,RoomModule>>={};for(const r of loaded)modules[r]=this.snapshot.modules[r];
+    if(this.clearZoneOnArrive){this.clearZoneOnArrive=false;this.snapshot={...this.snapshot,inspectionZone:undefined};}
     this.patch({loaded,modules,skip:undefined,room:request.room,pending:undefined,phase:"idle",mode:request.arrivalMode??"inspect",request:undefined,error:undefined,loadTiming:this.snapshot.loadTiming?{...this.snapshot.loadTiming,settledMs:Math.round(performance.now()-this.snapshot.loadTiming.startedAt)}:undefined});
     if(request.kind!=="restore"&&request.room!==previousRoom)this.userChange({type:"room",value:request.room});
   };

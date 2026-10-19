@@ -16,7 +16,7 @@ export type WorldCameraHandle={capture:()=>CameraPose|undefined};
 export function WorldNavigation({controller,snapshot,reducedMotion,active,report,revision,cameraHandle}:{controller:WorldController;snapshot:WorldSnapshot;reducedMotion:boolean;active:boolean;report:Report;revision:number;cameraHandle?:Ref<WorldCameraHandle>}){
   const {camera,gl}=useThree();const orbit=useRef<Orbit>(null);const keys=useRef(new Set<string>());
   const latest=useRef({snapshot,active});latest.current={snapshot,active};
-  const geometry=useMemo(()=>worldGeometry(snapshot.loaded,snapshot.options),[snapshot.loaded,snapshot.options.chairSlot]);
+  const geometry=useMemo(()=>worldGeometry(snapshot.loaded,snapshot.options,snapshot.inspectionZone),[snapshot.loaded,snapshot.options.chairSlot,snapshot.inspectionZone]);
   const requestId=useRef(-1);const goal=useRef<CameraPose|null>(null);const settled=useRef(true);
   const plan=useRef<TravelPlan|null>(null),elapsed=useRef(0),velocity=useRef(new Vector3()),veil=useRef<HTMLDivElement|null>(null),veilValue=useRef(0);
   const setVeil=(value:number)=>{const v=Math.round(value*100)/100;if(v===veilValue.current)return;veilValue.current=v;if(veil.current)veil.current.style.opacity=String(v);};
@@ -181,5 +181,5 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
     safe.current={position:camera.position.toArray(),target:controls.target.toArray(),room:snapshot.room};controller.updatePose(safe.current);
     if(!settled.current){settled.current=true;report({cameraSettled:true});}
   });
-  return <OrbitControls ref={orbit} makeDefault enablePan={false} enableDamping={!reducedMotion} minDistance={.65} maxDistance={7} minPolarAngle={.2} maxPolarAngle={1.65} rotateSpeed={.45} zoomSpeed={.6}/>;
+  return <OrbitControls ref={orbit} makeDefault enablePan={false} enableDamping={!reducedMotion} minDistance={snapshot.inspectionZone ? 0.16 : 0.65} maxDistance={snapshot.inspectionZone ? 1.3 : 7} minPolarAngle={.2} maxPolarAngle={1.65} rotateSpeed={.45} zoomSpeed={.6}/>;
 }

@@ -25,4 +25,5 @@ export type WorldSnapshot = {
   loaded: readonly RoomId[]; selectedZone: ZoneId;
   /** Request id whose cinematic travel should finish now (skip). */ skip?: number;
   /** Session-only Explore look/turn multiplier. */ lookSensitivity: number;
+  /** Close-inspection zone: relaxes the desk/PC colliders so the camera may approach parts on the desk. Session-only. */ inspectionZone?: "hardware";
 };
