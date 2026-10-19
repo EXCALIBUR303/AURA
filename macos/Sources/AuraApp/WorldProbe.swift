@@ -14,9 +14,10 @@ import WebKit
 enum WorldProbe {
     private static let log = Logger(subsystem: Log.subsystem, category: "world-probe")
 
-    /// "1" = M6 baseline pass; "m9" = full M9 pass; "relaunch" = persistence check; "failure" = failed model + context loss.
+    /// "1" = M6 baseline pass; "m9" = full M9 pass; "relaunch" = persistence check; "failure" = failed model + context loss;
+    /// "p2" = Phase 5 cinematic travel pacing, skip/cancel/rapid/hide; "leak" = memory bisect stages (sample `footprint` externally).
     static var scenario: String? { ProcessInfo.processInfo.environment["AURA_DEV_WORLD_PROBE"] }
-    static var isEnabled: Bool { ["1", "m9", "relaunch", "failure"].contains(scenario ?? "") }
+    static var isEnabled: Bool { ["1", "m9", "relaunch", "failure", "leak", "p2"].contains(scenario ?? "") }
 
     private static let counters = """
         const d = window.__AURA_DIAGNOSTICS__;
@@ -25,6 +26,7 @@ enum WorldProbe {
           assets: d.assets?.map((a) => a.id + ':' + a.owners.join('+') + (a.ready ? '' : '!not-ready')),
           dpr: d.renderer?.pixelRatio, gpu: d.renderer?.renderer, sampledAgeMs: Date.now() - (d.cameraSampledAt ?? 0),
           loadTiming: d.world?.loadTiming ? { room: d.world.loadTiming.room, readyMs: d.world.loadTiming.readyMs, settledMs: d.world.loadTiming.settledMs } : null,
+          travel: d.travel ?? null,
           settings: d.settings ? { p: d.settings.presentation, f: d.settings.floatIntensity, l: d.settings.lightingPreset, rm: d.settings.reduceMotion } : null };
         """
 
@@ -62,6 +64,8 @@ enum WorldProbe {
         case "m9": await m9(webView: webView, model: model, sampleMs: sampleMs, visits: visits); return
         case "relaunch": await relaunch(webView: webView, model: model); return
         case "failure": await failure(webView: webView); return
+        case "leak": await leak(webView: webView); return
+        case "p2": await cinematic(webView: webView); return
         default: break
         }
         // One pass through all four rooms (cold loads), then repeated visits.
@@ -135,6 +139,96 @@ enum WorldProbe {
             close?.click(); await sleep(250);
             return (el.disabled ? 'disabled:' : 'set:') + status.slice(0, 40);
             """)
+    }
+
+    /// Phase 5 navigation: frame pacing during each travel kind, then skip, cancel, rapid retarget and hide mid-travel.
+    private static func cinematic(webView: WKWebView) async {
+        let openMap = "const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const go = async (room) => { [...document.querySelectorAll('button')].find((b) => b.textContent.includes('World map'))?.click(); await sleep(350); document.querySelector(`[data-room=\"${room}\"] button`)?.click(); };"
+        let settledJS = "const settled = (room) => new Promise((resolve) => { const t0 = performance.now(); const poll = () => { const d = window.__AURA_DIAGNOSTICS__; if (d.world.room === room && d.world.phase === 'idle' && d.cameraSettled) resolve(true); else if (performance.now() - t0 > 20000) resolve(false); else setTimeout(poll, 30); }; poll(); });"
+        // Warm every room once so frame pacing below measures the transition, not a cold model load.
+        for room in ["atrium", "living", "atrium", "gaming", "atrium", "project-hub"] { await visit(room, webView: webView, sampleMs: 500, label: "p2-warm") }
+        for room in ["gaming", "atrium", "living", "project-hub", "atrium", "project-hub"] {
+            let r = await js(webView, """
+                \(openMap) \(settledJS)
+                const frames = []; let last = performance.now(), on = true; const tick = (t) => { frames.push(t - last); last = t; if (on) requestAnimationFrame(tick); }; requestAnimationFrame(tick);
+                const t0 = performance.now(); await go('\(room)'); const ok = await settled('\(room)'); on = false;
+                const s = frames.slice(1).sort((a, b) => a - b); const q = (p) => s[Math.min(s.length - 1, Math.floor(p * s.length))];
+                const d = window.__AURA_DIAGNOSTICS__;
+                return JSON.stringify({ to: '\(room)', ok, wallMs: Math.round(performance.now() - t0), travel: d.travel, frames: s.length, p50Ms: +q(0.5).toFixed(1), p95Ms: +q(0.95).toFixed(1), maxMs: +s.at(-1).toFixed(1), over20: s.filter((x) => x > 20.9).length, loaded: d.world.loadedRooms, calls: d.drawCalls });
+                """)
+            log.notice("world probe p2 travel \(r, privacy: .public)")
+        }
+        let skip = await js(webView, """
+            \(openMap) \(settledJS)
+            await go('living'); while (window.__AURA_DIAGNOSTICS__.world.phase !== 'travelling') await sleep(20); await sleep(300);
+            [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Skip')?.click();
+            const ok = await settled('living'); return JSON.stringify({ ok, travel: window.__AURA_DIAGNOSTICS__.travel, veil: document.querySelector('.travel-veil')?.style.opacity });
+            """)
+        log.notice("world probe p2 skip \(skip, privacy: .public)")
+        let cancel = await js(webView, """
+            \(openMap)
+            await go('gaming'); while (window.__AURA_DIAGNOSTICS__.world.phase !== 'travelling') await sleep(20); await sleep(300);
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            for (let i = 0; i < 100 && !(window.__AURA_DIAGNOSTICS__.world.phase === 'idle' && window.__AURA_DIAGNOSTICS__.cameraSettled); i++) await sleep(30);
+            const d = window.__AURA_DIAGNOSTICS__; return JSON.stringify({ phase: d.world.phase, room: d.world.room, loaded: d.world.loadedRooms, settled: d.cameraSettled, veil: document.querySelector('.travel-veil')?.style.opacity });
+            """)
+        log.notice("world probe p2 cancel \(cancel, privacy: .public)")
+        let rapid = await js(webView, """
+            \(openMap) \(settledJS)
+            const here = window.__AURA_DIAGNOSTICS__.world.room; const order = ['atrium', 'gaming', 'project-hub', 'living'].filter((r) => r !== here).slice(0, 3);
+            for (const r of order) { await go(r); await sleep(150); }
+            const ok = await settled(order.at(-1)); const d = window.__AURA_DIAGNOSTICS__;
+            return JSON.stringify({ order, ok, room: d.world.room, loaded: d.world.loadedRooms, travel: d.travel, canvases: document.querySelectorAll('canvas').length });
+            """)
+        log.notice("world probe p2 rapid \(rapid, privacy: .public)")
+        // Hide the app in the middle of a bridge; travel must settle without frames and stay correct on return.
+        _ = await js(webView, "\(openMap) await go('gaming'); while (window.__AURA_DIAGNOSTICS__.world.phase !== 'travelling') await sleep(20); await sleep(200); return 'started';")
+        NSApp.hide(nil)
+        try? await Task.sleep(for: .seconds(2))
+        let hidden = await js(webView, "const d = window.__AURA_DIAGNOSTICS__; return JSON.stringify({ hidden: document.hidden, phase: d.world.phase, room: d.world.room, travel: d.travel });")
+        NSApp.unhide(nil); NSApp.activate(); webView.window?.makeKeyAndOrderFront(nil)
+        try? await Task.sleep(for: .seconds(2))
+        let back = await js(webView, "const d = window.__AURA_DIAGNOSTICS__; return JSON.stringify({ hidden: document.hidden, phase: d.world.phase, room: d.world.room, settled: d.cameraSettled, loaded: d.world.loadedRooms, veil: document.querySelector('.travel-veil')?.style.opacity, explore: !document.querySelector('.world-hud button[aria-pressed]')?.disabled });")
+        log.notice("world probe p2 hide-mid-travel hidden=\(hidden, privacy: .public) restored=\(back, privacy: .public)")
+        await sample(webView, "p2-after", ms: 3000)
+        log.notice("world probe done")
+    }
+
+    /// Memory bisect: each stage repeats one interaction 30 times; sample WebContent with `footprint` between the logged markers.
+    private static func leak(webView: WKWebView) async {
+        let stages: [(String, String)] = [
+            ("dialog", """
+                const open = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('World map'));
+                open?.click(); await new Promise((r) => setTimeout(r, 450));
+                document.querySelector('dialog[open] button[aria-label*="lose"]')?.click(); await new Promise((r) => setTimeout(r, 450));
+                return document.querySelectorAll('dialog[open]').length;
+                """),
+            ("workspace", """
+                const rail = [...document.querySelectorAll('.spatial-rail button')];
+                rail[(window.__leakIndex = ((window.__leakIndex ?? 0) + 1) % 5)]?.click(); await new Promise((r) => setTimeout(r, 1300));
+                return window.__AURA_DIAGNOSTICS__?.world?.phase;
+                """),
+            ("console", """
+                document.querySelector('.astra-beacon:not([hidden])')?.click(); await new Promise((r) => setTimeout(r, 400));
+                document.querySelector('.minimize-conversation')?.click(); await new Promise((r) => setTimeout(r, 400));
+                return document.querySelector('.spatial-os')?.dataset.consoleMinimized;
+                """),
+        ]
+        for (name, body) in stages {
+            try? await Task.sleep(for: .seconds(8))
+            log.notice("world probe leak begin \(name, privacy: .public)")
+            for _ in 0..<30 { _ = await js(webView, body) }
+            let after = await state(webView)
+            log.notice("world probe leak end \(name, privacy: .public) \(after, privacy: .public)")
+        }
+        try? await Task.sleep(for: .seconds(8))
+        log.notice("world probe leak begin travel")
+        for room in ["atrium", "living", "atrium", "gaming", "atrium", "project-hub"] + ["atrium", "living", "atrium", "gaming", "atrium", "project-hub"] {
+            await visit(room, webView: webView, sampleMs: 500, label: "leak")
+        }
+        log.notice("world probe leak end travel")
+        try? await Task.sleep(for: .seconds(8))
+        log.notice("world probe done")
     }
 
     private static func sample(_ webView: WKWebView, _ label: String, ms: Int) async {
