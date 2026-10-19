@@ -150,7 +150,9 @@ function ProjectHotspots({ buttons, zone }: { buttons: RefObject<Map<ZoneId, HTM
         for (let x = halfWidth + 10; x < size.width - halfWidth - 10; x += 36) candidates.push({ x, y });
       }
       candidates.sort((a, b) => (a.x - anchorX) ** 2 + (a.y - anchorY) ** 2 - ((b.x - anchorX) ** 2 + (b.y - anchorY) ** 2));
-      const position = behind ? undefined : candidates.find(({ x, y }) => !occupied.some((rect) => overlaps(rect,
+      // A label whose object is off screen would only float at the edge as an orphan control; the workspace rail already reaches every station.
+      const offscreen = anchorX < 0 || anchorX > size.width || anchorY < 0 || anchorY > size.height;
+      const position = behind || offscreen ? undefined : candidates.find(({ x, y }) => !occupied.some((rect) => overlaps(rect,
         { left: x - halfWidth - 5, right: x + halfWidth + 5, top: y - halfHeight - 5, bottom: y + halfHeight + 5 })));
       button.style.visibility = position ? "visible" : "hidden";
       if (position) {
