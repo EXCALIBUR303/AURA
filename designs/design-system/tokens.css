@@ -154,3 +154,53 @@
     --aura-duration-slow: 0ms;
   }
 }
+
+/* Phase 5 / AURA Spatial. Scoped so archived light-theme prototypes keep their palette.
+   Semantic roles, solid contrast backings and bounded motion are the extension API. */
+.spatial-os {
+  color-scheme: dark;
+  --spatial-void: #080e18;
+  --spatial-panel: #101c2a;
+  --spatial-panel-raised: #172638;
+  --spatial-line: #33485c;
+  --spatial-cyan: #9cdeeb;
+  --spatial-violet: #c1b3f4;
+  --spatial-amber: #f0c48e;
+  --aura-paper: #0c1521;
+  --aura-surface: #142131;
+  --aura-surface-subtle: #1b2c3e;
+  --aura-surface-raised: #101c2a;
+  --aura-surface-selected: #223e50;
+  --aura-ink: #e8f0f5;
+  --aura-ink-secondary: #b7c7d6;
+  --aura-ink-muted: #a0b4c7;
+  --aura-text-secondary: #b7c7d6;
+  --aura-rule: #2b4053;
+  --aura-control-border: #627c91;
+  --aura-action: #9cdeeb;
+  --aura-action-hover: #c2eef6;
+  --aura-action-pressed: #83c8da;
+  --aura-on-action: #08232d;
+  --aura-selection-ink: #c5eaf2;
+  --aura-focus: #9cdeeb;
+  --aura-accent-cobalt: #9cdeeb;
+  --aura-focus-ring: 0 0 0 1px #080e18;
+  --aura-disabled-surface: #172332;
+  --aura-disabled-ink: #a3b4c3;
+  --aura-success-ink: #a3dec1;
+  --aura-success-surface: #16372f;
+  --aura-warning-ink: #f0c48e;
+  --aura-warning-surface: #37291e;
+  --aura-error-ink: #f5b3b3;
+  --aura-error-surface: #38232c;
+  --aura-working-ink: #c1b3f4;
+  --aura-working-surface: #2a2542;
+  --aura-code-surface: #0b1420;
+  --aura-code-ink: #d3e7ed;
+  --aura-code-keyword: #c1b3f4;
+  --aura-code-string: #a3dec1;
+  --aura-glass-elevated: #101c2af5;
+  --aura-border-hud: #33485c;
+  --aura-shadow-floating: 0 16px 48px #0005, inset 0 1px #c5eaff0a;
+  --aura-shadow-dialog: 0 32px 100px #0009;
+}

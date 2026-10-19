@@ -9,7 +9,7 @@ import { RepositoryDetails } from "../github/RepositoryDetails.tsx";
 import { issueFor } from "../github/model.ts";
 import { IconButton } from "./ui.tsx";
 
-export function Inspector({ zone, navigate, workspace: g, useInConversation, close }: { zone: ZoneId; navigate: (zone: ZoneId) => void; workspace: GitHubWorkspace; useInConversation?: () => void; close?: () => void }) {
+export function Inspector({ zone, navigate, workspace: g, useInConversation, close, visible: shown = true }: { zone: ZoneId; navigate: (zone: ZoneId) => void; workspace: GitHubWorkspace; useInConversation?: () => void; close?: () => void; visible?: boolean }) {
   const [scope, setScope] = useState<"all" | "zone" | "pinned">("all");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +47,7 @@ export function Inspector({ zone, navigate, workspace: g, useInConversation, clo
     } catch (failure) { setError(issueFor(failure).text); }
     finally { setSaving(false); }
   }
-  return <aside className="inspector glass" aria-labelledby="inspector-heading">
+  return <aside hidden={!shown} style={shown ? undefined : {display:"none"}} className="inspector glass" aria-labelledby="inspector-heading">
     <header className="inspector-summary">
       <div className="rail-heading"><span className="eyebrow">{zone === "studio" ? "WORKSPACE" : station.label}</span><span className="rail-symbol"><ZoneIcon zone={zone} size={22} /></span></div>
       <div className="section-heading"><h2 id="inspector-heading">Workstation inspector</h2>{close && <IconButton name="close" label="Close project inspector" onClick={close} />}</div><p className="muted compact">Your projects, close at hand.</p>

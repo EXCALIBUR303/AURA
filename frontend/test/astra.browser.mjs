@@ -227,7 +227,13 @@ try {
         const room = await page.locator('.viewport').boundingBox();
         assert.ok(dock.x >= room.x && dock.x + dock.width <= room.x + room.width + 1);
         assert.ok(dock.y >= room.y && dock.y + dock.height <= room.y + room.height);
-        assert.ok(Math.abs(dock.x + dock.width / 2 - room.x - room.width / 2) <= 1);
+        if (inspector) {
+          const panel = await page.locator('.inspector').boundingBox();
+          assert.ok(panel && (dock.x + dock.width <= panel.x || dock.x >= panel.x + panel.width), 'side dock must not overlap the project inspector');
+          assert.ok(dock.x < room.x + room.width / 2, 'dock moves to the left of centre when the inspector opens');
+        } else {
+          assert.ok(dock.x + dock.width > room.x + room.width / 2, 'compact dock stays at the right of the room when no inspector is open');
+        }
         await page.getByLabel('Message Astra', { exact: true }).click();
         assert.equal(await page.getByLabel('Message Astra', { exact: true }).inputValue(), 'Keep this layout draft');
         if (inspector) await page.getByRole('button', { name: 'Hide inspector', exact: true }).click();

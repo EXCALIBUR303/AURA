@@ -2,6 +2,7 @@
 // browser and by tests. All data is synthetic and labelled as such: owners are
 // "mock-user", URLs use the reserved .invalid TLD. Never put real data here.
 
+import { WORLD_PREFERENCES_VERSION, WORLD_ROOM_ID_PATTERN } from "../contracts/domain.ts";
 import { BRIDGE_PROTOCOL_VERSION } from "../contracts/envelope.ts";
 import type { BridgeEventMessage, BridgeRequest, BridgeResponse } from "../contracts/envelope.ts";
 import type { BridgeError } from "../contracts/errors.ts";
@@ -24,6 +25,7 @@ import type {
   GitHubAuthStatus,
   GitHubInstallation,
   Preferences,
+  PreferencesPatch,
   ProjectRecord,
   ProjectZoneSuggestion,
   RepositorySummary,
@@ -33,6 +35,7 @@ import type {
   VoiceIssueCode,
   VoiceListenMode,
   VoiceStatus,
+  WorldPreferences,
 } from "../contracts/domain.ts";
 import type { BridgeTransport } from "./transport.ts";
 
@@ -42,7 +45,36 @@ export const DEFAULT_PREFERENCES: Preferences = {
   voice: { enabled: true, locale: "en-US", synthesisVoiceId: null, autoSpeakReplies: false, speechRate: 0.85, allowServerRecognition: false },
   ai: { defaultProviderId: null, contextSharing: true, privateRepositoryContext: "never" },
   graphics: { quality: "high", maxPixelRatio: 2 },
+  world: { schemaVersion: WORLD_PREFERENCES_VERSION, presentation: "static", floatIntensity: 0.35, lightingPreset: "daylight", cameraMode: "inspect", lastRoomId: "project-hub" },
 };
+
+const WORLD_ENUMS = {
+  presentation: ["static", "floating", "hybrid"],
+  lightingPreset: ["daylight", "sunset", "night"],
+  cameraMode: ["inspect", "explore"],
+} as const;
+
+/** Same rules as PreferencesPatch.World in BridgeDomain.swift: reject bad values, clamp intensity. */
+function mergeWorld(current: WorldPreferences, patch: PreferencesPatch["world"]): WorldPreferences {
+  if (patch === undefined) return current;
+  const invalid = (message: string) => new MockFailure({ code: "invalid_request", message, retryable: false });
+  if (current.schemaVersion !== WORLD_PREFERENCES_VERSION) throw invalid("world preferences were saved by a newer AURA");
+  for (const key of ["presentation", "lightingPreset", "cameraMode"] as const) {
+    const value = patch[key];
+    if (value !== undefined && !(WORLD_ENUMS[key] as readonly string[]).includes(value)) throw invalid(`invalid world.${key}`);
+  }
+  const intensity = patch.floatIntensity;
+  if (intensity !== undefined && (typeof intensity !== "number" || !Number.isFinite(intensity))) throw invalid("invalid world.floatIntensity");
+  if (patch.lastRoomId !== undefined && (typeof patch.lastRoomId !== "string" || !WORLD_ROOM_ID_PATTERN.test(patch.lastRoomId))) throw invalid("invalid world.lastRoomId");
+  return {
+    ...current,
+    ...(patch.presentation !== undefined ? { presentation: patch.presentation } : {}),
+    ...(intensity !== undefined ? { floatIntensity: Math.min(1, Math.max(0, intensity)) } : {}),
+    ...(patch.lightingPreset !== undefined ? { lightingPreset: patch.lightingPreset } : {}),
+    ...(patch.cameraMode !== undefined ? { cameraMode: patch.cameraMode } : {}),
+    ...(patch.lastRoomId !== undefined ? { lastRoomId: patch.lastRoomId } : {}),
+  };
+}
 
 const MOCK_REPO_SEEDS: [name: string, description: string, language: string, topics: string[], zone: ProjectZoneSuggestion["zone"]][] = [
   ["sample-firmware", "Mock repository for the Hardware Lab", "C", ["firmware", "embedded"], "hardware"],
@@ -531,6 +563,7 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
 
     "prefs.get": () => prefs,
     "prefs.update": (patch) => {
+      const world = mergeWorld(prefs.world, patch.world);
       prefs = {
         ...prefs,
         ...(patch.lastZone !== undefined ? { lastZone: patch.lastZone } : {}),
@@ -538,6 +571,7 @@ export function createMockTransport(options: MockTransportOptions = {}): MockTra
         voice: { ...prefs.voice, ...patch.voice },
         ai: { ...prefs.ai, ...patch.ai },
         graphics: { ...prefs.graphics, ...patch.graphics },
+        world,
       };
       emit("prefs.changed", prefs);
       return prefs;

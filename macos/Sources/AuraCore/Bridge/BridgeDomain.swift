@@ -78,11 +78,61 @@ public struct Preferences: Codable, Equatable, Sendable {
         public var maxPixelRatio: Double
     }
 
+    /// Phase 4 world preferences (P4-N1). See `Preferences.World`.
+    public struct World: Codable, Equatable, Sendable {
+        public enum Presentation: String, Codable, CaseIterable, Sendable { case `static`, floating, hybrid }
+        public enum LightingPreset: String, Codable, CaseIterable, Sendable { case daylight, sunset, night }
+        /// Persisted modes only; the frontend's transient "cinematic" travel mode is never stored.
+        public enum CameraMode: String, Codable, CaseIterable, Sendable { case inspect, explore }
+
+        /// Must equal WORLD_PREFERENCES_VERSION in shared/contracts/domain.ts.
+        public static let supportedVersion = 1
+        public static let defaultFloatIntensity = 0.35
+        public static let defaultLastRoomId = "project-hub"
+
+        /// `supportedVersion`, or the larger version a newer AURA stored (then the other fields are defaults).
+        public var schemaVersion: Int
+        public var presentation: Presentation
+        /// 0–1.
+        public var floatIntensity: Double
+        public var lightingPreset: LightingPreset
+        public var cameraMode: CameraMode
+        /// Frontend room registry id (format-checked only, never a ZoneID).
+        public var lastRoomId: String
+
+        public init(schemaVersion: Int = World.supportedVersion, presentation: Presentation = .static, floatIntensity: Double = World.defaultFloatIntensity,
+                    lightingPreset: LightingPreset = .daylight, cameraMode: CameraMode = .inspect, lastRoomId: String = World.defaultLastRoomId) {
+            self.schemaVersion = schemaVersion
+            self.presentation = presentation
+            self.floatIntensity = floatIntensity
+            self.lightingPreset = lightingPreset
+            self.cameraMode = cameraMode
+            self.lastRoomId = lastRoomId
+        }
+
+        public static let defaults = World()
+
+        /// False when a newer AURA wrote the stored world values; they are then kept and not patched.
+        public var isSupported: Bool { schemaVersion == Self.supportedVersion }
+
+        /// `^[a-z][a-z0-9-]{0,47}$`, matching WORLD_ROOM_ID_PATTERN.
+        public static func isValidRoomId(_ id: String) -> Bool {
+            let scalars = Array(id.unicodeScalars)
+            guard let first = scalars.first, scalars.count <= 48, ("a"..."z").contains(first) else { return false }
+            return scalars.dropFirst().allSatisfy { ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "-" }
+        }
+
+        static func clampedIntensity(_ value: Double) -> Double {
+            value.isFinite ? min(max(value, 0), 1) : defaultFloatIntensity
+        }
+    }
+
     public var lastZone: ZoneID
     public var reduceMotion: Bool
     public var voice: Voice
     public var ai: AI
     public var graphics: Graphics
+    public var world: World = .defaults
 
     /// Must equal DEFAULT_PREFERENCES in shared/bridge/mock.ts.
     public static let defaults = Preferences(
@@ -121,6 +171,41 @@ extension Preferences.Voice {
 
     static func clampedRate(_ rate: Double) -> Double {
         rate.isFinite ? min(max(rate, speechRateRange.lowerBound), speechRateRange.upperBound) : defaultSpeechRate
+    }
+}
+
+extension Preferences {
+    /// Rows stored before Phase 4 have no `world`; they get the defaults (static presentation).
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        lastZone = try c.decode(ZoneID.self, forKey: .lastZone)
+        reduceMotion = try c.decode(Bool.self, forKey: .reduceMotion)
+        voice = try c.decode(Voice.self, forKey: .voice)
+        ai = try c.decode(AI.self, forKey: .ai)
+        graphics = try c.decode(Graphics.self, forKey: .graphics)
+        world = try c.decodeIfPresent(World.self, forKey: .world) ?? .defaults
+    }
+}
+
+extension Preferences.World {
+    enum Keys: String, CodingKey { case schemaVersion, presentation, floatIntensity, lightingPreset, cameraMode, lastRoomId }
+
+    /// Lenient on purpose: a damaged or unknown world value falls back to its default field by
+    /// field, so it can never make the whole preferences row unreadable (and so reset voice/AI).
+    /// A newer schema keeps only its version number here; AppStore keeps the stored values.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        let version = (try? c.decodeIfPresent(Int.self, forKey: .schemaVersion)) ?? nil
+        self.init()
+        if let version, version > Self.supportedVersion {
+            schemaVersion = version
+            return
+        }
+        if let value = (try? c.decodeIfPresent(Presentation.self, forKey: .presentation)) ?? nil { presentation = value }
+        if let value = (try? c.decodeIfPresent(Double.self, forKey: .floatIntensity)) ?? nil { floatIntensity = Self.clampedIntensity(value) }
+        if let value = (try? c.decodeIfPresent(LightingPreset.self, forKey: .lightingPreset)) ?? nil { lightingPreset = value }
+        if let value = (try? c.decodeIfPresent(CameraMode.self, forKey: .cameraMode)) ?? nil { cameraMode = value }
+        if let value = (try? c.decodeIfPresent(String.self, forKey: .lastRoomId)) ?? nil, Self.isValidRoomId(value) { lastRoomId = value }
     }
 }
 
@@ -164,18 +249,46 @@ public struct PreferencesPatch: Codable, Equatable, Sendable {
         public var maxPixelRatio: Double?
     }
 
+    /// Invalid enums or room ids fail decoding, so the router rejects the whole patch (invalid_request).
+    public struct World: Codable, Equatable, Sendable {
+        public var presentation: Preferences.World.Presentation?
+        public var floatIntensity: Double?
+        public var lightingPreset: Preferences.World.LightingPreset?
+        public var cameraMode: Preferences.World.CameraMode?
+        public var lastRoomId: String?
+
+        public init(presentation: Preferences.World.Presentation? = nil, floatIntensity: Double? = nil, lightingPreset: Preferences.World.LightingPreset? = nil,
+                    cameraMode: Preferences.World.CameraMode? = nil, lastRoomId: String? = nil) {
+            self.presentation = presentation
+            self.floatIntensity = floatIntensity
+            self.lightingPreset = lightingPreset
+            self.cameraMode = cameraMode
+            self.lastRoomId = lastRoomId
+        }
+    }
+
     public var lastZone: ZoneID?
     public var reduceMotion: Bool?
     public var voice: Voice?
     public var ai: AI?
     public var graphics: Graphics?
+    public var world: World?
 
-    public init(lastZone: ZoneID? = nil, reduceMotion: Bool? = nil, voice: Voice? = nil, ai: AI? = nil, graphics: Graphics? = nil) {
+    public init(lastZone: ZoneID? = nil, reduceMotion: Bool? = nil, voice: Voice? = nil, ai: AI? = nil, graphics: Graphics? = nil, world: World? = nil) {
         self.lastZone = lastZone
         self.reduceMotion = reduceMotion
         self.voice = voice
         self.ai = ai
         self.graphics = graphics
+        self.world = world
+    }
+
+    /// Like `applied(to:)`, but refuses a world patch when a newer AURA owns the stored world values.
+    public func validatedApplied(to base: Preferences) throws -> Preferences {
+        if world != nil, !base.world.isSupported {
+            throw AuraError.invalidRequest("world preferences were saved by a newer AURA; they were not changed")
+        }
+        return applied(to: base)
     }
 
     public func applied(to base: Preferences) -> Preferences {
@@ -199,6 +312,13 @@ public struct PreferencesPatch: Codable, Equatable, Sendable {
             if let quality = graphics.quality { next.graphics.quality = quality }
             if let ratio = graphics.maxPixelRatio { next.graphics.maxPixelRatio = ratio }
         }
+        if let world, base.world.isSupported {
+            if let value = world.presentation { next.world.presentation = value }
+            if let value = world.floatIntensity { next.world.floatIntensity = Preferences.World.clampedIntensity(value) }
+            if let value = world.lightingPreset { next.world.lightingPreset = value }
+            if let value = world.cameraMode { next.world.cameraMode = value }
+            if let value = world.lastRoomId { next.world.lastRoomId = value }
+        }
         return next
     }
 }
@@ -214,6 +334,21 @@ extension PreferencesPatch.Voice {
         autoSpeakReplies = try c.decodeIfPresent(Bool.self, forKey: .autoSpeakReplies)
         speechRate = try c.decodeIfPresent(Double.self, forKey: .speechRate)
         allowServerRecognition = try c.decodeIfPresent(Bool.self, forKey: .allowServerRecognition)
+    }
+}
+
+extension PreferencesPatch.World {
+    enum Keys: String, CodingKey { case presentation, floatIntensity, lightingPreset, cameraMode, lastRoomId }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        presentation = try c.decodeIfPresent(Preferences.World.Presentation.self, forKey: .presentation)
+        floatIntensity = try c.decodeIfPresent(Double.self, forKey: .floatIntensity)
+        lightingPreset = try c.decodeIfPresent(Preferences.World.LightingPreset.self, forKey: .lightingPreset)
+        cameraMode = try c.decodeIfPresent(Preferences.World.CameraMode.self, forKey: .cameraMode)
+        lastRoomId = try c.decodeIfPresent(String.self, forKey: .lastRoomId)
+        if let lastRoomId, !Preferences.World.isValidRoomId(lastRoomId) {
+            throw DecodingError.dataCorruptedError(forKey: .lastRoomId, in: c, debugDescription: "lastRoomId must match ^[a-z][a-z0-9-]{0,47}$")
+        }
     }
 }
 

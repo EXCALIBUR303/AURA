@@ -1,10 +1,12 @@
-import { Component, Suspense, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Component, Suspense, useEffect, useRef, useState } from "react";
 import type { ReactNode, Ref, RefObject } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import type { CompanionState, WindowState, ZoneId } from "@aura/contracts";
+import type { MotionSamples, WorldSettings } from "../world/settings.ts";
+import type { ScreenState } from "../world/assets/MonitorAtlas.tsx";
+import { assetSummary } from "../world/assets/resources.ts";
 import { World } from "./World.tsx";
 import { Astra } from "./Astra.tsx";
 import { getZone, ZONES } from "./zones.ts";
@@ -12,6 +14,12 @@ import type { FrameSample, Report } from "./diagnostics.ts";
 import { bridge, useBridgeEvent } from "../platform/bridge.ts";
 import { ArrowIcon } from "../components/Icon.tsx";
 import { ZoneIcon } from "../components/ZoneIcon.tsx";
+import { WorldScene } from "../world/WorldScene.tsx";
+import { WorldNavigation } from "../world/WorldNavigation.tsx";
+import type { WorldCameraHandle } from "../world/WorldNavigation.tsx";
+import { ASTRA_HOME } from "../world/registry.ts";
+import type { RoomId, WorldSnapshot } from "../world/types.ts";
+import type { WorldController } from "../world/WorldController.ts";
 import type { VoiceSamples } from "../companion/voice/VoiceController.ts";
 
 class SceneBoundary extends Component<{ children: ReactNode; onError: () => void }, { failed: boolean }> {
@@ -21,50 +29,9 @@ class SceneBoundary extends Component<{ children: ReactNode; onError: () => void
   override render() { return this.state.failed ? null : this.props.children; }
 }
 
-export type CameraPose = { position: [number, number, number]; target: [number, number, number] };
-export type StudioCameraHandle = { capture: () => CameraPose | undefined };
-function CameraRig({ zone, revision, reducedMotion, report, restorePose, cameraHandle }: { zone: ZoneId; revision: number; reducedMotion: boolean; report: Report; restorePose?: CameraPose | null; cameraHandle?: Ref<StudioCameraHandle> }) {
-  const controls = useRef<OrbitControlsImpl>(null);
-  const moving = useRef(true);
-  const destination = useRef(new THREE.Vector3());
-  const target = useRef(new THREE.Vector3());
-  const { camera } = useThree();
-  useImperativeHandle(cameraHandle, () => ({ capture: () => controls.current ? { position: camera.position.toArray(), target: controls.current.target.toArray() } : undefined }), [camera]);
-  useEffect(() => {
-    const pose = getZone(zone);
-    destination.current.fromArray(restorePose?.position ?? pose.camera);
-    target.current.fromArray(restorePose?.target ?? pose.target);
-    moving.current = true;
-    report({ zone, cameraSettled: false, cameraRevision: revision });
-    if (controls.current) {
-      controls.current.enabled = false;
-      controls.current.minDistance = zone === "studio" ? 7 : 2.1;
-      controls.current.maxDistance = zone === "studio" ? 22 : 9;
-      const azimuth = Math.atan2(pose.camera[0] - pose.target[0], pose.camera[2] - pose.target[2]);
-      controls.current.minAzimuthAngle = azimuth - 0.8;
-      controls.current.maxAzimuthAngle = azimuth + 0.8;
-    }
-  }, [zone, revision, report, restorePose]);
-  useFrame((_, delta) => {
-    const orbit = controls.current;
-    if (!orbit || !moving.current) return;
-    const blend = reducedMotion ? 1 : 1 - Math.exp(-6 * Math.min(delta, 0.1));
-    camera.position.lerp(destination.current, blend);
-    orbit.target.lerp(target.current, blend);
-    orbit.update();
-    if (camera.position.distanceTo(destination.current) < 0.012 && orbit.target.distanceTo(target.current) < 0.012) {
-      camera.position.copy(destination.current);
-      orbit.target.copy(target.current);
-      moving.current = false;
-      orbit.enabled = true;
-      report({ cameraSettled: true, cameraSampledAt: Date.now(), camera: { position: camera.position.toArray(), target: orbit.target.toArray(), fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : undefined } });
-    }
-  });
-  return <OrbitControls ref={controls} makeDefault enablePan={false} enableDamping={!reducedMotion}
-    minPolarAngle={0.24} maxPolarAngle={1.4} rotateSpeed={0.5} zoomSpeed={0.7} />;
-}
-
-function Measurements({ zone, throttled, report, lowerDpr }: { zone: ZoneId; throttled: boolean; report: Report; lowerDpr: () => void }) {
+export type { CameraPose } from "../world/types.ts";
+export type StudioCameraHandle = WorldCameraHandle;
+function Measurements({ zone, room, throttled, report, lowerDpr, motion, settings }: { zone: ZoneId; room: RoomId; throttled: boolean; report: Report; lowerDpr: () => void;motion:MotionSamples;settings:WorldSettings }) {
   const { gl } = useThree();
   const elapsed = useRef(0);
   const frames = useRef(0);
@@ -72,10 +39,11 @@ function Measurements({ zone, throttled, report, lowerDpr }: { zone: ZoneId; thr
   const sinceZone = useRef(0);
   const stableWindow = useRef(true);
   const samples = useRef<Partial<Record<ZoneId, FrameSample[]>>>({});
+  const roomSamples = useRef<Partial<Record<RoomId, FrameSample[]>>>({});
   const gpu = useRef<{ vendor: string; renderer: string } | null>(null);
   useEffect(() => {
     elapsed.current = 0; frames.current = 0; slow.current = 0; sinceZone.current = 0; stableWindow.current = true;
-  }, [zone, throttled]);
+  }, [zone, room, throttled]);
   useFrame(({ camera, controls }, delta) => {
     if (gl.getContext().isContextLost() || document.hidden) {
       frames.current = 0; elapsed.current = 0; sinceZone.current = 0; stableWindow.current = true; return;
@@ -92,7 +60,8 @@ function Measurements({ zone, throttled, report, lowerDpr }: { zone: ZoneId; thr
       pixelRatio: gl.getPixelRatio(), sampledAt: Date.now() };
     // A deliberately reduced background rate is neither a sample nor a reason to lower the DPR.
     if (ready && stableWindow.current && sinceZone.current > 2 && !throttled) {
-      samples.current[zone] = [...(samples.current[zone] ?? []), sample].slice(-30);
+      if (room === "project-hub") samples.current[zone] = [...(samples.current[zone] ?? []), sample].slice(-30);
+      roomSamples.current[room] = [...(roomSamples.current[room] ?? []), sample].slice(-30);
       slow.current = fps < 55 ? slow.current + 1 : 0;
       if (slow.current >= 3) { lowerDpr(); slow.current = 0; }
     }
@@ -107,7 +76,7 @@ function Measurements({ zone, throttled, report, lowerDpr }: { zone: ZoneId; thr
       };
     }
     const orbit = controls as OrbitControlsImpl | null;
-    report({ fps, drawCalls: sample.drawCalls, sceneTriangles: sample.triangles, perZone: { ...samples.current },
+    report({ settings,motion:{fanAngle:motion.fanAngle,displayLifts:{...motion.displayLifts}},assets:assetSummary(), fps, drawCalls: sample.drawCalls, sceneTriangles: sample.triangles, resources: {geometries:gl.info.memory.geometries,textures:gl.info.memory.textures,programs:gl.info.programs?.length ?? 0}, perZone: { ...samples.current }, perRoom: { ...roomSamples.current },
       cameraSampledAt: Date.now(), camera: { position: camera.position.toArray(), target: orbit?.target.toArray() ?? [0, 0, 0],
         fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : undefined },
       renderer: { webgl2: gl.capabilities.isWebGL2, pixelRatio: sample.pixelRatio,
@@ -148,7 +117,7 @@ function ProjectHotspots({ buttons, zone }: { buttons: RefObject<Map<ZoneId, HTM
     const viewport = gl.domElement.closest(".viewport");
     if (!viewport) return;
     const origin = viewport.getBoundingClientRect();
-    const occupied: ScreenRect[] = [...viewport.querySelectorAll(".command-dock, .viewport-heading, .companion-pill, .viewport-tools, .diagnostics, .scene-message"), ...document.querySelectorAll('.companion-workspace[data-layout="compact"][data-visible="true"]')].map((element) => {
+    const occupied: ScreenRect[] = [...viewport.querySelectorAll(".command-dock, .viewport-heading, .companion-pill, .viewport-tools, .diagnostics, .scene-message, .world-hud, .world-feedback, .spatial-rail, .equipment-trigger, .equipment-panel"), ...document.querySelectorAll('.companion-workspace[data-layout="compact"][data-visible="true"][data-minimized="false"], .astra-beacon:not([hidden]), .inspector:not([hidden])')].map((element) => {
       const rect = element.getBoundingClientRect();
       return { left: rect.left - origin.left - 8, right: rect.right - origin.left + 8,
         top: rect.top - origin.top - 8, bottom: rect.bottom - origin.top + 8 };
@@ -156,7 +125,7 @@ function ProjectHotspots({ buttons, zone }: { buttons: RefObject<Map<ZoneId, HTM
     // Project the human-scale companion silhouette, not just its centre point.
     const silhouette = { left: Infinity, right: -Infinity, top: Infinity, bottom: -Infinity };
     for (const x of [-0.45, 0.45]) for (const y of [0.13, 1.88]) {
-      point.current.set(x, y, 0).project(camera);
+      point.current.set(x + ASTRA_HOME[0], y, ASTRA_HOME[2]).project(camera);
       const px = (point.current.x + 1) * size.width / 2;
       const py = (1 - point.current.y) * size.height / 2;
       silhouette.left = Math.min(silhouette.left, px - 12); silhouette.right = Math.max(silhouette.right, px + 12);
@@ -216,16 +185,17 @@ function CompanionRing({ state, samples, reduced }: { state: CompanionState; sam
     material.current.color.set(color);
     if (!reduced && samples?.phase === "listening") material.current.color.multiplyScalar(1 + samples.input * 0.12);
   });
-  return <mesh position={[0, 0.132, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.17, 1.21, 64]} /><meshBasicMaterial ref={material} color={color} /></mesh>;
+  return <mesh position={[0, 0.132, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[.37, .4, 48]} /><meshBasicMaterial ref={material} color={color} /></mesh>;
 }
 
-export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart, focusCompanion, restorePose, cameraHandle, voiceSamples }: {
+export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLevel, report, navigate, restart, focusCompanion, cameraHandle, voiceSamples, world, worldController, openWorldMap, inspectEquipment, selectedEquipment, screens, roomAction, worldPaused }: {
   zone: ZoneId; revision: number; reducedMotion: boolean; maxDpr: number; state: CompanionState; speechLevel: number;
   report: Report; navigate: (zone: ZoneId) => void; restart: () => void; focusCompanion: () => void;
-  restorePose?: CameraPose | null; cameraHandle?: Ref<StudioCameraHandle>;
-  voiceSamples?: VoiceSamples;
+  cameraHandle?: Ref<StudioCameraHandle>; world: WorldSnapshot; worldController: WorldController; openWorldMap: () => void;
+  voiceSamples?: VoiceSamples; inspectEquipment:(id:string)=>void;selectedEquipment:string|null;screens:ScreenState;roomAction:(id:string)=>void;worldPaused:boolean;
 }) {
   const buttons = useRef(new Map<ZoneId, HTMLButtonElement>());
+  const motion=useRef<MotionSamples>({fanAngle:0,displayLifts:{}});
   const startedAt = useRef(performance.now());
   const [adaptiveDpr, setAdaptiveDpr] = useState(maxDpr);
   const [active, setActive] = useState(!document.hidden);
@@ -245,34 +215,33 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
     return () => document.removeEventListener("visibilitychange", update);
   }, []);
   const dpr = Math.max(1, Math.min(maxDpr, adaptiveDpr));
-  const rendering = active && hostWindow.visible;
+  const rendering = active && hostWindow.visible && !worldPaused;
   const throttled = rendering && !hostWindow.active;
+  const showHotspots = world.room === "project-hub" && world.mode === "inspect" && world.phase === "idle";
   return <>
-    <SceneBoundary onError={() => report({ context: "ready", status: "error", error: "The renderer could not start. Check WebGL2 support and retry the scene." })}>
-      <Canvas className="scene-canvas" shadows="percentage" camera={{ position: getZone("studio").camera, fov: 39, near: 0.05, far: 250 }} dpr={[1, dpr]}
+    <SceneBoundary onError={() => report({ context: "ready", graphicsAvailable: false, status: "error", error: "The renderer could not start. Check WebGL2 support and retry the scene." })}>
+      <Canvas className="scene-canvas" shadows="percentage" camera={{ position: getZone("studio").camera, fov: 50, near: 0.05, far: 80 }} dpr={[1, dpr]}
         frameloop={!rendering ? "never" : throttled ? "demand" : "always"}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         fallback={<p>WebGL2 is unavailable. Your workstation and companion controls remain accessible.</p>}
-        onCreated={() => report({ context: "ready" })}>
-        <color attach="background" args={["#eef0ed"]} />
-        <fog attach="fog" args={["#eef0ed", 24, 52]} />
-        <hemisphereLight args={["#fffdf5", "#bac9cf", 1.8]} />
-        <directionalLight position={[-3, 8, 6]} color="#fff4e5" intensity={2.6} castShadow shadow-mapSize={[1024, 1024]}
-          shadow-camera-left={-8} shadow-camera-right={8} shadow-camera-top={6} shadow-camera-bottom={-6} shadow-bias={-0.001} />
-        <directionalLight position={[5, 5, -3]} intensity={1.1} color="#d7e5ef" />
-        <World zone={zone} navigate={navigate} focusCompanion={focusCompanion} />
+        onCreated={({ gl }) => { gl.domElement.tabIndex = 0; gl.domElement.setAttribute("aria-label", "AURA 3D world"); gl.outputColorSpace = THREE.SRGBColorSpace; gl.toneMapping = THREE.ACESFilmicToneMapping; report({ context: "ready", graphicsAvailable: true, error: undefined, status: "loading" }); }}>
+        <WorldScene motion={motion.current} act={roomAction} active={rendering && hostWindow.active && world.phase === "idle"} reduced={reducedMotion} snapshot={world} travel={worldController.travel} openMap={openWorldMap}>
+          <World zone={zone} navigate={navigate} focusCompanion={focusCompanion} inspect={inspectEquipment} selected={selectedEquipment} reduced={reducedMotion} active={rendering && hostWindow.active && world.phase === "idle"} screens={screens} settings={world.settings} motion={motion.current}/>
+        </WorldScene>
+        <group position={[ASTRA_HOME[0],0,ASTRA_HOME[2]]} visible={world.loaded.includes("project-hub")}>
         <CompanionRing state={state} samples={voiceSamples} reduced={reducedMotion} />
         <SceneBoundary onError={() => report({ status: "error", error: "Astra could not load. Check the model file and retry the scene." })}>
-          <Suspense fallback={null}><Astra startedAt={startedAt.current} state={state} speechLevel={speechLevel} voiceSamples={voiceSamples} reducedMotion={reducedMotion} report={report} /></Suspense>
+          <Suspense fallback={null}><Astra startedAt={startedAt.current} state={state} speechLevel={speechLevel} voiceSamples={voiceSamples} reducedMotion={reducedMotion} report={report} active={world.loaded.includes("project-hub")} /></Suspense>
         </SceneBoundary>
-        <CameraRig zone={zone} revision={revision} reducedMotion={reducedMotion} report={report} restorePose={restorePose} cameraHandle={cameraHandle} />
+        </group>
+        <WorldNavigation controller={worldController} snapshot={world} reducedMotion={reducedMotion} active={rendering && hostWindow.active} report={report} revision={revision} cameraHandle={cameraHandle}/>
         <BackgroundFrames enabled={throttled} />
-        <Measurements zone={zone} throttled={throttled} report={report} lowerDpr={() => setAdaptiveDpr((value) => Math.max(1, value - 0.25))} />
+        <Measurements motion={motion.current} settings={world.settings} zone={zone} room={world.room} throttled={throttled} report={report} lowerDpr={() => setAdaptiveDpr((value) => Math.max(1, value - 0.25))} />
         <ContextEvents report={report} restored={restart} />
-        <ProjectHotspots buttons={buttons} zone={zone} />
+        {showHotspots && <ProjectHotspots buttons={buttons} zone={zone} />}
       </Canvas>
     </SceneBoundary>
-    <nav className="hotspots" aria-label="Spatial zone navigation">
+    <nav hidden={!showHotspots} className="hotspots" aria-label="Spatial zone navigation">
       {ZONES.map((item) => <button key={item.id} ref={(node) => { if (node) buttons.current.set(item.id, node); else buttons.current.delete(item.id); }}
         className={`hotspot ${zone === item.id ? "selected" : ""}`} style={{ visibility: "hidden", borderLeftColor: item.accent }}
         onClick={() => navigate(item.id)} aria-label={`Travel to ${item.label}`} aria-pressed={zone === item.id}>

@@ -8,6 +8,8 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 CONFIGURATION=${1:-Release}
 DERIVED="$ROOT/macos/.build/xcode"
 
+# A Release bundle must not ship without (or with altered) Astra/world GLBs; Debug only warns.
+if [ "$CONFIGURATION" = "Release" ]; then "$ROOT/tools/check-assets.sh"; else "$ROOT/tools/check-assets.sh" --warn; fi
 npm --prefix "$ROOT/frontend" run build
 xcodebuild -quiet -project "$ROOT/macos/AURA.xcodeproj" -scheme AURA \
   -configuration "$CONFIGURATION" -destination "generic/platform=macOS" -derivedDataPath "$DERIVED" build

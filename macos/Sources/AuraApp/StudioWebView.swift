@@ -164,6 +164,12 @@ struct StudioWebView: NSViewRepresentable {
                 Task { await AIProbe.run(webView: webView) }
                 return
             }
+            if WorldProbe.isEnabled, !probeStarted {
+                probeStarted = true
+                let model = model
+                Task { await WorldProbe.run(webView: webView, model: model) }
+                return
+            }
             guard DevProbe.isEnabled, !probeStarted else { return }
             probeStarted = true
             let model = model

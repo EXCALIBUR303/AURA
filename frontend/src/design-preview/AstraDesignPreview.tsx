@@ -1,7 +1,9 @@
+import { EMPTY_SCREEN_STATE } from "../world/assets/MonitorAtlas.tsx";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { AIProviderInfo, RepositorySummary, RepositoryTree, ZoneId } from "@aura/contracts";
 import { bridge } from "../platform/bridge.ts";
+import { useWorld } from "../world/useWorld.ts";
 import { Studio } from "../studio/Studio.tsx";
 import { getZone, ZONES } from "../studio/zones.ts";
 import type { StudioDiagnostics } from "../studio/diagnostics.ts";
@@ -55,13 +57,15 @@ const DesignScene = memo(function DesignScene({ zone, revision, reducedMotion, m
   zone: ZoneId; revision: number; reducedMotion: boolean; maxDpr: number; navigate: (zone: ZoneId) => void; focus: () => void;
 }) {
   const [key, setKey] = useState(0);
+  const {controller,snapshot}=useWorld();
+  useEffect(()=>controller.focusWorkspace(zone),[controller,zone,revision]);
   const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
   const report = useCallback((patch: Partial<StudioDiagnostics>) => {
     window.__AURA_DIAGNOSTICS__ = { ...EMPTY_DIAGNOSTICS, zone: "studio", cameraSettled: false, context: "ready", perZone: {}, ...window.__AURA_DIAGNOSTICS__, ...patch };
     if (patch.status) setStatus(patch.status);
   }, []);
   const restart = useCallback(() => { setKey((value) => value + 1); setStatus("loading"); }, []);
-  return <><Studio key={key} zone={zone} revision={revision} reducedMotion={reducedMotion} maxDpr={maxDpr} state="idle" speechLevel={0} report={report} navigate={navigate} restart={restart} focusCompanion={focus} />
+  return <><Studio key={key} zone={zone} revision={revision} reducedMotion={reducedMotion} maxDpr={maxDpr} state="idle" speechLevel={0} report={report} navigate={navigate} restart={restart} focusCompanion={focus} world={snapshot} worldController={controller} roomAction={()=>{}} worldPaused={false} inspectEquipment={()=>{}} selectedEquipment={null} screens={EMPTY_SCREEN_STATE} openWorldMap={focus} />
     {status === "loading" && <div className="d-scene-status" role="status">Loading Astra Lumen II…</div>}
     {status === "error" && <div className="d-scene-status" role="alert">The studio could not load. <button onClick={restart}>Retry scene</button></div>}
   </>;

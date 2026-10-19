@@ -17,8 +17,19 @@
     "audit:performance": "node test/performance.browser.mjs",
     "test:github": "node test/github.browser.mjs",
     "test:astra": "node test/astra.browser.mjs",
+    "test:spatial": "node test/spatial.browser.mjs",
+    "test:world": "node test/world.test.ts && node test/world-preferences.test.ts && node test/cinematic.test.ts",
+    "test:navigation:browser": "node test/navigation.browser.mjs",
+    "test:world:browser": "node test/world.browser.mjs",
     "test:voice": "node test/voice-controller.test.ts",
-    "test:voice:browser": "node test/voice.browser.mjs"
+    "test:voice:browser": "node test/voice.browser.mjs",
+    "assets:workstation": "blender -b --factory-startup --disable-autoexec --python asset-pipeline/workstation.py -- --output public/world/workstation.glb",
+    "test:equipment:browser": "node test/equipment.browser.mjs",
+    "assets:rooms": "blender -b --factory-startup --disable-autoexec --python asset-pipeline/rooms.py -- --output public/world/room-kit.glb",
+    "test:games": "node test/games.test.ts",
+    "test:rooms:browser": "node test/rooms.browser.mjs",
+    "test:customization:browser": "node test/customization.browser.mjs",
+    "test:polish:browser": "node test/polish.browser.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

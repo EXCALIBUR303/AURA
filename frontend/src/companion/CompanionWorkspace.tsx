@@ -18,14 +18,15 @@ const ProviderSettings = lazy(() => import("./ProviderSettings.tsx").then((modul
 const VoiceSettings = lazy(() => import("./voice/VoiceSettings.tsx").then((module) => ({ default: module.VoiceSettings })));
 
 export type ConversationLayout = "compact" | "expanded" | "focus";
-export type CompanionPresentation = { state: CompanionState; activity: AITurnState; label: string };
-export type CompanionHandle = { focus: () => void; context: (selected?: boolean) => void; providers: () => void; newConversation: () => void };
+export type CompanionPresentation = { state: CompanionState; activity: AITurnState; label: string; provider?:string; model?:string };
+export type CompanionHandle = { focus: () => void; context: (selected?: boolean) => void; providers: () => void; newConversation: () => void; releaseForGame:()=>Promise<boolean> };
 const labels: Record<AITurnState, string> = { idle: "Ready", completed: "Reply complete", cancelled: "Reply stopped", preparing_context: "Preparing context", requesting: "Thinking", streaming: "Responding", waiting_for_tool: "Reading project context", waiting_for_approval: "Your approval is needed", error: "Reply unavailable" };
 
-export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayout, report, visible, resized, resize, voiceSamples, reducedMotion }: {
+export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayout, report, visible, resized, resize, voiceSamples, reducedMotion, externalBlocked = false, minimized = false, minimize, restore, edge, changeEdge }: {
+  minimized?: boolean; minimize: () => void; restore: () => void; edge: "left" | "right"; changeEdge: () => void;
   ref?: Ref<CompanionHandle>; zone: ZoneId; workspace: GitHubWorkspace; layout: ConversationLayout; changeLayout: (layout: ConversationLayout) => void;
   report: (presentation: CompanionPresentation) => void; visible: boolean; resized: number; resize: (width: number | null) => void;
-  voiceSamples: VoiceSamples; reducedMotion: boolean;
+  voiceSamples: VoiceSamples; reducedMotion: boolean; externalBlocked?: boolean;
 }) {
   const c = useConversation(zone);
   const [draft, setDraft] = useState("");
@@ -35,6 +36,10 @@ export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayo
   const [preferSelected, setPreferSelected] = useState(false);
   const [copyNotice, setCopyNotice] = useState("");
   const [unseen, setUnseen] = useState(false);
+  const [unread, setUnread] = useState(false);
+  const beacon = useRef<HTMLButtonElement>(null);
+  const restoreConsole = () => { if (!visible) changeLayout("expanded"); restore(); setUnread(false); requestAnimationFrame(() => prompt.current?.focus({ preventScroll: true })); };
+  const minimizeConsole = () => { minimize(); requestAnimationFrame(() => beacon.current?.focus({ preventScroll: true })); };
   const [turnLimit, setTurnLimit] = useState(8);
   const prepend = useRef<{ height: number; top: number } | null>(null);
   const prompt = useRef<HTMLTextAreaElement>(null), scroll = useRef<HTMLDivElement>(null), follow = useRef(true), savedScroll = useRef(0);
@@ -42,39 +47,43 @@ export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayo
   const conversation = c.conversation;
   const state = c.state;
   const conversationDisabled = c.loading || c.working || c.active || c.invalidProvider || !provider?.available;
-  const voice = useVoice({ conversationId: conversation?.conversationId ?? null, visible, enabled: c.prefs?.voice.enabled ?? false, canTalk: !conversationDisabled && !dialog && !c.view?.approval,
+  const voice = useVoice({ conversationId: conversation?.conversationId ?? null, visible, enabled: c.prefs?.voice.enabled ?? false, canTalk: !conversationDisabled && !dialog && !c.view?.approval && !externalBlocked,
     prepare: c.ensureConversation, final: onFinalTranscript, cleared: () => { if (voiceDraft.current) { setDraft(""); voiceDraft.current = null; } }, expand: () => { if (layout === "compact") changeLayout("expanded"); },
-  }, voiceSamples, !!dialog || !!c.view?.approval);
+  }, voiceSamples, !!dialog || !!c.view?.approval || externalBlocked);
   const voiceCapture = voice.view.busy || !!voice.view.status?.listening || voice.view.status?.phase === "recognizing";
   const phase = voice.view.status?.phase;
   const voiceActive = phase && ["starting", "listening", "recognizing", "thinking", "speaking", "interrupted", "error"].includes(phase);
   const speakState: CompanionState = state === "waiting_for_approval" ? "thinking" : phase === "error" ? "error" : phase === "starting" || phase === "listening" ? "listening" : phase === "recognizing" || phase === "thinking" ? "thinking" : phase === "speaking" ? "speaking" : phase === "interrupted" ? "idle" : state === "error" ? "error" : c.active ? "thinking" : "idle";
   const presentationLabel = state === "waiting_for_approval" ? labels[state] : voiceActive ? voiceLabel(voice.view) : labels[state];
-  useEffect(() => { report({ state: speakState, activity: state, label: presentationLabel }); }, [report, speakState, state, presentationLabel]);
+  useEffect(() => { report({ state: speakState, activity: state, label: presentationLabel, provider:conversation?.providerName??provider?.displayName, model:c.model }); }, [report, speakState, state, presentationLabel, conversation?.providerName, provider?.displayName, c.model]);
   async function newConversation(provider?: string, model?: string) { await voice.controller.end(); await c.newConversation(provider, model); }
   useImperativeHandle(ref, () => ({
+    releaseForGame: async()=>{await voice.controller.end();try{const status=await bridge.call("voice.getStatus",{});return !status.listening&&!status.speaking&&!["starting","recognizing"].includes(status.phase);}catch{return false;}},
     focus: () => { changeLayout("expanded"); requestAnimationFrame(() => prompt.current?.focus({ preventScroll: true })); },
     context: (selected = false) => { setPreferSelected(selected); setDialog("context"); }, providers: () => setDialog("providers"),
     newConversation: () => { changeLayout("expanded"); void newConversation(); },
   }));
   const activeText = c.turns.at(-1)?.replyText;
+  const observedReply = useRef(activeText);
+  useEffect(() => { if (minimized && activeText && activeText !== observedReply.current) setUnread(true); observedReply.current = activeText; }, [activeText, minimized]);
+  useEffect(() => { if (!minimized) setUnread(false); }, [minimized]);
   useLayoutEffect(() => {
-    if (!scroll.current || layout === "compact" || !visible) return;
+    if (minimized || !scroll.current || layout === "compact" || !visible) return;
     // The welcome view starts at its heading; only message history follows a tail.
     if (!c.turns.length) { scroll.current.scrollTop = 0; follow.current = true; setUnseen(false); return; }
     if (follow.current) { scroll.current.scrollTop = scroll.current.scrollHeight; setUnseen(false); }
     else setUnseen(true);
-  }, [activeText, c.turns.length, c.loading, layout, visible]);
+  }, [activeText, c.turns.length, c.loading, layout, visible, minimized]);
   useLayoutEffect(() => {
-    if (scroll.current && layout !== "compact" && !follow.current) scroll.current.scrollTop = savedScroll.current;
-  }, [layout]);
+    if (!minimized && scroll.current && layout !== "compact" && !follow.current) scroll.current.scrollTop = savedScroll.current;
+  }, [layout, minimized]);
   useEffect(() => {
-    if (layout === "compact" || !visible) return;
+    if (minimized || layout === "compact" || !visible) return;
     const content = scroll.current?.querySelector(".reading-measure");
     if (!content) return;
     const observer = new ResizeObserver(() => { if (follow.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; });
     observer.observe(content); return () => observer.disconnect();
-  }, [layout, visible, c.turns.length]);
+  }, [layout, visible, c.turns.length, minimized]);
   useEffect(() => { follow.current = true; savedScroll.current = 0; setUnseen(false); setTurnLimit(8); }, [conversation?.conversationId]);
   useLayoutEffect(() => { if (prepend.current && scroll.current) { scroll.current.scrollTop = prepend.current.top + scroll.current.scrollHeight - prepend.current.height; savedScroll.current = scroll.current.scrollTop; prepend.current = null; } }, [turnLimit]);
   async function send(text = draft, spoken = voiceDraft.current) {
@@ -92,7 +101,7 @@ export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayo
     }
   }
   function onFinalTranscript(final: FinalTranscript) {
-    if (draft.trim() || conversationDisabled || dialog || c.view?.approval) return; // Retain the final separately; never overwrite a typed draft.
+    if (draft.trim() || conversationDisabled || dialog || c.view?.approval || externalBlocked) return; // Retain the final separately; never overwrite a typed draft.
     if (editSpeech) { voiceDraft.current = final; setDraft(final.text); voice.controller.dismissFinal(); requestAnimationFrame(() => prompt.current?.focus({ preventScroll: true })); }
     else void send(final.text, final);
   }
@@ -104,12 +113,18 @@ export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayo
   async function copy(text: string) { try { await navigator.clipboard.writeText(text); setCopyNotice("Reply copied."); } catch { setCopyNotice("Copy is unavailable. Select the reply text to copy it."); } }
   const contextCount = (c.context.files?.length ?? 0) + Object.values(c.context.include ?? {}).filter(Boolean).length + (c.context.zone ? 1 : 0);
   const disabled = conversationDisabled || voiceCapture;
-  return <section className="companion-workspace" aria-label="Astra conversation" data-layout={layout} data-visible={visible} data-state={state}>
+  return <section className="companion-workspace" aria-label="Astra conversation" data-layout={layout} data-visible={visible} data-state={state} data-minimized={minimized} data-edge={edge}>
+    <button ref={beacon} className="astra-beacon" hidden={!minimized} onClick={restoreConsole} aria-label="Restore Astra conversation" aria-expanded={!minimized} aria-controls="astra-console-content" aria-describedby="astra-beacon-status">
+      <span className="beacon-symbol"><ZoneIcon zone="companion" size={26} /></span><span><strong>ASTRA LUMEN II</strong><small id="astra-beacon-status" aria-live="polite">{c.issue ? "Needs attention · Open conversation" : c.active ? labels[state] : c.working ? "Preparing conversation…" : unread ? "New response · Open conversation" : draft ? "Draft preserved · Continue writing" : "Your companion, within reach"}</small></span><span className="beacon-action" aria-hidden="true">{unread ? "●" : <UiIcon name="arrow" />}</span>
+    </button>
+    <div className="astra-console-content" id="astra-console-content" hidden={minimized}>
     {layout === "expanded" && <div className="conversation-splitter" role="separator" aria-label="Conversation width" aria-orientation="vertical" aria-valuemin={440} aria-valuemax={Math.min(650, innerWidth - 600)} aria-valuenow={resized} tabIndex={0} onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)} onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) resize(innerWidth - event.clientX); }} onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)} onKeyDown={(event) => {
       if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) { event.preventDefault(); resize(event.key === "Home" ? 440 : event.key === "End" ? 650 : resized + (event.key === "ArrowLeft" ? 16 : -16)); }
     }} />}
     <header className="conversation-heading"><span className="astra-mark"><ZoneIcon zone="companion" size={22} /></span><div><h2>{layout === "compact" ? "Work with Astra" : "Astra"}</h2><small>{conversation?.providerName ?? provider?.displayName ?? "No provider configured"} · This session</small></div><div className="conversation-actions">
       {layout !== "compact" && <><IconButton name="history" label="Conversation history this session" onClick={() => { void c.list(); setDialog("history"); }} /><IconButton name="plus" label="New conversation" disabled={c.active || c.working} onClick={() => void newConversation()} /></>}
+      {layout === "compact" && <IconButton name="back" label={`Dock conversation on the ${edge === "right" ? "left" : "right"}`} onClick={changeEdge} />}
+      <button className="ui-icon-button minimize-conversation" aria-label="Minimize conversation" title="Minimize conversation" onClick={minimizeConsole}><span aria-hidden="true">−</span></button>
       <IconButton name={layout === "focus" ? "collapse" : "expand"} label={layout === "compact" ? "Expand conversation" : layout === "focus" ? "Leave focus mode" : "Enter focus mode"} onClick={() => changeLayout(layout === "focus" ? "expanded" : layout === "compact" ? "expanded" : "focus")} />
       {layout !== "compact" && <IconButton name="close" label="Collapse conversation" onClick={() => changeLayout("compact")} />}
     </div></header>
@@ -118,10 +133,10 @@ export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayo
       {conversation && <p className="conversation-session-note">Provider and model are fixed per conversation. Choosing another starts a new one.</p>}
       {bridge.transportKind === "mock" && <p className="conversation-mock-note">Browser mock · simulated AI, tools and voice · no microphone capture</p>}
     </div>
-    <div className="conversation-transcript" ref={scroll} tabIndex={0} aria-label="Conversation messages" onScroll={() => { const node = scroll.current; if (node) { savedScroll.current = node.scrollTop; follow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 48; if (follow.current) setUnseen(false); } }}>
+    <div className="conversation-transcript" ref={scroll} tabIndex={0} aria-label="Conversation messages" onScroll={() => { if (minimized) return; const node = scroll.current; if (node) { savedScroll.current = node.scrollTop; follow.current = node.scrollHeight - node.clientHeight - node.scrollTop < 48; if (follow.current) setUnseen(false); } }}>
       {c.loading ? <p role="status" className="conversation-loading">Restoring Astra conversations…</p> : !c.turns.length ? <div className="conversation-empty"><span className="large-astra"><ZoneIcon zone="companion" size={36} /></span><span className="eyebrow">A LITTLE CONTEXT. A CLEARER NEXT STEP.</span><h3>Start with the work<br />in front of you.</h3><p>Bring a question, a project, or a line of code. Choose the context Astra can use.</p>{["Help me understand this project", "Review the current architecture", "Think through the next step"].map((value) => <button key={value} disabled={!provider?.available || c.working} onClick={() => { setDraft(value); prompt.current?.focus(); }}>{value}<UiIcon name="arrow" /></button>)}</div> : <div className="reading-measure">{c.turns.length > turnLimit && <button className="load-earlier ui-button" onClick={() => { if (scroll.current) prepend.current = { height: scroll.current.scrollHeight, top: scroll.current.scrollTop }; follow.current = false; setTurnLimit((limit) => limit + 8); }}>Show earlier messages · {c.turns.length - turnLimit} remaining</button>}{c.turns.slice(-turnLimit).map((turn) => <article className="conversation-turn" key={turn.streamId}><div className="user-message"><span>You</span><p>{turn.userText}</p></div><div className="answer-label"><ZoneIcon zone="companion" size={17} /><strong>Astra</strong><span>{labels[turn.state]}</span></div>
         {turn.tools.length > 0 && <div className="tool-list" aria-label="Read-only tool activity">{turn.tools.map((tool) => <details className="tool-card" key={tool.callId}><summary><UiIcon name="file" /><span><strong>{tool.summary}</strong><small>{tool.tool}</small></span><span className={`status-badge tool-${tool.status}`}>{({ running: "Running", succeeded: "Completed", failed: "Failed", denied: "Denied", awaiting_approval: "Needs approval", cancelled: "Cancelled" } as const)[tool.status]}</span><UiIcon name="chevron" /></summary><div className="tool-details">{tool.message && <p>{tool.message}</p>}{tool.sources.map((source, index) => <p key={index}><code>{source.fullName}{source.path ? ` / ${source.path}` : ""}{source.lines ? `:${source.lines.start}–${source.lines.end}` : ""}</code>{source.ref && <small>Read at {source.ref}</small>}</p>)}{!tool.message && !tool.sources.length && <p>The host has not returned source details for this tool.</p>}</div></details>)}</div>}
-        {turn.replyText ? <Suspense fallback={<p className="reply-placeholder">{turn.replyText}</p>}><Markdown text={turn.replyText} streaming={!turn.finishReason && c.active} paused={layout === "compact" || !visible} /></Suspense> : <p className="reply-placeholder">{turn.finishReason === "cancelled" ? "Stopped before any response text." : turn.finishReason === "error" ? "No response text was returned." : labels[turn.state]}</p>}
+        {turn.replyText ? <Suspense fallback={<p className="reply-placeholder">{turn.replyText}</p>}><Markdown text={turn.replyText} streaming={!turn.finishReason && c.active} paused={minimized || layout === "compact" || !visible} /></Suspense> : <p className="reply-placeholder">{turn.finishReason === "cancelled" ? "Stopped before any response text." : turn.finishReason === "error" ? "No response text was returned." : labels[turn.state]}</p>}
         {turn.finishReason === "length" && <p className="warning-note">The native reply limit was reached. The partial response is preserved.</p>}{turn.finishReason === "cancelled" && <p className="help">Reply stopped by the host. Partial text is preserved.</p>}
         {turn.sources.length > 0 && <details className="reply-sources"><summary>Sources used · {turn.sources.length}</summary>{turn.sources.map((source, index) => <p key={index}><code>{source.fullName ?? "Workspace"}{source.path ? ` / ${source.path}` : ""}{source.lines ? `:${source.lines.start}–${source.lines.end}` : ""}</code>{source.ref && <small>{source.ref}</small>}</p>)}</details>}
         {turn.finishReason && <div className="reply-actions"><button disabled={!turn.replyText} onClick={() => void copy(turn.replyText)}><UiIcon name="copy" />Copy reply</button><button disabled={disabled} onClick={() => void send(turn.userText, null)}>Send again</button>{turn.replyText && !["cancelled", "error"].includes(turn.finishReason ?? "") && <button title={voice.view.status?.outputMuted ? "Unmute speech in the voice controls to read aloud" : "Read this reply aloud"} disabled={!!voice.view.status?.outputMuted || voiceCapture || !c.prefs?.voice.enabled || voice.view.status?.phase === "unavailable" || !conversation || !!c.view?.approval} onClick={() => { if (conversation) void voice.controller.speakReply({ conversationId: conversation.conversationId, streamId: turn.streamId }, undefined, turn.replyText); }}><VoiceIcon speaker />Read aloud</button>}</div>}
@@ -136,6 +151,7 @@ export function CompanionWorkspace({ ref, zone, workspace: g, layout, changeLayo
     <div className="conversation-composer"><VoiceRail controller={voice.controller} view={voice.view} enabled={c.prefs?.voice.enabled ?? false} disabled={conversationDisabled || !!dialog || !!c.view?.approval} reduced={reducedMotion} settings={() => setDialog("voice")} />{voice.view.final && <div className="voice-final-review"><span>FINAL TRANSCRIPT · NOT SENT</span><p>{voice.view.final.text}</p>{draft.trim() && <small>Your existing draft is preserved. Clear it before using this transcript.</small>}<div><button type="button" disabled={!!draft.trim() || conversationDisabled} onClick={useFinalTranscript}>Use transcript</button><button type="button" onClick={voice.controller.dismissFinal}>Discard transcript</button></div></div>}<form onSubmit={(event) => { event.preventDefault(); void send(); }}><label className="sr-only" htmlFor="companion-prompt">Message Astra</label>{voiceDraft.current && <span className="voice-draft-review" id="voice-draft-review">VOICE DRAFT · NOT SENT</span>}<textarea ref={prompt} id="companion-prompt" autoComplete="off" rows={2} maxLength={32000} value={draft} onChange={(event) => setDraft(event.target.value)} aria-describedby={voiceDraft.current ? "voice-draft-review" : undefined} placeholder="What would you like to work on?" onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (!disabled && draft.trim()) void send(); } }} /><div className="composer-actions"><button type="button" className="context-trigger" onClick={() => setDialog("context")}><UiIcon name="plus" /><span>{conversation?.repository?.fullName.split("/").at(-1) ?? "Add context"}{contextCount ? ` · ${contextCount}` : ""}</span></button>{c.active || c.working ? <button key="stop" type="button" className="stop-reply" aria-label="Stop reply" disabled={c.stopping} onClick={(event) => { event.preventDefault(); void c.cancel(); }}><UiIcon name="stop" />{c.stopping ? "Stopping…" : "Stop"}</button> : <button key="send" type="submit" className="send-message" aria-label="Send message" disabled={disabled || !draft.trim()}><UiIcon name="arrow" /></button>}</div></form><div className="voice-draft-options"><label><input type="checkbox" checked={editSpeech} onChange={(event) => setEditSpeech(event.target.checked)} />Edit before sending</label></div><div className="composer-help"><span>{voice.view.status?.phase === "unavailable" || !voice.view.status && !voice.view.loading ? "Text conversation · Voice unavailable" : "⌥Space to talk · Esc to stop"}</span><button onClick={() => setDialog("providers")}>Provider settings</button></div>{!provider?.available && !c.loading && <p className="help">{provider ? "This provider needs configuration or a stored key." : "Add a provider to start a conversation."}</p>}
     </div>
     {layout === "expanded" && <button className="reset-pane-width" onClick={() => resize(null)}>Reset panel width</button>}
+    </div>
     {c.view?.approval && c.active && <ApprovalDialog key={c.view.approval.approvalId} approval={c.view.approval} respond={c.approve} cancel={c.cancel} />}
     <Suspense fallback={<p role="status" className="inline-notice">Loading controls…</p>}>{dialog === "context" && !c.view?.approval && <ContextDialog controller={{ ...c, bindRepository: async (repository) => { await voice.controller.end(); return c.bindRepository(repository); } }} workspace={g} zone={zone} preferSelected={preferSelected} close={() => { setDialog(null); setPreferSelected(false); }} />}
     {dialog === "providers" && !c.view?.approval && <ProviderSettings controller={c} close={() => setDialog(null)} />}{dialog === "voice" && !c.view?.approval && <VoiceSettings prefs={c.prefs} view={voice.view} controller={voice.controller} edit={editSpeech} setEdit={setEditSpeech} close={() => setDialog(null)} />}</Suspense>

@@ -177,7 +177,7 @@ enum DevProbe {
         log.notice("probe layout-switching \(switching, privacy: .public)")
     }
 
-    private static func sampler(ms: Int) -> String {
+    static func sampler(ms: Int) -> String {
         """
         const longTasks = []; let po;
         try { po = new PerformanceObserver((l) => l.getEntries().forEach((e) => longTasks.push(Math.round(e.duration)))); po.observe({ type: 'longtask' }); } catch {}
@@ -194,7 +194,7 @@ enum DevProbe {
         """
     }
 
-    private static func waitFor(_ webView: WKWebView, _ condition: String, timeout: Duration) async -> Bool {
+    static func waitFor(_ webView: WKWebView, _ condition: String, timeout: Duration) async -> Bool {
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {
             if await evaluate(webView, "const d = window.__AURA_DIAGNOSTICS__; return String(Boolean(\(condition)));") == "true" { return true }
@@ -203,7 +203,7 @@ enum DevProbe {
         return false
     }
 
-    private static func evaluate(_ webView: WKWebView, _ body: String) async -> String? {
+    static func evaluate(_ webView: WKWebView, _ body: String) async -> String? {
         do {
             return try await webView.callAsyncJavaScript(body, contentWorld: .page) as? String
         } catch {

@@ -1,0 +1,27 @@
+GlamVelvetSofa
+Creator: Eric Chadwick for Wayfair, LLC, copyright 2021.
+Licence: Creative Commons Attribution 4.0 International (CC BY 4.0).
+Licence URL: https://creativecommons.org/licenses/by/4.0/
+Source: https://github.com/KhronosGroup/glTF-Sample-Assets/tree/edc7c9e67c639d230715049ee31f9a96a6babbbe/Models/GlamVelvetSofa
+File: GlamVelvetSofa.glb, 3149844 bytes.
+SHA-256: 67202c74a1a33377771f162dc7fad612a6c9bd51ee15124c488e9851d9ac5266
+Original file unchanged. Runtime: recentered to floor, source light disabled;
+Living upholstery color changed to forest/terracotta; Gaming retains navy.
+
+Sheen Chair
+Creator: Eric Chadwick for Wayfair, LLC, copyright 2020.
+Licence: CC0 1.0 Universal.
+Licence URL: https://creativecommons.org/publicdomain/zero/1.0/
+Source: https://github.com/KhronosGroup/glTF-Sample-Assets/tree/edc7c9e67c639d230715049ee31f9a96a6babbbe/Models/SheenChair
+File: SheenChair.glb, 4125648 bytes.
+SHA-256: f0af2a2b102d28d540236306ae19f8fb36842df76bd38cf76f063f9bd2853399
+Original file unchanged. Runtime recenter to floor; original mango fabric retained.
+
+AURA room kit
+Original Project AURA asset authored for this repository with Codex.
+Source: frontend/asset-pipeline/rooms.py (no external meshes, logos or textures).
+Project asset rights retained. Generated room-kit.glb is Git-ignored.
+
+These GLBs are local bundled runtime assets, never fetched from their source URLs
+by the app. No binary commit authorised. Original Astra remains unchanged and
+retains its separate visible XRProfXR/CC BY 4.0 attribution.

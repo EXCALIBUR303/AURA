@@ -1,0 +1,295 @@
+# World asset inventory
+
+Status: M0 baseline retained; M2 reviewed candidates and measurements are below.
+Three research GLBs were acquired outside the checkout. M4 now integrates an original locally generated workstation kit; M5 integrates the unchanged reviewed sofa/chair originals plus original room kit. No third-party tool/skill installed and no binary
+has been committed.
+
+## M3 foundation resources
+
+No new GLB adopted in M3. Hub/Atrium structural boxes are instanced by material;
+room signs are bounded local 1024×256 canvas textures, no remote fonts/assets.
+Existing workstation props remain migration geometry until the M4 hero gate.
+Original Astra file/hash and visible credit remain unchanged. Final 20-visit
+world test reports 19 geometries, 8 textures and 12 shader programs with two room
+instances retained. These measurements do not certify future asset memory costs.
+
+## Verified existing hero
+
+| Field | Astra Lumen II |
+|---|---|
+| Name | Astra Lumen II, a rigged companion android |
+| Creator | XRProfXR — https://sketchfab.com/pinckneyb |
+| Source | https://sketchfab.com/3d-models/astra-lumen-ii-a-rigged-companion-android-84761f55aa17493d9b226bb1f7101428 |
+| Licence / credit | CC BY 4.0; title, creator, source and licence link remain visible; original `CREDITS.txt` retained |
+| Path | `assets/avatar/community/astra-lumen/astra_lumen_ii_a_rigged_companion_android.glb`; public symlink serves `/avatar/astra-lumen/...` |
+| Tracking / size | Original binary is ignored, **18,054,896 bytes** (17.2 MiB); each checkout needs the licensed copy |
+| Digest | `e9984ddc7e04a1b39d72f5ab5e1ba9fe459fc42e773f851bf52068b357eb76c1` |
+| Geometry | 36,508 triangles; one skinned mesh/primitive/material, 72 joints, zero morph targets |
+| Textures / material | Embedded 2048² PNG (~5.1 MiB) and 64² PNG, base colour + metallic/roughness, clearcoat extension; inspect reports no required extension |
+| Animation | `Idle02_F`, 31.8 seconds, 283 channels; head/eye/jaw support, no finger bones or walk clips |
+| Modifications | None to file. Existing runtime normalization to 1.75 m and procedural reactions retained |
+
+`npm --prefix frontend run inspect:avatar` and SHA-256 were checked in M0. Do not
+optimize/re-export/replace the original GLB; a future authorized derivative requires
+separate provenance, attribution and approval. No new Astra gesture/animation may
+be assumed from its appearance.
+
+## Existing procedural environment
+
+`frontend/src/studio/World.tsx` supplies instanced boxes, primitive plants, desks,
+chairs, architecture and abstract monitor marks; it is not a library of licensed
+external furniture models. Reuse efficient structural primitives/instancing where
+visually appropriate, but do not label them premium hero assets. Current geometry
+does not provide realistic PC internals, fitted mechanical keyboards, fabric sofas,
+console controllers or arcade equipment.
+
+## Required asset families — see M2 decisions below
+
+| Needed asset family | Quality gate | First consumer |
+|---|---|---|
+| Developer PC chassis + internals/fans/GPU/cooler/RAM | Believable proportions, separate metal/glass/plastic, identifiable components, useful pivots and constrained transparent surfaces | Hub hero in M4 |
+| Monitor/laptop, keyboard/mouse/pad/speakers | Correct scale, fitted desk footprint, addressable screen surface and coherent PBR | Hub M4; shared gaming equipment M5 |
+| Desk/chair/shelves/tools/cable channels | Convincing silhouette/material detail, clear walking/inspection space | Hub M4 |
+| Sofa/armchair/table/rug/lamps/storage | Warm material family, fabric geometry/surface, seating scale | Living M5 |
+| Plants/books/art/curtains | Compatible licences, no unapproved embedded artwork, sensible pivots for supported controls | Living/Atrium M5 or M3 |
+| Gaming display/console/controller/arcade/seating | Original or licensed generic designs, no embedded commercial game artwork/software | Gaming M5 |
+| Stone/glass/wood/metal/fabric surfaces and local environment maps | Correct colour/data spaces, measured texture cost, coherent light profiles | All rooms |
+
+Research starting points authorized by the brief: [Poly Haven](https://polyhaven.com),
+[Kenney](https://kenney.nl/assets), [Quaternius](https://quaternius.com),
+[Sketchfab](https://sketchfab.com). Direct catalogue pages are not verified;
+do not infer a licence from the hosting platform. Hugging Face is selective research
+only, not an automatic production mesh source. No download restriction bypasses,
+scraping, executable installers or unreviewed repository scripts.
+
+## Intake record required before runtime use
+
+Record exact asset ID/name, creator, source/download URL, licence/version and
+credit requirements, licence evidence file/date, local path/hash/bytes, dimensions,
+orientation/scale/pivot, triangles/meshes/materials/draw implications, texture sizes
+and colour spaces, animations/colliders, decoder/runtime dependencies, modifications
+and derivative output path. Record whether the original and derivative are tracked
+or ignored. Binary commit authorization is separate from researching/downloading.
+
+Review source and artefacts as untrusted; inspect archives and data without running
+included code. Inspect scripts, licence, maintenance, compatibility and dependencies
+before adopting a tool/skill. Record references and the actual decision, including
+rejected candidates and unresolved hero gaps. No asset is approved by this queue alone.
+
+## Optimization decision gate
+
+Compare actual geometry/material/texture budgets in the composed room, not only a
+single mesh viewer. Prefer sharing/instancing, appropriate LOD, bounded shadows and
+small suitable textures. Review glTF-Transform/gltfjsx/meshoptimizer/KTX2/Draco and
+Blender automation for a concrete asset problem; install nothing merely because it
+is listed. Bundle all runtime decoders/HDRIs; inspect native CSP/WASM compatibility.
+Keep originals/provenance, validate changed pivots/bounds and compare rendered quality.
+M2 per-room budgets are in WORLD_ARCHITECTURE, relative to the measured baseline; no new
+room is claimed to hold M5 ≥55 fps until that composition is measured natively.
+
+## Milestone 2 — actual source and model review
+
+Reviewed 2026-10-18. Public HTTP requests to Poly Haven/API, Kenney, Quaternius,
+Sketchfab/API, Three documentation and GitHub API returned proxy **403 Forbidden**.
+This is an environment access limitation, not evidence those assets are unavailable
+or unlicensed. No access restriction was bypassed. The configured HTTPS Git proxy
+successfully read the official repositories below. No external scripts were run,
+no packages installed, and no new binary entered AURA or its Git history.
+
+Source snapshot: [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/edc7c9e67c639d230715049ee31f9a96a6babbbe),
+commit `edc7c9e67c639d230715049ee31f9a96a6babbbe` (2026-10-02). Asset-specific README
+licences were reviewed **before** fetching selected GLBs. Platform/repository-wide
+licensing was not substituted for an asset licence. Research copies and evidence:
+`/workspace/aura-phase4/m2/research/assets/`; files there are outside the checkout.
+These are reviewed candidates, not integrated or redistributed runtime assets.
+
+### Candidate decisions and measured intake
+
+| Field | GlamVelvetSofa | SheenChair | SheenWoodLeatherSofa |
+|---|---|---|---|
+| Decision | **Preferred candidate** for Living/Gaming fitting | **Conditional accent chair**; not an office chair or an armchair replacement | **Rejected for room use**; ornate form conflicts with direction, higher texture/alpha cost |
+| Creator / licence | Eric Chadwick, ©2021 Wayfair LLC; **CC BY 4.0** | Eric Chadwick, ©2020 Wayfair LLC; **CC0 1.0** | Fran Calvente original ©2021 **CC0**; Eric Chadwick improvements, ©2024 Darmstadt Graphics Group GmbH **CC BY 4.0** |
+| Source record | [README](https://github.com/KhronosGroup/glTF-Sample-Assets/blob/edc7c9e67c639d230715049ee31f9a96a6babbbe/Models/GlamVelvetSofa/README.md) | [README](https://github.com/KhronosGroup/glTF-Sample-Assets/blob/edc7c9e67c639d230715049ee31f9a96a6babbbe/Models/SheenChair/README.md) | [README](https://github.com/KhronosGroup/glTF-Sample-Assets/blob/edc7c9e67c639d230715049ee31f9a96a6babbbe/Models/SheenWoodLeatherSofa/README.md) |
+| Local original | `…/assets/GlamVelvetSofa.glb` | `…/assets/SheenChair.glb` | `…/assets/SheenWoodLeatherSofa.glb` |
+| File bytes | **3,149,844** | **4,125,648** | **10,107,912** |
+| Unique triangles / mesh primitives | **4,196 / 3** | **39,936 / 4** | **46,492 / 6** |
+| Declared materials / active default | 7 / 3; five fabric variants | 6 / 4; two variants | 6 / 6; fringe alpha blend |
+| Bounds X×Y×Z, metres | 2.18844 × 0.78754 × 1.02283 | 0.82656 × 0.68625 × 0.57027 | 2.72580 × 1.11730 × 0.92318 |
+| Images | Two 1024² PNGs: AO and fabric normal; colours from factors | Seven PNGs: one 1024², one 1024×512, five 512² | Thirteen WebPs: two 2048², two 1024², four 512², two 256², one each 512×256/256×128/128² |
+| Estimated image storage with RGBA8 mip chain | **10.67 MiB** | **14.67 MiB** | **60.25 MiB** |
+| Required extensions | `KHR_texture_transform` | `KHR_texture_transform` | `KHR_texture_transform`, `EXT_texture_webp` |
+| Optional material features | Sheen/specular/variants; embedded directional light | Sheen/variants; source's Peacock fabric uses artistic metalness=1 | Sheen/specular, transparent fringe with authored sorting |
+| Animation / pivots | No animation; bottom Y≈0.00005, asymmetric X/Z center | No animation; bottom Y≈−0.00007 | No animation; bottom Y≈0.00063 |
+| File modifications | None | None | None |
+
+The `…` prefix above is `/workspace/aura-phase4/m2/research`. GLB paths in the
+source repository are `Models/<name>/glTF-Binary/<name>.glb`. Licence evidence is
+saved beside each original as `<name>-README.md`; acquisition date is above.
+SHA-256:
+
+- GlamVelvetSofa: `67202c74a1a33377771f162dc7fad612a6c9bd51ee15124c488e9851d9ac5266`
+- SheenChair: `f0af2a2b102d28d540236306ae19f8fb36842df76bd38cf76f063f9bd2853399`
+- SheenWoodLeatherSofa: `5349e042ad41e695e89f1110230c4ee0c75b2bc62ef830c7016be6ecf665bfb6`
+
+Counts come from the actual downloaded GLB accessors, not marketing/README numbers.
+Glam's README says 4,319 triangles; this exact binary has **4,196**. Texture storage
+is an estimate (`width × height × 4 × 4/3`), not measured GPU memory; variants,
+shared images, colour-space copies and driver allocation can change it.
+
+All three loaded and rendered locally using the installed Three r186 GLTFLoader,
+with no page errors or external asset requests. Review screenshots, measured JSON
+and source files remain outside Git. The isolated viewer included floor/environment
+and one shadow pass: Glam **7 calls / 8,394 rendered triangles**, chair **9 / 79,874**,
+ornate sofa **13 / 92,986**. These are isolated software-renderer draw totals, not
+AURA room benchmarks, FPS measurements or Mac acceptance. GLB bounds were measured
+before viewer placement; no source asset was normalized or rewritten.
+
+### Fitting, colour and attribution decisions
+
+- Keep Glam's natural dimensions; enlarge the planned sofa collision envelope to
+  1.05 m deep instead of stretching the model to a 2.6 m width. It fits the maximum
+  Living/Gaming footprints. Recenter the **instance**, preserve original file/pivot.
+- Its source directional light has intensity 3. Disable it on the instance before
+  joining room lighting; it was disabled in the comparison viewer. Never accumulate
+  a light rig per sofa. The default navy fits Gaming. Living needs an explicit
+  original champagne variant or a documented forest-fabric material derivative.
+  Variant selection is **not implemented**; core GLTFLoader alone does not expose
+  a complete variants UI. Do not promise five working options yet.
+- The chair has a convincing curved silhouette, fasteners and upholstery. Its vivid
+  mango colour and unusually low back need actual room review. Keep at most one
+  initially; a 40k-triangle chair is not an instanced default for four workstations.
+  A required upholstered armchair and ergonomic office chair remain unresolved.
+- For Glam, publish a credit such as “GlamVelvetSofa — Eric Chadwick / Wayfair LLC,
+  CC BY 4.0” with the source and licence links; describe instance lighting removal
+  and any future material derivative. Keep source legal notices. The sample depicts
+  a real product; use a generic AURA label and no endorsement/brand claims.
+- CC0 chair credit is optional legally but retain creator/source provenance. Do
+  not copy reference photographs from the README into AURA; their rights were not
+  established by the model licence. Rejected assets never ship just because fetched.
+- Original Astra stays byte-for-byte unchanged with its existing visible credit.
+  New research candidates have no runtime path yet. Binary publication still needs
+  owner approval; future assets must travel with their licence and measured manifest.
+
+### Unresolved assets and bounded next steps
+
+| Asset gap | Status / next action |
+|---|---|
+| PC chassis, recognizable GPU/cooler/RAM/fans, peripherals, monitors/laptop, office chair | **M4 completion blocked on asset quality/licence intake.** No suitable detailed PC acquired. Resume approved catalogue research when reachable; an original authored model must meet the same silhouette/material/pivot gate, never substitute featureless blocks |
+| Living armchair, table, curtains, lamps, plants, books/art | Planned; sofa candidate does not satisfy the whole room. Curtains need actual controllable geometry; no cloth-simulation dependency by default |
+| Generic arcade, console/controller, gaming desk props | Planned; no commercial artwork/game included. Verify exact model licence and working input surfaces |
+| HDRI and material textures | No external map acquired. Start with controlled local Three environment generation/materials; research a small licensed HDRI only if comparison shows a benefit |
+| Poly Haven / Kenney / Quaternius / Sketchfab | Direct source pages blocked by environment proxy. Candidates from those catalogues remain unverified; their names alone confer no production approval |
+| Hugging Face | Deferred: no concrete mesh advantage or local-inference task at M2; no model/runtime/skill installed |
+
+If further HTTP asset research is needed, add the specific domains through cloud
+Environment settings: `polyhaven.com`, `api.polyhaven.com`, `kenney.nl`,
+`quaternius.com`, `sketchfab.com`, `api.sketchfab.com` (then review each actual download
+host). The current allowlist cannot be read here, so it was **not replaced**. Git
+research remains usable. This does not block M3's atrium + existing-hub migration;
+it does prevent declaring the later detailed rooms complete.
+
+## Milestone 4 — original workstation kit
+
+External PC catalogues remained inaccessible, so the hero equipment is original
+modeled work, not an inadequate block substitute. Source:
+`frontend/asset-pipeline/workstation.py`; creator: original Project AURA asset,
+authored for this repository with Codex. Project asset rights remain with the
+project; no unrelated third-party licence or dedication is invented. No external
+mesh, logo, texture, addon or code is incorporated. Source and rights/modification
+record: `frontend/public/world/CREDITS.txt` and pipeline README.
+
+Generated ignored file: `frontend/public/world/workstation.glb`, **1,002,184 bytes**;
+SHA-256 `9c76a40861e39c10b7fc7d8616dcb999ffa9a22b7de3271c49fd22971841a75b`.
+Blender 4.3.2 / glTF exporter 4.3.47, metre scale, Y up, front +Z, clean common
+origins. No required extension, external URI, codec, image or animation clip.
+Full file **22,328 triangles / 33 primitives / 10 shared materials**; runtime room
+copies are merged by material, fan rotors instanced, not 33 calls per PC.
+
+| Model | Triangles | Visible construction |
+|---|---:|---|
+| Desk | 1,836 | Rounded walnut top, trestles, tray, grommets, levelling feet |
+| Task chair | 3,876 | Sculpted seat/back/lumbar, arms, gas lift, five-star base/casters |
+| PC | 7,668 | Open frame, glass, slats, fan surrounds, board, fins, memory, expansion card, cabling/ports/feet |
+| Fan rotor | 964 | Seven shaped blades and hub; 12 bounded room instances |
+| Monitor | 1,076 | Bezel, rear vents, VESA form, stand/base and power point |
+| Keyboard | 3,188 | Separate beveled keycaps and spacebar |
+| Mouse / speaker / laptop | 464 / 732 / 2,480 | Shaped shell/wheel, drivers, hinged screen/keys/trackpad |
+
+Materials: painted graphite, bare aluminium/copper, walnut, fabric, plastic/rubber,
+circuit board, restrained power point and single-layer alpha glass. Original
+512² wood/stone canvas textures and a single 2048×1024 application-state monitor
+atlas are generated locally. Colour maps are sRGB; no downloaded image/HDRI or
+postprocess. Monitor atlas uploads only on state changes and up to 2 Hz during
+real companion activity. No actual source code, credential, endpoint, fake sensor
+reading or synthetic repository activity appears.
+
+Read-only generated metadata is committed as `workstation.manifest.json`; generated
+GLB remains ignored. A new checkout must copy it or reproduce using the committed
+Blender command. No requirement to manually operate Blender and no production
+Blender dependency. The original Astra file is unchanged.
+
+Rendered evidence: `/workspace/aura-phase4/m4/hub.png`, `pc.png` and
+`equipment/` desktop/laptop screenshots (shared mock data only). Overview measured
+**51 calls / 250,204 rendered triangles** including shadows. Initial 270,154-triangle
+composition was reduced by simplifying tiny fan blades, with actual close-up review.
+Native M5 performance remains pending; no cloud FPS equivalence is claimed.
+
+## Milestone 5 — adopted seating and original room kit
+
+The reviewed GlamVelvetSofa and SheenChair originals above are now copied unchanged
+to ignored `frontend/public/world/GlamVelvetSofa.glb` and `SheenChair.glb`.
+Their exact M2 bytes/digests/licenses apply. No source GLB edit. Runtime fitting:
+recenter to floor without stretching; disable embedded source lights; clone supported
+sofa cloth material for forest/terracotta Living variants. Gaming keeps navy, chair
+keeps mango. Full title/creator/source/licence/modification credit is in
+`FURNITURE_CREDITS.txt` and accessible World asset credits; original Astra footer
+remains visible. Approximate RGBA8 mip budgets: sofa10.67MiB, chair14.67MiB; no HDRI.
+
+Original Project AURA room objects: `frontend/asset-pipeline/rooms.py`, same original
+project rights/provenance as workstation source, no external mesh/texture/logo/code.
+Ignored export `frontend/public/world/room-kit.glb`: **741,932 bytes**, SHA-256
+`04b88b088f2511cda8910dc58c281024ad39de6da87810f4fe33a6496892e2a2`, **15,796
+triangles / 45 primitives / 14 shared materials**, no external URIs/images/required
+extensions. Named objects: coffee table796tris, console1188, bookshelf5616,
+floor lamp804, pendant432, plant1132, curtain768, arcade2080, controller1528,
+game console852, display448, art frame152. Room copies batch by material; curtain
+panels are bounded reused meshes. GLB metering/manifest are generated by the reviewed
+read-only inspector; no asset executable is imported into production.
+
+Original room texture studies use bounded local canvas textures and the documented
+sRGB pipeline. Asset source and reproduction/copy instructions are in the pipeline
+README. Generated/reviewed GLBs and screenshots remain untracked/ignored. No binary
+publication or install. All referenced furniture source URLs are credit/provenance;
+there is no runtime external fetch.
+
+Rendered initial room-suite samples: Living **2fps/48calls/113,428 triangles**,
+Gaming **4fps/66calls/80,548 triangles**, SwiftShader/DPR1. Final Atrium with an
+adjacent Living resource set reports10fps/19calls/11,256 triangles,40 geometries/
+21 textures/28 programs. Twelve repeated visits pass resource-growth/owner bounds.
+These are browser evidence, not M5 GPU memory accounting or native FPS acceptance.
+
+## Milestone 6 — current equipment export
+
+This supersedes the M4 equipment digest for the current runtime; M4 measurements
+above are historical. Original workstation source is regenerated after open fan
+rings and split display/stand authoring. Ignored current file **999,936 bytes**,
+SHA-256 `916fe968d6af527429666f90ee9bd933914d6a1b2b6b816e1cbe2a1f323f90f2`;
+**22,544 triangles / 33 primitives / 10 shared materials**, no images, external URI
+or required decoder. PC7,884tris, monitor-panel860 and monitor-stand216; other model
+counts unchanged. `monitor` remains an aggregate compatibility root. Source, export
+metadata and modification note are committed text. No licensed original is edited.
+
+The front fan surrounds are torus rings instead of opaque discs. The reused real
+rotor is placed behind the slats and visible in actual close-up screenshots. Split
+monitor parts keep stands grounded while bounded eligible panels/screens move;
+one shared atlas avoids duplicate large textures. Gaming reuses the same original
+PC and rotor. Original Astra file/digest and both licensed furniture hashes remain
+unchanged. Its authored runtime placement is aligned with the platform top; its
+source normalization, material/rig/idle/speech and visible licence remain intact.
+
+M6 early floating Hub sample:3fps/DPR1/56calls/249,352 triangles,40geometries/
+12textures/17programs. M6 customization suite samples additionally cover all rooms
+in all three lighting states; complete current evidence is in the phase report.
+Native M5 target and GPU memory are unvalidated. No GLB, screenshot, recording or
+other binary is committed. New checkouts must reproduce/copy the ignored assets
+using the pipeline README and preserve licensed source credits.

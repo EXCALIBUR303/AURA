@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "bytes": 999936,
+  "sha256": "916fe968d6af527429666f90ee9bd933914d6a1b2b6b816e1cbe2a1f323f90f2",
+  "models": {
+    "desk": 1836,
+    "chair": 3876,
+    "pc": 7884,
+    "fan": 964,
+    "screen": 44,
+    "keyboard": 3188,
+    "mouse": 464,
+    "speaker": 732,
+    "laptop": 2480,
+    "monitor-panel": 860,
+    "monitor-stand": 216
+  },
+  "triangles": 22544,
+  "primitives": 33,
+  "materials": [
+    "Aluminium",
+    "Graphite",
+    "Rubber",
+    "Walnut",
+    "Fabric",
+    "Circuit",
+    "Copper",
+    "Glass",
+    "Power",
+    "Porcelain"
+  ],
+  "images": 0,
+  "externalURIs": [],
+  "extensionsRequired": [],
+  "generator": "Khronos glTF Blender I/O v4.3.47"
+}

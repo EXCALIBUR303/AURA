@@ -8,7 +8,7 @@ import { GitHubConnection, GitHubLink } from "./GitHubConnection.tsx";
 import { getZone } from "../studio/zones.ts";
 import { ZoneIcon } from "../components/ZoneIcon.tsx";
 
-export function RepositoryExplorer({ workspace, navigate }: { workspace: GitHubWorkspace; navigate: (zone: ZoneId) => void }) {
+export function RepositoryExplorer({ workspace, navigate, visible: shown = true }: { workspace: GitHubWorkspace; navigate: (zone: ZoneId) => void; visible?: boolean }) {
   const g = workspace;
   const [query, setQuery] = useState("");
   const [language, setLanguage] = useState("");
@@ -17,7 +17,7 @@ export function RepositoryExplorer({ workspace, navigate }: { workspace: GitHubW
   const [dateIssue, setDateIssue] = useState("");
   const [retryDates, setRetryDates] = useState(0);
   useEffect(() => {
-    if (sort !== "updated" || !g.canRead) { setDateLoading(false); return; }
+    if (!shown || sort !== "updated" || !g.canRead) { setDateLoading(false); return; }
     let live = true, index = 0;
     setDateLoading(true); setDateIssue("");
     const work = async () => {
@@ -29,11 +29,11 @@ export function RepositoryExplorer({ workspace, navigate }: { workspace: GitHubW
     };
     void Promise.all([work(), work(), work()]).finally(() => { if (live) setDateLoading(false); });
     return () => { live = false; };
-  }, [sort, g.repos, g.canRead, g.loadRepository, g.sessionFailure, g.revision, retryDates]);
+  }, [sort, g.repos, g.canRead, g.loadRepository, g.sessionFailure, g.revision, retryDates, shown]);
   const languages = useMemo(() => [...new Set(g.repos.flatMap((r) => r.primaryLanguage ? [r.primaryLanguage] : []))].sort(), [g.repos]);
   const visible = filterRepositories(g.repos, query, language, sort, g.metadata);
   const connected = g.auth?.state === "connected" || g.auth?.state === "rate_limited" || (g.auth?.state === "error" && g.auth.reason === "network" && g.repos.length > 0);
-  return <section className="github-explorer glass" aria-labelledby="explorer-heading">
+  return <section hidden={!shown} style={shown ? undefined : {display:"none"}} className="github-explorer glass" aria-labelledby="explorer-heading">
     <header className="explorer-heading"><div><span className="eyebrow">GITHUB / PROJECT COLLECTION</span><h1 id="explorer-heading">Your code, <em>in context.</em></h1></div><button aria-label="Return to 3D overview" onClick={() => navigate("studio")}><ZoneIcon zone="studio" size={16} />3D overview</button></header>
     <div className="explorer-scroll">
       <GitHubConnection workspace={g} />

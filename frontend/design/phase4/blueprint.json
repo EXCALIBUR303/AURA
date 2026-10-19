@@ -1,0 +1,481 @@
+{
+  "notice": "Design-only M1 measurements, metres, X/Z plan, yaw=0, floor Y=0. Not a runtime registry or native contract.",
+  "revision": 1,
+  "rooms": [
+    {
+      "id": "project-hub",
+      "name": "PROJECT & WORKSTATION HUB",
+      "origin": [
+        0,
+        -11
+      ],
+      "size": [
+        12,
+        9
+      ],
+      "height": 3.6,
+      "fill": "#d9e3e1",
+      "ink": "#28676e",
+      "entry": [
+        0,
+        4.5
+      ],
+      "landing": [
+        0,
+        3.7
+      ],
+      "astra": [
+        -1.25,
+        -1.5
+      ],
+      "route": [
+        [
+          0,
+          4.5
+        ],
+        [
+          0,
+          -3.5
+        ]
+      ],
+      "crossRoute": [
+        [
+          -4.8,
+          0
+        ],
+        [
+          4.8,
+          0
+        ]
+      ],
+      "props": [
+        {
+          "name": "HARDWARE",
+          "center": [
+            -3.25,
+            -2.5
+          ],
+          "size": [
+            3,
+            0.9
+          ],
+          "kind": "desk"
+        },
+        {
+          "name": "SOFTWARE",
+          "center": [
+            3.25,
+            -2.5
+          ],
+          "size": [
+            3,
+            0.9
+          ],
+          "kind": "desk"
+        },
+        {
+          "name": "AI / LLM",
+          "center": [
+            -3.25,
+            2.5
+          ],
+          "size": [
+            3,
+            0.9
+          ],
+          "kind": "desk"
+        },
+        {
+          "name": "GITHUB",
+          "center": [
+            3.25,
+            2.5
+          ],
+          "size": [
+            3,
+            0.9
+          ],
+          "kind": "desk"
+        },
+        {
+          "name": "",
+          "center": [
+            -3.25,
+            -1.25
+          ],
+          "size": [
+            0.8,
+            0.8
+          ],
+          "kind": "chair"
+        },
+        {
+          "name": "",
+          "center": [
+            -3.25,
+            1.25
+          ],
+          "size": [
+            0.8,
+            0.8
+          ],
+          "kind": "chair"
+        },
+        {
+          "name": "",
+          "center": [
+            3.25,
+            -1.25
+          ],
+          "size": [
+            0.8,
+            0.8
+          ],
+          "kind": "chair"
+        },
+        {
+          "name": "",
+          "center": [
+            3.25,
+            1.25
+          ],
+          "size": [
+            0.8,
+            0.8
+          ],
+          "kind": "chair"
+        }
+      ]
+    },
+    {
+      "id": "atrium",
+      "name": "ATRIUM",
+      "origin": [
+        0,
+        0
+      ],
+      "size": [
+        8,
+        8
+      ],
+      "height": 4.6,
+      "fill": "#e8e1d5",
+      "ink": "#3d6094",
+      "entry": [
+        0,
+        2.7
+      ],
+      "landing": [
+        0,
+        2.7
+      ],
+      "astra": [
+        -2.6,
+        -2.4
+      ],
+      "route": [
+        [
+          0,
+          2.7
+        ],
+        [
+          0,
+          -4
+        ]
+      ],
+      "crossRoute": [
+        [
+          -4,
+          0
+        ],
+        [
+          4,
+          0
+        ]
+      ],
+      "props": [
+        {
+          "name": "MAP",
+          "center": [
+            2.5,
+            2.4
+          ],
+          "size": [
+            1.2,
+            0.5
+          ],
+          "kind": "desk"
+        }
+      ]
+    },
+    {
+      "id": "living",
+      "name": "PERSONAL LIVING SPACE",
+      "origin": [
+        -11,
+        0
+      ],
+      "size": [
+        9,
+        8
+      ],
+      "height": 3.2,
+      "fill": "#eee0ce",
+      "ink": "#48634f",
+      "entry": [
+        4.5,
+        0
+      ],
+      "landing": [
+        3.3,
+        0
+      ],
+      "astra": [
+        2.5,
+        -2.4
+      ],
+      "route": [
+        [
+          4.5,
+          0
+        ],
+        [
+          2.5,
+          0
+        ],
+        [
+          2.5,
+          2.5
+        ],
+        [
+          0,
+          2.5
+        ]
+      ],
+      "props": [
+        {
+          "name": "SOFA",
+          "center": [
+            0,
+            -1.1
+          ],
+          "size": [
+            2.6,
+            1.05
+          ],
+          "kind": "sofa"
+        },
+        {
+          "name": "",
+          "center": [
+            0,
+            0.5
+          ],
+          "size": [
+            1.2,
+            0.6
+          ],
+          "kind": "table"
+        },
+        {
+          "name": "",
+          "center": [
+            -2.4,
+            0.7
+          ],
+          "size": [
+            1.1,
+            1.1
+          ],
+          "kind": "chair"
+        },
+        {
+          "name": "MEDIA / STORAGE",
+          "center": [
+            0,
+            3.55
+          ],
+          "size": [
+            2.8,
+            0.45
+          ],
+          "kind": "desk"
+        }
+      ]
+    },
+    {
+      "id": "gaming",
+      "name": "GAMING & ENTERTAINMENT",
+      "origin": [
+        11,
+        0
+      ],
+      "size": [
+        9,
+        8
+      ],
+      "height": 3.2,
+      "fill": "#dce0ef",
+      "ink": "#514a7b",
+      "entry": [
+        -4.5,
+        0
+      ],
+      "landing": [
+        -3.3,
+        0
+      ],
+      "astra": [
+        -2.8,
+        2.5
+      ],
+      "route": [
+        [
+          -4.5,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          2.6,
+          -0.2
+        ]
+      ],
+      "props": [
+        {
+          "name": "DESK",
+          "center": [
+            2.6,
+            -2.55
+          ],
+          "size": [
+            2.4,
+            0.8
+          ],
+          "kind": "desk"
+        },
+        {
+          "name": "",
+          "center": [
+            2.6,
+            -1.35
+          ],
+          "size": [
+            0.8,
+            0.8
+          ],
+          "kind": "chair"
+        },
+        {
+          "name": "ARCADE",
+          "center": [
+            -2.9,
+            -2.6
+          ],
+          "size": [
+            0.85,
+            1
+          ],
+          "kind": "cabinet"
+        },
+        {
+          "name": "DISPLAY",
+          "center": [
+            0,
+            -3.45
+          ],
+          "size": [
+            2,
+            0.5
+          ],
+          "kind": "desk"
+        },
+        {
+          "name": "SEATING",
+          "center": [
+            0,
+            1.7
+          ],
+          "size": [
+            2.5,
+            1.05
+          ],
+          "kind": "sofa"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "atrium-hub",
+      "rooms": [
+        "atrium",
+        "project-hub"
+      ],
+      "bounds": [
+        -1.2,
+        1.2,
+        -6.5,
+        -4
+      ],
+      "ends": [
+        [
+          0,
+          -4
+        ],
+        [
+          0,
+          -6.5
+        ]
+      ]
+    },
+    {
+      "id": "atrium-living",
+      "rooms": [
+        "atrium",
+        "living"
+      ],
+      "bounds": [
+        -6.5,
+        -4,
+        -1.2,
+        1.2
+      ],
+      "ends": [
+        [
+          -4,
+          0
+        ],
+        [
+          -6.5,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "atrium-gaming",
+      "rooms": [
+        "atrium",
+        "gaming"
+      ],
+      "bounds": [
+        4,
+        6.5,
+        -1.2,
+        1.2
+      ],
+      "ends": [
+        [
+          4,
+          0
+        ],
+        [
+          6.5,
+          0
+        ]
+      ]
+    }
+  ]
+}

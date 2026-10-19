@@ -1,0 +1,21 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { GameSession } from "../src/world/games/GameSession.ts";
+import { GAMES, validateGame } from "../src/world/games/registry.ts";
+import type { GameDefinition, GameModule, GameRuntime } from "../src/world/games/registry.ts";
+import type { CameraPose } from "../src/world/types.ts";
+const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+const pose:CameraPose={position:[7.9,2.2,2.8],target:[11.7,1,-2],room:"gaming"};
+function fixture(prepare=async()=>true){let prepared=0,restored=0,paused=0,resumed=0,disposed=0,focused=0;let signal:AbortSignal|undefined;
+ const session=new GameSession({prepareInput:async()=>{prepared++;return prepare();},capture:()=>structuredClone(pose),restore:saved=>{assert.deepEqual(saved,pose);restored++;}});
+ const runtime:GameRuntime={pause:()=>{paused++;},resume:()=>{resumed++;},dispose:()=>{disposed++;}};
+ const game:GameDefinition={id:"test-fixture",name:"TEST ONLY",description:"Not registered or shipped",icon:"circuit",availability:"installed",input:["keyboard"],presentation:"embedded",canSave:false,load:async()=>({mount:(_container,context)=>{signal=context.signal;return runtime;}})};
+ const container={focus:()=>{focused++;}} as unknown as HTMLElement;
+ return {session,game,runtime,container,get counts(){return{prepared,restored,paused,resumed,disposed,focused};},get signal(){return signal;}};
+}
+test("production library is upcoming metadata without installed code or a save claim",async()=>{const f=fixture();for(const game of GAMES){validateGame(game);assert.equal(game.availability,"upcoming");assert.equal(game.load,undefined);assert.equal(game.canSave,false);await f.session.start(game,f.container);}assert.equal(f.counts.prepared,0);assert.equal(f.session.getSnapshot().phase,"idle");});
+test("installed entry requires a loader and cannot bypass the input handshake",async()=>{const f=fixture(async()=>false);assert.throws(()=>validateGame({...f.game,load:undefined}));let imported=false;f.game.load=async()=>{imported=true;throw Error("must not run");};await f.session.start(f.game,f.container);assert.equal(imported,false);assert.equal(f.session.getSnapshot().phase,"error");await f.session.exit();assert.equal(f.counts.restored,1);});
+test("runtime pause/resume/exit abort and clean resources exactly once before camera restoration",async()=>{const f=fixture();await f.session.start(f.game,f.container);assert.equal(f.session.getSnapshot().phase,"running");assert.equal(f.signal?.aborted,false);f.session.pause();f.session.pause();f.session.resume();assert.equal(f.counts.paused,1);assert.equal(f.counts.resumed,1);assert.equal(f.counts.focused,1);await f.session.exit();await f.session.exit();assert.equal(f.signal?.aborted,true);assert.equal(f.counts.disposed,1);assert.equal(f.counts.restored,1);});
+test("exiting during lazy import prevents a late game from mounting",async()=>{const f=fixture();let resolve!:(m:GameModule)=>void,mounted=0;f.game.load=()=>new Promise(r=>{resolve=r;});const start=f.session.start(f.game,f.container);await tick();assert.equal(f.session.getSnapshot().phase,"loading");await f.session.exit();resolve({mount:()=>{mounted++;return f.runtime;}});await start;assert.equal(mounted,0);assert.equal(f.session.getSnapshot().phase,"idle");});
+test("a late asynchronous mount is disposed without restoring game input",async()=>{const f=fixture();let resolve!:(r:GameRuntime)=>void;f.game.load=async()=>({mount:()=>new Promise(r=>{resolve=r;})});const start=f.session.start(f.game,f.container);await tick();await f.session.exit();resolve(f.runtime);await start;assert.equal(f.counts.disposed,1);assert.equal(f.counts.focused,0);assert.equal(f.session.getSnapshot().phase,"idle");});
+test("cleanup failure still restores the world; native navigation can suppress a stale camera restore",async()=>{const f=fixture();f.runtime.dispose=()=>{throw Error("fixture cleanup failure");};await f.session.start(f.game,f.container);await f.session.exit(false);assert.equal(f.session.getSnapshot().phase,"idle");assert.equal(f.counts.restored,0);});

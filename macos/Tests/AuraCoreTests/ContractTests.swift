@@ -50,7 +50,8 @@ import Testing
             {"lastZone":"studio","reduceMotion":false,
              "voice":{"enabled":true,"locale":"en-US","synthesisVoiceId":null,"autoSpeakReplies":false,"speechRate":0.85,"allowServerRecognition":false},
              "ai":{"defaultProviderId":null,"contextSharing":true,"privateRepositoryContext":"never"},
-             "graphics":{"quality":"high","maxPixelRatio":2}}
+             "graphics":{"quality":"high","maxPixelRatio":2},
+             "world":{"schemaVersion":1,"presentation":"static","floatIntensity":0.35,"lightingPreset":"daylight","cameraMode":"inspect","lastRoomId":"project-hub"}}
             """#.utf8))
         #expect(encoded == expected)
     }
@@ -95,6 +96,8 @@ import Testing
                     _ = try #require(fixture.message["error"]).decode(BridgeError.self)
                 } else if fixture.name.hasSuffix("app.getInfo") {
                     _ = try #require(fixture.message["result"]).decode(AppInfo.self)
+                } else if fixture.name.hasSuffix("prefs.get") {
+                    try roundTrips(try #require(fixture.message["result"]), as: Preferences.self, fixture.name)
                 } else if fixture.name.hasSuffix("app.getWindowState") {
                     _ = try #require(fixture.message["result"]).decode(WindowState.self)
                 } else if fixture.name.contains("github.authStatus") {
@@ -131,6 +134,7 @@ import Testing
                 switch fixture.message["event"] {
                 case .string("app.command"): _ = try payload.decode(AppCommand.self)
                 case .string("app.windowStateChanged"): _ = try payload.decode(WindowState.self)
+                case .string("prefs.changed"): try roundTrips(payload, as: Preferences.self, fixture.name)
                 case .string("ai.chunk"): try roundTrips(payload, as: AIChunkPayload.self, fixture.name)
                 case .string("ai.done"): try roundTrips(payload, as: AIDonePayload.self, fixture.name)
                 case .string("ai.error"): try roundTrips(payload, as: AIErrorPayload.self, fixture.name)
