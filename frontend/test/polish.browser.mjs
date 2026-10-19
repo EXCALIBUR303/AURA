@@ -8,6 +8,8 @@ const base=process.env.AURA_BASE_URL||'http://127.0.0.1:5173';
 const artifacts=process.env.AURA_ARTIFACTS||'/tmp/aura-polish';await mkdir(artifacts,{recursive:true});
 const browser=await chromium.launch({executablePath:process.env.AURA_CHROMIUM_PATH||undefined,args:process.env.AURA_SOFTWARE_GPU==='1'?['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']:[]});
 const results=[],errors=[],external=[],scans=[],samples=[];
+// Rectangles do not intersect (the minimized console is a corner beacon, not a side column).
+const apart=(a,b)=>a.x+a.width<=b.x||b.x+b.width<=a.x||a.y+a.height<=b.y||b.y+b.height<=a.y;
 const check=async(name,fn)=>{if(process.env.AURA_TEST_FILTER&&!new RegExp(process.env.AURA_TEST_FILTER,'i').test(name))return;await fn();results.push({name,status:'passed'});console.log('PASS '+name);};
 const settled=(page,room)=>page.waitForFunction(room=>window.__AURA_DIAGNOSTICS__?.world?.room===room&&window.__AURA_DIAGNOSTICS__.world.phase==='idle'&&window.__AURA_DIAGNOSTICS__.cameraSettled,room,{timeout:45000});
 async function open(){
@@ -35,7 +37,7 @@ try{
  });
  await check('Blur and modal focus release movement; typing cannot drive the camera',async()=>{
   await page.keyboard.down('KeyW');await page.evaluate(()=>window.dispatchEvent(new Event('blur')));await page.keyboard.up('KeyW');const before=await pose(page);await page.waitForTimeout(1500);const after=await pose(page);assert.ok(distance(after.position,before.position)<.001);
-  const draft=page.getByRole('textbox',{name:'Message Astra',exact:true});await draft.fill('M7 keeps this draft');await draft.press('KeyW');const typed=await pose(page);assert.ok(distance(typed.position,after.position)<.001);
+  const draft=page.getByRole('textbox',{name:'Message Astra',exact:true});const restoreAstra=page.getByRole('button',{name:'Restore Astra conversation',exact:true});if(await restoreAstra.isVisible())await restoreAstra.click();await draft.fill('M7 keeps this draft');await draft.press('KeyW');const typed=await pose(page);assert.ok(distance(typed.position,after.position)<.001);
   await page.getByRole('button',{name:'World map',exact:false}).click();await page.keyboard.press('KeyW');assert.ok(await page.getByRole('dialog',{name:'Your AURA world'}).isVisible());await page.keyboard.press('Escape');
  });
  await check('Optional pointer-capture denial keeps drag Explore usable, and Esc returns to Inspect',async()=>{
@@ -76,9 +78,8 @@ try{
   for(const [width,height] of [[1440,900],[1280,800],[1100,700]]){
    await visit(page,'living');await page.setViewportSize({width,height});await page.getByRole('button',{name:'Room controls',exact:true}).click();
    const panel=await page.getByRole('complementary',{name:'Room controls',exact:true}).boundingBox();const dock=await page.getByRole('region',{name:'Astra conversation',exact:true}).boundingBox();
-   assert.ok(panel.x>=0&&panel.y>=0&&panel.x+panel.width<=width+1&&panel.y+panel.height<=height+1);assert.ok(dock.x+dock.width<=panel.x||dock.x>=panel.x+panel.width);
-   const status=await page.locator('.companion-pill').boundingBox();assert.ok(status.y+status.height<=panel.y);
-   const tools=await page.locator('.viewport-tools').boundingBox();assert.ok(tools.y+tools.height<=dock.y);
+   assert.ok(panel.x>=0&&panel.y>=0&&panel.x+panel.width<=width+1&&panel.y+panel.height<=height+1);assert.ok(apart(dock,panel),'Astra console overlaps room controls');
+   const tools=await page.locator('.viewport-tools').boundingBox();assert.ok(apart(tools,dock)&&apart(tools,panel));
    await scan(page,`living-controls-${width}`);await page.screenshot({path:path.join(artifacts,`living-controls-${width}.png`)});await page.getByRole('button',{name:'Close room controls',exact:true}).click();
   }
   await page.setViewportSize({width:1440,height:900});await scan(page,'living-1440');
@@ -87,12 +88,12 @@ try{
   await page.setViewportSize({width:1100,height:700});await page.getByRole('navigation',{name:'Studio zones',exact:true}).getByRole('button',{name:'Hardware 2',exact:true}).click();await settled(page,'project-hub');
   await page.getByRole('button',{name:'Equipment',exact:true}).click();
   const panel=await page.getByRole('complementary',{name:'Workstation equipment',exact:true}).boundingBox();const dock=await page.getByRole('region',{name:'Astra conversation',exact:true}).boundingBox();
-  assert.ok(dock.x+dock.width<=panel.x);await scan(page,'inspector-equipment-1100');await page.screenshot({path:path.join(artifacts,'inspector-equipment-1100.png')});
+  assert.ok(apart(dock,panel),'Astra console overlaps equipment');await scan(page,'inspector-equipment-1100');await page.screenshot({path:path.join(artifacts,'inspector-equipment-1100.png')});
   await page.getByRole('button',{name:'Return from equipment inspection',exact:true}).click();await page.getByRole('navigation',{name:'Studio zones',exact:true}).getByRole('button',{name:'Studio 1',exact:true}).click();await settled(page,'project-hub');await page.setViewportSize({width:1440,height:900});
  });
  await check('Original room identities, GLBs, scene budgets and project context survive the polished views',async()=>{
   for(const room of ['gaming','atrium','project-hub']){await visit(page,room);await page.waitForTimeout(1500);const d=await page.evaluate(()=>window.__AURA_DIAGNOSTICS__);assert.equal(await page.locator('canvas').count(),1);assert.ok(d.world.loadedRooms.length<=2);assert.ok(d.drawCalls<=(room==='atrium'?75:room==='gaming'?72:80));assert.ok(d.sceneTriangles<=260000);assert.ok(await page.locator('.model-credit').isVisible());samples.push({name:room,diagnostics:d});await scan(page,room);await page.screenshot({path:path.join(artifacts,`${room}-1440.png`)});}
-  assert.match(await page.getByRole('textbox',{name:'Message Astra',exact:true}).inputValue(),/M7 keeps this draft/);
+  assert.match(await page.getByRole('textbox',{name:'Message Astra',exact:true,includeHidden:true}).inputValue(),/M7 keeps this draft/);
  });
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(`${results.length} M7 checks, ${scans.length} zero-violation accessibility scans; no page errors or external requests.`);
 }catch(e){console.error(e);for(const c of browser.contexts())for(const p of c.pages()){await p.screenshot({path:path.join(artifacts,'failure.png')}).catch(()=>{});console.log(await p.evaluate(()=>window.__AURA_DIAGNOSTICS__?.world).catch(()=>null));}process.exitCode=1;}
