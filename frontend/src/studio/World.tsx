@@ -43,8 +43,9 @@ export const World = memo(function World({ zone, navigate, focusCompanion, inspe
     <Equipment navigate={navigate} inspect={inspect} selected={selected} reduced={reduced} active={active} screens={screens} settings={settings} motion={motion}/>
     <Plantings />
     <group position={[-1.25,0,-1.5]}>
-    <mesh position={[0, 0.095, 0]} receiveShadow><cylinderGeometry args={[.4, .42, 0.07, 48]} /><meshStandardMaterial color="#c4c8c3" roughness={0.75} /></mesh>
-    <mesh position={[0, 0.126, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[.39, 48]} /><meshStandardMaterial color="#e7e8e0" roughness={0.66} /></mesh>
+    <mesh position={[0, .065, 0]} receiveShadow><cylinderGeometry args={[.66, .72, .12, 64]} /><meshStandardMaterial color="#243748" metalness={.55} roughness={.38} /></mesh>
+    <mesh position={[0, .126, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[.64, 64]} /><meshStandardMaterial color="#415363" metalness={.3} roughness={.48} /></mesh>
+    <mesh position={[0, .128, 0]} rotation={[-Math.PI/2,0,0]}><ringGeometry args={[.60,.615,64]}/><meshBasicMaterial color="#96d8e3" toneMapped={false}/></mesh>
     </group>
     <mesh position={[ring.x, 0.098, ring.z + 0.15]} rotation={[-Math.PI / 2, 0, 0]}>
       <ringGeometry args={[1.45, 1.47, 4]} /><meshBasicMaterial color={ring.accent} transparent opacity={station ? 0.5 : 0} depthWrite={false} />

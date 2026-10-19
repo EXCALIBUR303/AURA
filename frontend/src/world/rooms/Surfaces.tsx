@@ -23,7 +23,7 @@ export function surfaceTexture(kind:"stone"|"walnut"){
  }
  const texture=new CanvasTexture(canvas);texture.colorSpace=SRGBColorSpace;texture.wrapS=texture.wrapT=RepeatWrapping;texture.repeat.set(kind==="stone"?4:1,kind==="stone"?3:1);texture.anisotropy=4;return texture;
 }
-export function FloorSurface({size,position=[0,.003,0]}:{size:[number,number];position?:Point}){
+export function FloorSurface({size,position=[0,.003,0],color="#ffffff"}:{size:[number,number];position?:Point;color?:string}){
  const texture=useMemo(()=>surfaceTexture("stone"),[]);useEffect(()=>()=>texture.dispose(),[texture]);
- return <mesh position={position} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={size}/><meshStandardMaterial map={texture} roughness={.8}/></mesh>;
+ return <mesh position={position} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={size}/><meshStandardMaterial color={color} map={texture} roughness={.8}/></mesh>;
 }

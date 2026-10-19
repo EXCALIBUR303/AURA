@@ -11,5 +11,6 @@ export function roomEnvironment(room:RoomId,preset:LightingPreset):Environment{
  const palette=PALETTES[room];
  if(preset==="night")return{sky:palette.accent,ground:palette.ground,key:room==="gaming"?"#c0cbef":"#f4c68d",keyPower:1.1,fill:"#9bafd3",fillPower:.8,ambient:1.15,background:"#18283d"};
  if(preset==="sunset")return{sky:"#edc7a2",ground:palette.ground,key:"#ffd4a2",keyPower:1.9,fill:palette.accent,fillPower:1.1,ambient:1.65,background:"#ac9e99"};
+ if(room==="project-hub"||room==="atrium")return{sky:"#bbd6ec",ground:"#465569",key:"#f5dfc4",keyPower:2.15,fill:"#91bfeb",fillPower:.8,ambient:1.35,background:"#122135"};
  return{sky:palette.day,ground:palette.ground,key:"#fff0d8",keyPower:1.75,fill:palette.accent,fillPower:1.15,ambient:1.95,background:"#cbd3d7"};
 }

@@ -11,7 +11,7 @@ export function Block({at,size,color,metal=0,rough=.8}:{at:Point;size:Point;colo
 export function Sign({label,detail,position,rotation=0}:{label:string;detail:string;position:Point;rotation?:number}){
   const texture=useMemo(()=>{
     const canvas=document.createElement("canvas");canvas.width=1024;canvas.height=256;const c=canvas.getContext("2d")!;
-    c.fillStyle="#e8e6d9";c.fillRect(0,0,1024,256);c.fillStyle="#273d4b";c.font="600 52px system-ui";c.fillText(label,52,104,920);c.font="30px system-ui";c.fillStyle="#4b5b61";c.fillText(detail,52,182,920);
+    c.fillStyle="#142536";c.fillRect(0,0,1024,256);c.fillStyle="#d5eaf4";c.font="600 52px system-ui";c.fillText(label,52,104,920);c.font="30px system-ui";c.fillStyle="#9fbfce";c.fillText(detail,52,182,920);
     const t=new CanvasTexture(canvas);t.colorSpace=SRGBColorSpace;return t;
   },[label,detail]);
   useEffect(()=>{texture.needsUpdate=true;return()=>texture.dispose();},[texture]);

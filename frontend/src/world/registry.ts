@@ -29,7 +29,7 @@ function homeColliders(id:"living"|"gaming"):Collider[]{
 }
 
 export const ROOMS: Readonly<Record<RoomId,RoomDefinition>> = {
-  "project-hub": {id:"project-hub",title:"Project Hub",description:"Hardware, software, AI and GitHub. Your original tools, together.",accent:"#287d83",availability:"available",origin:HUB_ORIGIN,floor:{minX:-6,maxX:6,minZ:-15.5,maxZ:-6.5},ceiling:3.6,landing:[0,1.62,-7.3],introduction:{position:[0,2.85,-7.05],target:[-.15,1.15,-12.2]},colliders:[...hubWalls,...hubProps,wall("astra",ASTRA_HOME[0],ASTRA_HOME[2],.8,.8,1.9)],load:loadHub},
+  "project-hub": {id:"project-hub",title:"Project Hub",description:"Hardware, software, AI and GitHub. Your original tools, together.",accent:"#287d83",availability:"available",origin:HUB_ORIGIN,floor:{minX:-6,maxX:6,minZ:-15.5,maxZ:-6.5},ceiling:3.6,landing:[0,1.62,-7.3],introduction:{position:[0,2.5,-7.05],target:[-.8,1.08,-12.5]},colliders:[...hubWalls,...hubProps,wall("astra",ASTRA_HOME[0],ASTRA_HOME[2],1.44,1.44,1.9)],load:loadHub},
   atrium:{id:"atrium",title:"Central Atrium",description:"A stone crossing connecting AURA’s three destinations.",accent:"#305a9d",availability:"available",origin:[0,0,0],floor:{minX:-4,maxX:4,minZ:-4,maxZ:4},ceiling:4.6,landing:[0,1.62,-2.7],introduction:{position:[-.4,2.5,3.45],target:[0,1.5,-.9]},colliders:[...atriumWalls,wall("map",2.5,2.4,1.2,.5,1.3)],load:()=>import("./rooms/Atrium.tsx")},
   living:{id:"living",title:"Personal Living Space",description:"Walnut, soft fabric and a quieter pace.",accent:"#48634f",availability:"available",origin:[-11,0,0],floor:{minX:-15.5,maxX:-6.5,minZ:-4,maxZ:4},ceiling:3.2,landing:[-7.7,1.62,0],introduction:{position:[-7.35,2.25,3.15],target:[-11.85,.9,-.5]},colliders:homeColliders("living"),load:()=>loadRoom("living")},
   gaming:{id:"gaming",title:"Gaming & Entertainment",description:"A separate destination for play and a future game library.",accent:"#514a7b",availability:"available",origin:[11,0,0],floor:{minX:6.5,maxX:15.5,minZ:-4,maxZ:4},ceiling:3.2,landing:[7.7,1.62,0],introduction:{position:[8.65,2.35,3.3],target:[11.1,1.05,-1.3]},colliders:homeColliders("gaming"),load:()=>loadRoom("gaming")},
@@ -41,7 +41,7 @@ export function connectionFor(a:RoomId,b:RoomId) { return CONNECTIONS.find(e=>(e
 export function zonePose(zone:ZoneId):CameraPose {
   const poses:Record<ZoneId,CameraPose> = {
     studio:ROOMS["project-hub"].introduction,
-    hardware:{position:[-.6,2,-11.7],target:[-3.25,1.2,-13.5]},
+    hardware:{position:[-.6,2,-11.5],target:[-3.25,1.2,-13.5]},
     software:{position:[.6,2,-11.7],target:[3.25,1.2,-13.5]},
     "ai-lab":{position:[-.6,2,-10.4],target:[-3.25,1.2,-8.5]},
     github:{position:[.6,2,-10.4],target:[3.25,1.2,-8.5]},

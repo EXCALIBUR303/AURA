@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Modal, UiIcon } from "../components/ui.tsx";
+import { RoomPortal } from "../spatial/RoomPortal.tsx";
 import { ROOM_LIST, ROOMS } from "./registry.ts";
 import type { WorldController } from "./WorldController.ts";
 import type { WorldSnapshot } from "./types.ts";
@@ -40,12 +41,18 @@ export function WorldHUD({controller,snapshot,mapOpen,setMapOpen,openSettings}:{
       {busy&&<button onClick={controller.cancel}>Cancel travel</button>}
       {(lockIssue||snapshot.error)&&<button onClick={()=>{setLockIssue(null);controller.clearIssue();}}>Dismiss</button>}
     </div>}
-    {mapOpen&&<Modal title="Your AURA world" subtitle="CONNECTED SPACES" close={()=>setMapOpen(false)} wide>
-      <div className="ui-dialog-body world-map-body"><p className="help">Three destinations connected by a central atrium. Room travel keeps your current project and conversation. Map visits use camera travel where a loaded route is available, or direct placement. Walk through the atrium for continuous exploration.</p>
-        <div className="world-map-diagram" aria-hidden="true"><span className="map-hub">Project Hub</span><span className="map-atrium">Atrium</span><span className="map-living">Living</span><span className="map-gaming">Gaming</span></div>
-        <div className="world-room-list">{ROOM_LIST.map(room=><article key={room.id} data-room={room.id}><div><h3>{room.title}{room.id===snapshot.room&&<span className="world-current">Current room</span>}</h3><p>{room.description}</p>{room.availability==="planned"&&<p className="help">{room.reason}</p>}</div><button data-initial-focus={room.availability==="available"&&room.id!==snapshot.room||undefined} disabled={room.availability!=="available"||room.id===snapshot.room&&snapshot.phase==="idle"} onClick={()=>travel(room.id)}>{room.availability==="planned"?"Planned":room.id===snapshot.room?"Here":"Visit"}</button></article>)}</div>
-        <p className="help">World navigation is session-only. Existing developer workspace shortcuts ⌘1–6 remain available. Future expansion is reserved; no playable games are installed.</p>
+    {mapOpen&&<Modal title="Your AURA world" subtitle="ASTRA / SPATIAL NAVIGATION" close={()=>setMapOpen(false)} wide>
+      <div className="ui-dialog-body spatial-room-selector">
+        <div className="spatial-map-intro"><p>One universe.<br /><strong>Four places to be.</strong></p><span>Choose a space. Your project and conversation stay with you.</span></div>
+        <div className="world-room-list">{ROOM_LIST.map((room,index)=><article key={room.id} data-room={room.id} data-current={room.id===snapshot.room}>
+          <div className="room-portal-heading"><span className="room-coordinate">0{index+1} / {room.id==="project-hub"?"CREATE":room.id==="atrium"?"CONNECT":room.id==="living"?"UNWIND":"PLAY"}</span>{room.id===snapshot.room&&<span className="world-current">You are here</span>}</div>
+          <RoomPortal room={room.id}/>
+          <div className="room-portal-copy"><h3>{room.id==="atrium"?"Central Hub":room.id==="living"?"Living Space":room.id==="gaming"?"Gaming Space":room.title}</h3><p>{room.id==="project-hub"?"Ideas into systems. Hardware, software, AI and your GitHub projects.":room.id==="atrium"?"The architectural heart of AURA. A passage to every space.":room.description}</p></div>
+          <button data-initial-focus={index===0&&room.id!==snapshot.room||index===1&&snapshot.room==="project-hub"||undefined} disabled={room.availability!=="available"||room.id===snapshot.room&&snapshot.phase==="idle"} onClick={()=>travel(room.id)}><span>{room.availability==="planned"?"Planned":room.id===snapshot.room?"Here":"Visit"}</span><span className="portal-arrow"><UiIcon name="arrow"/></span></button>
+        </article>)}</div>
+        <p className="spatial-map-footnote">Room illustrations · Use the doors for continuous exploration. Developer shortcuts ⌘1–6 remain available.</p>
       </div>
     </Modal>}
+
   </>;
 }
