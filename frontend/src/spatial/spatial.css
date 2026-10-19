@@ -84,7 +84,10 @@
 .spatial-os .conversation-empty h3 { font-weight:450; }
 .spatial-os .conversation-empty > button { background:#172a3c; border-color:#40596d; color:#cddfeb; }
 .spatial-os .conversation-splitter:hover,.spatial-os .conversation-splitter:focus-visible { background:#82cddd; }
-.spatial-os .reset-pane-width { left:8px; top:4px; border-radius:4px; background:#1d344b; }
+/* Shown beside the splitter only while resizing is in use, so it never covers the conversation title. */
+.spatial-os .reset-pane-width { left:3px; top:50%; transform:translateY(-50%); z-index:3; border-radius:4px; background:#1d344b; }
+.spatial-os .companion-workspace:focus-within .reset-pane-width { opacity:0; pointer-events:none; }
+.spatial-os .conversation-splitter:is(:hover,:focus-visible) ~ .reset-pane-width,.spatial-os .reset-pane-width:is(:hover,:focus-visible) { opacity:1; pointer-events:auto; }
 .spatial-os .conversation-provider select { background:#152638; border-color:#617c93; color:#e3edf5; }
 .spatial-os .conversation-mock-note { color:#a2cfda; }
 .spatial-os .ui-dialog { border:1px solid #4b6277; border-radius:20px; background:#101c2a; }

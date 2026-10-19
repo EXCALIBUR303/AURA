@@ -117,7 +117,7 @@ function ProjectHotspots({ buttons, zone }: { buttons: RefObject<Map<ZoneId, HTM
     const viewport = gl.domElement.closest(".viewport");
     if (!viewport) return;
     const origin = viewport.getBoundingClientRect();
-    const occupied: ScreenRect[] = [...viewport.querySelectorAll(".command-dock, .viewport-heading, .companion-pill, .viewport-tools, .diagnostics, .scene-message, .world-hud, .world-feedback"), ...document.querySelectorAll('.companion-workspace[data-layout="compact"][data-visible="true"]')].map((element) => {
+    const occupied: ScreenRect[] = [...viewport.querySelectorAll(".command-dock, .viewport-heading, .companion-pill, .viewport-tools, .diagnostics, .scene-message, .world-hud, .world-feedback, .spatial-rail, .equipment-trigger, .equipment-panel"), ...document.querySelectorAll('.companion-workspace[data-layout="compact"][data-visible="true"][data-minimized="false"], .astra-beacon:not([hidden]), .inspector:not([hidden])')].map((element) => {
       const rect = element.getBoundingClientRect();
       return { left: rect.left - origin.left - 8, right: rect.right - origin.left + 8,
         top: rect.top - origin.top - 8, bottom: rect.bottom - origin.top + 8 };
