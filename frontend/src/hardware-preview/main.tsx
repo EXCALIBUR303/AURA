@@ -1,6 +1,7 @@
 // Development-only entry: renders just the procedural hardware kit with orbit controls, with no room assets,
 // bridge or Astra. Not imported by the production app or its build (vite builds index.html only).
-// Query: ?select=gpu  ?explode=1  ?reduced=1  ?pose=gpu  (camera framed with the same pure focusPose used in the world)
+// Query: ?assembled=1 (merged at-rest tower, as in the Hub)  ?select=gpu  ?explode=1  ?reduced=1
+// The camera is framed with the same pure focusPose used in the world.
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { Canvas, useThree } from "@react-three/fiber";
@@ -12,12 +13,13 @@ import { HARDWARE_ORIGIN, focusPose } from "../world/hardware/catalog.ts";
 import type { ComponentId } from "../world/hardware/catalog.ts";
 
 const params = new URLSearchParams(location.search);
+const assembled = params.get("assembled") === "1";
 const select = (params.get("select") || null) as ComponentId | null, exploded = params.get("explode") === "1", reduced = params.get("reduced") === "1";
 
 function Frame() {
   const camera = useThree((s) => s.camera), gl = useThree((s) => s.gl);
   useEffect(() => {
-    hardwareInspection.open(); hardwareInspection.select(select); hardwareInspection.setExploded(exploded);
+    if (!assembled) { hardwareInspection.open(); hardwareInspection.select(select); hardwareInspection.setExploded(exploded); }
     const pose = focusPose(select, exploded);
     // The rig lives at the origin here, so convert from world to preview space.
     camera.position.set(pose.position[0] - HARDWARE_ORIGIN[0], pose.position[1] - HARDWARE_ORIGIN[1], pose.position[2] - HARDWARE_ORIGIN[2]);

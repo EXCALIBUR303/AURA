@@ -21,6 +21,7 @@
     "test:world": "node test/world.test.ts && node test/world-preferences.test.ts && node test/cinematic.test.ts && node test/hardware.test.ts",
     "test:hardware": "node test/hardware.test.ts",
     "test:hardware:browser": "node test/hardware.browser.mjs",
+    "screens:hardware": "node test/hardware.screens.mjs",
     "test:navigation:browser": "node test/navigation.browser.mjs",
     "test:world:browser": "node test/world.browser.mjs",
     "test:voice": "node test/voice-controller.test.ts",
