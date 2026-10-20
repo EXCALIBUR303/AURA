@@ -23,6 +23,7 @@
     "test:composition:browser": "node test/composition.browser.mjs",
     "test:hardware:browser": "node test/hardware.browser.mjs",
     "screens:hardware": "node test/hardware.screens.mjs",
+    "test:journeys:browser": "node test/journeys.browser.mjs",
     "test:navigation:browser": "node test/navigation.browser.mjs",
     "test:world:browser": "node test/world.browser.mjs",
     "test:voice": "node test/voice-controller.test.ts",
