@@ -213,3 +213,27 @@
 .spatial-os .project-scope button { color:#c4d6e4; }
 .spatial-os .project-scope button[aria-pressed=true] { background:#304c61; color:#edf5fa; }
 .spatial-os .cached-notice { color:var(--aura-warning-ink); }
+
+/* Phase 6 — calmer overview heading: the title reads as part of the room, not as a card over it. */
+.experience .viewport-heading{background:none;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;padding:2px 0;max-width:300px;text-shadow:0 1px 14px rgb(4 10 18 / .85)}
+.experience .viewport-heading h1{font-size:20px;line-height:1.2;margin-block:4px 6px;font-weight:560;letter-spacing:-.005em}
+.experience .viewport-heading h1 br{display:none}
+.experience .viewport-heading>p{display:none}
+.experience .viewport-heading .view-actions{gap:10px;align-items:center}
+.experience .viewport-heading .view-actions>button{padding:4px 10px;font-size:12px;background:rgb(10 22 34 / .55);border-color:rgb(150 190 205 / .22)}
+.experience .viewport-heading .view-actions>span{color:#9fb4bc}
+
+/* Software Development Station panel (facts from the shared GitHub workspace; nothing generated) */
+.station-software{display:grid;gap:10px}
+.station-software .station-note{margin:0;padding:6px 9px;border-radius:7px;font-size:11px;background:rgb(200 170 90 / .12);color:#d9c58e;border:1px solid rgb(200 170 90 / .3)}
+.station-facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:12px}
+.station-facts>div{display:contents}
+.station-facts dt{color:#8fa6ae}
+.station-facts dd{margin:0;font-weight:540;overflow-wrap:anywhere}
+.station-software h3{margin:8px 0 2px}
+.station-repos{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.station-repos button{width:100%;display:flex;justify-content:space-between;align-items:baseline;gap:10px;text-align:left;padding:7px 10px;border-radius:8px;font-size:12px}
+.station-repos small{font-size:11px;color:#8fa6ae;white-space:nowrap}
+.station-repos button[aria-pressed="true"]{outline:1px solid #6fa7ad;outline-offset:-1px}
+.station-foot{margin:2px 0 0;font-size:11px;color:#8fa6ae}
+.experience .viewport-heading h1 em{margin-left:.3em}

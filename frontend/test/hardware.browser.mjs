@@ -143,7 +143,7 @@ try{
     assert.equal(end.geometries,start.geometries,'geometries');assert.equal(end.textures,start.textures,'textures');assert.equal(end.programs,start.programs,'programs');
   });
   await check('Other equipment keeps its original behaviour and closes hardware inspection',async()=>{
-    await openInspector(page);await page.getByLabel('Choose equipment',{exact:true}).selectOption('software.pc');
+    await openInspector(page);await page.getByLabel('Choose equipment',{exact:true}).selectOption('ai-lab.pc');
     await panel(page).getByRole('button',{name:'Chassis & airflow',exact:true}).waitFor();
     assert.equal(await panel(page).getByRole('button',{name:'Explode view'}).count(),0);
     await page.waitForFunction(()=>!window.__AURA_HARDWARE__.state().detailMounted,null,{timeout:60000});

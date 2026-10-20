@@ -5,6 +5,7 @@ import type { ZoneId } from "@aura/contracts";
 
 import { Equipment } from "../world/assets/Equipment.tsx";
 import { STATIONS } from "../world/interactions/registry.ts";
+import { ASTRA_HOME, HUB_ORIGIN } from "../world/registry.ts";
 import type { MotionSamples, WorldSettings } from "../world/settings.ts";
 import type { ScreenState } from "../world/assets/MonitorAtlas.tsx";
 
@@ -42,7 +43,7 @@ export const World = memo(function World({ zone, navigate, focusCompanion, inspe
   return <group>
     <Equipment navigate={navigate} inspect={inspect} selected={selected} reduced={reduced} active={active} screens={screens} settings={settings} motion={motion}/>
     <Plantings />
-    <group position={[-1.25,0,-1.5]}>
+    <group position={[ASTRA_HOME[0],0,ASTRA_HOME[2]-HUB_ORIGIN[2]]}>
     <mesh position={[0, .065, 0]} receiveShadow><cylinderGeometry args={[.66, .72, .12, 64]} /><meshStandardMaterial color="#243748" metalness={.55} roughness={.38} /></mesh>
     <mesh position={[0, .126, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[.64, 64]} /><meshStandardMaterial color="#415363" metalness={.3} roughness={.48} /></mesh>
     <mesh position={[0, .128, 0]} rotation={[-Math.PI/2,0,0]}><ringGeometry args={[.60,.615,64]}/><meshBasicMaterial color="#96d8e3" toneMapped={false}/></mesh>
@@ -51,7 +52,7 @@ export const World = memo(function World({ zone, navigate, focusCompanion, inspe
       <ringGeometry args={[1.45, 1.47, 4]} /><meshBasicMaterial color={ring.accent} transparent opacity={station ? 0.5 : 0} depthWrite={false} />
     </mesh>
     {/* A non-rendering, six-face hit area avoids raycasting the 36k-triangle rig. */}
-    <mesh visible={false} position={[-1.25, 1.03, -1.5]} onClick={(event) => { event.stopPropagation(); focusCompanion(); }}
+    <mesh visible={false} position={[ASTRA_HOME[0], 1.03, ASTRA_HOME[2]-HUB_ORIGIN[2]]} onClick={(event) => { event.stopPropagation(); focusCompanion(); }}
       onPointerOver={() => { gl.domElement.style.cursor = "pointer"; }} onPointerOut={() => { gl.domElement.style.cursor = ""; }}>
       <boxGeometry args={[0.78, 1.8, 0.68]} /><meshBasicMaterial />
     </mesh>

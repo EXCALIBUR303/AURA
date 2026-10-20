@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { CanvasTexture, Mesh, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace } from "three";
 import { STATIONS } from "../interactions/registry.ts";
-export type ScreenState={project:string;branch:string;language:string;description:string;repositoryCount:number;githubState:string;companion:string;provider:string;model:string;updated:string;activity:string;mock:boolean};
+export type ScreenState={project:string;branch:string;language:string;description:string;repositoryCount:number;githubState:string;companion:string;provider:string;model:string;updated:string;activity:string;mock:boolean;recent?:readonly string[]};
 export const EMPTY_SCREEN_STATE:ScreenState={project:"",branch:"",language:"",description:"",repositoryCount:0,githubState:"not connected",companion:"Ready when you are",provider:"No provider configured",model:"No model selected",updated:"",activity:"idle",mock:true};
 const clean=(s:string)=>s.replace(/[\u0000-\u001f\u007f]/g," ").slice(0,100);
 export function MonitorAtlas({state,lifts,active}:{state:ScreenState;lifts:RefObject<number[]>;active:boolean}){
@@ -23,7 +23,7 @@ export function MonitorAtlas({state,lifts,active}:{state:ScreenState;lifts:RefOb
     c.font="28px system-ui";c.fillText("Board · memory · cooling",421,252);c.fillText("Select the PC to inspect",421,306);c.font="23px system-ui";c.fillText("No device sensors connected",421,358);
    }else{
     const title=s.id==="ai-lab"?"Astra / Companion":data.project||"Choose a project";c.fillText(clean(title).slice(0,34),48,124);c.font="26px system-ui";c.fillStyle="#afc2c3";
-    const rows=s.id==="ai-lab"?[data.companion,data.provider,data.model]:s.id==="github"?["GitHub: "+data.githubState,data.project?"Branch: "+data.branch:data.repositoryCount+" repositories available",data.updated?"Last push: "+data.updated:"Open Projects to connect or select"]:[data.language||"Project metadata",data.branch?"Branch / "+data.branch:"No branch selected",data.description||"Select an authorized repository in Projects"];
+    const rows=s.id==="ai-lab"?[data.companion,data.provider,data.model]:s.id==="github"?["GitHub: "+data.githubState,data.project?"Branch: "+data.branch:data.repositoryCount+" repositories available",data.updated?"Last push: "+data.updated:"Open Projects to connect or select"]:s.id==="software"?[[data.language,data.branch].filter(Boolean).join(" · ")||"Project metadata",data.description||"Select a repository in Projects",...(data.recent??[]).slice(0,2).map(r=>"Recent / "+r)]:[data.language||"Project metadata",data.branch?"Branch / "+data.branch:"No branch selected",data.description||"Select an authorized repository in Projects"];
     rows.forEach((row,j)=>c.fillText(clean(row).slice(0,59),48,200+j*62));
     if(s.id==="ai-lab"&&["thinking","speaking","listening"].includes(data.activity)){c.fillStyle=dot.current?"#aec8be":"#6c8b88";c.beginPath();c.arc(927,46,8,0,Math.PI*2);c.fill();}
    }
