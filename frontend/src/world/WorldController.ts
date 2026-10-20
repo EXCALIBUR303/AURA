@@ -1,3 +1,4 @@
+import { traceMark } from "../studio/frameTrace.ts";
 import { DEFAULT_ROOM_OPTIONS, roomOptionsPatch, DEFAULT_WORLD_SETTINGS, worldSettingsPatch } from "./settings.ts";
 import type { RoomOptions, WorldSettings } from "./settings.ts";
 import type { ZoneId } from "@aura/contracts";
@@ -22,7 +23,7 @@ export class WorldController {
   private loader:(id:RoomId)=>Promise<RoomModule>;
   getSnapshot=()=>this.snapshot;
   subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
-  private patch(patch:Partial<WorldSnapshot>){this.snapshot={...this.snapshot,...patch};this.listeners.forEach(fn=>fn());}
+  private patch(patch:Partial<WorldSnapshot>){this.snapshot={...this.snapshot,...patch};traceMark(`world:${this.snapshot.phase}:${this.snapshot.loaded.join("+")}`);this.listeners.forEach(fn=>fn());}
   private async load(id:RoomId){
     const ready=this.snapshot.modules[id];if(ready)return ready;
     let promise=this.pendingLoads.get(id);

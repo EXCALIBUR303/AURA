@@ -11,6 +11,7 @@ import { connectionFor, roomAt, ROOMS, CONNECTIONS, worldGeometry } from "./regi
 import type { CameraPose, Point, WorldSnapshot } from "./types.ts";
 import type { WorldController } from "./WorldController.ts";
 import { travelSignal } from "./travelSignal.ts";
+import { traceTime } from "../studio/frameTrace.ts";
 import type { Report } from "../studio/diagnostics.ts";
 export type WorldCameraHandle={capture:()=>CameraPose|undefined};
 
@@ -49,7 +50,7 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
     // Through the passages' centres the view is held along each passage; a grid fallback route keeps the plain walk.
     const doors=route.length?passagesFor(rooms):[];
     if(walkway&&!route.length)route.push(...cameraPath(from,destination.position,geometry.floors,geometry.colliders));
-    plan.current=planTravel({from:{position:from,target:(orbit.current?.target.toArray()??destination.target) as Point},to:destination,route,geometry,reduced:reducedMotion,instant:!!request.instant,carryVeil:veilValue.current,journey:!!request.via&&!!source&&source!==request.room&&!connectionFor(source,request.room),doors});elapsed.current=0;
+    plan.current=traceTime("plan",()=>planTravel({from:{position:from,target:(orbit.current?.target.toArray()??destination.target) as Point},to:destination,route,geometry,reduced:reducedMotion,instant:!!request.instant,carryVeil:veilValue.current,journey:!!request.via&&!!source&&source!==request.room&&!connectionFor(source,request.room),doors}));elapsed.current=0;
     travelSignal.destination=request.room;travelSignal.via=request.via??null;travelSignal.kind=plan.current.kind;travelSignal.progress=0;
     if(orbit.current)orbit.current.enabled=false;
     if(plan.current.kind==="cut"){setVeil(0);applyLimits(controller.zoneAfterArrival());camera.position.fromArray(destination.position);target.current.fromArray(destination.target);orbit.current?.target.copy(target.current);orbit.current?.update();}

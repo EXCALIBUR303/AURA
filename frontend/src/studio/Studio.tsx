@@ -18,6 +18,7 @@ import { WorldScene } from "../world/WorldScene.tsx";
 import { WorldNavigation } from "../world/WorldNavigation.tsx";
 import type { WorldCameraHandle } from "../world/WorldNavigation.tsx";
 import { ASTRA_HOME } from "../world/registry.ts";
+import { FrameTracer } from "./FrameTracer.tsx";
 import { roomVisible } from "../world/travelSignal.ts";
 import type { RoomId, WorldSnapshot } from "../world/types.ts";
 import type { WorldController } from "../world/WorldController.ts";
@@ -248,6 +249,7 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
         <BackgroundFrames enabled={throttled} />
         <Measurements motion={motion.current} settings={world.settings} zone={zone} room={world.room} throttled={throttled} report={report} lowerDpr={() => setAdaptiveDpr((value) => Math.max(1, value - 0.25))} />
         <ContextEvents report={report} restored={restart} />
+        <FrameTracer />
         {showHotspots && <ProjectHotspots buttons={buttons} zone={zone} />}
       </Canvas>
     </SceneBoundary>
