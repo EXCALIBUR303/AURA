@@ -18,7 +18,7 @@ const PC_PARTS:Part[]=[{name:"desk",position:[2.6,0,-2.55]},{name:"chair",positi
  {name:"keyboard",position:[2.78,.784,-2.29]},{name:"mouse",position:[3.19,.784,-2.29]},
  {name:"speaker",position:[2.21,.784,-2.85]},{name:"speaker",position:[3.36,.784,-2.85]}];
 export default function Gaming({connected,travel,options,active,act,settings,reduced,motion}:RoomShellProps){
- return <HomeShell kind="gaming" lighting={settings.lightingPreset} connected={connected} travel={travel}>
+ return <HomeShell kind="gaming" lighting={settings.lightingPreset} connected={connected} travel={travel} reduced={reduced}>
   <mesh position={[0,.008,.5]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[3.5,3.4]}/><meshStandardMaterial color="#3f4962" roughness={1}/></mesh>
   <ModelBatch asset="room-kit" parts={ROOM_PARTS} lights={options.gamingLights}/><ModelBatch asset="workstation" parts={PC_PARTS}/>
   <Seating kind="sofa" position={[0,0,1.7]} rotation={Math.PI}/>

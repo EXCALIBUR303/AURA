@@ -13,7 +13,7 @@ const PARTS:Part[]=[
  {name:"art-frame",position:[-3.25,1.3,-3.97]},
 ];
 export default function Living({connected,travel,options,reduced,active,act,settings}:RoomShellProps){
- return <HomeShell kind="living" lighting={settings.lightingPreset} connected={connected} travel={travel}>
+ return <HomeShell kind="living" lighting={settings.lightingPreset} connected={connected} travel={travel} reduced={reduced}>
   <mesh position={[0,.008,.2]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[3.6,3]}/><meshStandardMaterial color="#b49a73" roughness={1}/></mesh>
   <ModelBatch asset="room-kit" parts={PARTS} lights={options.livingLights}/>
   <Seating kind="sofa" position={[0,0,-1.1]} palette={options.livingPalette}/>

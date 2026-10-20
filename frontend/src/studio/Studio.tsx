@@ -18,6 +18,7 @@ import { WorldScene } from "../world/WorldScene.tsx";
 import { WorldNavigation } from "../world/WorldNavigation.tsx";
 import type { WorldCameraHandle } from "../world/WorldNavigation.tsx";
 import { ASTRA_HOME } from "../world/registry.ts";
+import { roomVisible } from "../world/travelSignal.ts";
 import type { RoomId, WorldSnapshot } from "../world/types.ts";
 import type { WorldController } from "../world/WorldController.ts";
 import type { VoiceSamples } from "../companion/voice/VoiceController.ts";
@@ -165,6 +166,13 @@ function ProjectHotspots({ buttons, zone }: { buttons: RefObject<Map<ZoneId, HTM
   return null;
 }
 
+/** Astra and her ring belong to the Hub: drawn only while the Hub itself is (doorway visibility in WorldScene). */
+function HubVisible({loaded,children}:{loaded:boolean;children:ReactNode}){
+  const group=useRef<THREE.Group>(null);
+  useFrame(()=>{if(group.current)group.current.visible=loaded&&roomVisible["project-hub"]!==false;});
+  return <group ref={group} position={[ASTRA_HOME[0],0,ASTRA_HOME[2]]} visible={loaded}>{children}</group>;
+}
+
 /** Frame rate while AURA's window is visible but another app is active. */
 const BACKGROUND_FPS = 30;
 
@@ -230,12 +238,12 @@ export function Studio({ zone, revision, reducedMotion, maxDpr, state, speechLev
         <WorldScene motion={motion.current} act={roomAction} active={rendering && hostWindow.active && world.phase === "idle"} reduced={reducedMotion} snapshot={world} travel={worldController.travel} openMap={openWorldMap}>
           <World zone={zone} navigate={navigate} focusCompanion={focusCompanion} inspect={inspectEquipment} selected={selectedEquipment} reduced={reducedMotion} active={rendering && hostWindow.active && world.phase === "idle"} screens={screens} settings={world.settings} motion={motion.current}/>
         </WorldScene>
-        <group position={[ASTRA_HOME[0],0,ASTRA_HOME[2]]} visible={world.loaded.includes("project-hub")}>
+        <HubVisible loaded={world.loaded.includes("project-hub")}>
         <CompanionRing state={state} samples={voiceSamples} reduced={reducedMotion} />
         <SceneBoundary onError={() => report({ status: "error", error: "Astra could not load. Check the model file and retry the scene." })}>
           <Suspense fallback={null}><Astra startedAt={startedAt.current} state={state} speechLevel={speechLevel} voiceSamples={voiceSamples} reducedMotion={reducedMotion} report={report} active={world.loaded.includes("project-hub")} /></Suspense>
         </SceneBoundary>
-        </group>
+        </HubVisible>
         <WorldNavigation controller={worldController} snapshot={world} reducedMotion={reducedMotion} active={rendering && hostWindow.active} report={report} revision={revision} cameraHandle={cameraHandle}/>
         <BackgroundFrames enabled={throttled} />
         <Measurements motion={motion.current} settings={world.settings} zone={zone} room={world.room} throttled={throttled} report={report} lowerDpr={() => setAdaptiveDpr((value) => Math.max(1, value - 0.25))} />
