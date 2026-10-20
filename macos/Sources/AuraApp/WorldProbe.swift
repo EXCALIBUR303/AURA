@@ -15,9 +15,9 @@ enum WorldProbe {
     private static let log = Logger(subsystem: Log.subsystem, category: "world-probe")
 
     /// "1" = M6 baseline pass; "m9" = full M9 pass; "relaunch" = persistence check; "failure" = failed model + context loss;
-    /// "p2" = Phase 5 cinematic travel pacing, skip/cancel/rapid/hide; "p7" = every room-to-room and Hub station transition in both directions; "leak" = memory bisect stages (sample `footprint` externally).
+    /// "p2" = Phase 5 cinematic travel pacing, skip/cancel/rapid/hide; "p7" = every room-to-room and Hub station transition in both directions; "p7t" = the same with the frame tracer (long frames and their marks; AURA_DEV_TRACE_SYNC=1 also waits for the GPU each frame); "p7v" = in-app snapshots (web content only) of transitions, the Free Explore doorway prompt and doorway hover glow; "leak" = memory bisect stages (sample `footprint` externally).
     static var scenario: String? { ProcessInfo.processInfo.environment["AURA_DEV_WORLD_PROBE"] }
-    static var isEnabled: Bool { ["1", "m9", "relaunch", "failure", "leak", "p2", "p7"].contains(scenario ?? "") }
+    static var isEnabled: Bool { ["1", "m9", "relaunch", "failure", "leak", "p2", "p7", "p7t", "p7v"].contains(scenario ?? "") }
 
     private static let counters = """
         const d = window.__AURA_DIAGNOSTICS__;
@@ -70,6 +70,8 @@ enum WorldProbe {
         case "leak": await leak(webView: webView); return
         case "p2": await cinematic(webView: webView); return
         case "p7": await journeys(webView: webView); return
+        case "p7t": await journeys(webView: webView, traced: true); return
+        case "p7v": await visuals(webView: webView); return
         default: break
         }
         // One pass through all four rooms (cold loads), then repeated visits.
@@ -200,7 +202,8 @@ enum WorldProbe {
 
     /// Phase 7: frame pacing for every directed room transition and the Hub station moves, after one warm pass.
     /// Sample WebContent memory with `footprint` externally; the probe logs markers.
-    private static func journeys(webView: WKWebView) async {
+    private static func journeys(webView: WKWebView, traced: Bool = false) async {
+        let sync = ProcessInfo.processInfo.environment["AURA_DEV_TRACE_SYNC"] == "1"
         let helpers = """
             const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
             const go = async (room) => { [...document.querySelectorAll('button')].find((b) => b.textContent.includes('World map'))?.click(); await sleep(350); document.querySelector(`[data-room="${room}"] button`)?.click(); };
@@ -209,11 +212,22 @@ enum WorldProbe {
             const measure = async (start, done) => {
               const frames = [], calls = []; let last = performance.now(), on = true;
               const tick = (t) => { frames.push(t - last); last = t; calls.push(window.__AURA_DIAGNOSTICS__.drawCalls ?? 0); if (on) requestAnimationFrame(tick); }; requestAnimationFrame(tick);
+              if (\(traced)) window.__AURA_TRACE__?.start({ sync: \(sync) });
               const t0 = performance.now(); await start(); await sleep(60);
               for (let i = 0; i < 400 && !done(); i++) await sleep(25); on = false;
+              // Long frames: start-to-start gap over 25 ms, with this frame's callback/render time, the time spent
+              // outside the frame before the next one, resource deltas, and every mark in between.
+              const long = [];
+              if (\(traced)) { const tr = window.__AURA_TRACE__.stop(), f = tr.frames;
+                for (let i = 0; i + 1 < f.length; i++) { const a = f[i], b = f[i + 1], gap = b.start - a.start; if (gap <= 25) continue;
+                  const prev = f[i - 1] ?? a;
+                  long.push({ atMs: Math.round(a.start - f[0].start), gapMs: +gap.toFixed(1), callbacksMs: +a.callbacksMs.toFixed(1), renderMs: +a.renderMs.toFixed(1), syncMs: a.syncMs === undefined ? undefined : +a.syncMs.toFixed(1), outsideMs: +(gap - a.callbacksMs - a.renderMs - (a.syncMs ?? 0)).toFixed(1), programs: a.programs - prev.programs, textures: a.textures - prev.textures, geometries: a.geometries - prev.geometries, calls: a.calls,
+                    marks: tr.marks.filter((m) => m.t >= a.start - 1 && m.t < b.start).map((m) => `${Math.round(m.t - a.start)}:${m.label}${m.ms === undefined ? '' : '=' + m.ms.toFixed(1)}`) }); }
+              }
               const s = frames.slice(1).sort((a, b) => a - b); const q = (p) => s[Math.min(s.length - 1, Math.floor(p * s.length))];
               const d = window.__AURA_DIAGNOSTICS__;
-              return { ok: done(), wallMs: Math.round(performance.now() - t0), travel: d.travel, loaded: d.world.loadedRooms, frames: s.length, p50Ms: +q(0.5).toFixed(1), p95Ms: +q(0.95).toFixed(1), maxMs: +(s.at(-1) ?? 0).toFixed(1), over20: s.filter((x) => x > 20.9).length, peakDrawCalls: Math.max(...calls) };
+              if (!s.length) return { ok: done(), frames: 0, note: 'no frames: window hidden or occluded', long };
+              return { ok: done(), wallMs: Math.round(performance.now() - t0), travel: d.travel, loaded: d.world.loadedRooms, frames: s.length, p50Ms: +q(0.5).toFixed(1), p95Ms: +q(0.95).toFixed(1), maxMs: +(s.at(-1) ?? 0).toFixed(1), over20: s.filter((x) => x > 20.9).length, peakDrawCalls: Math.max(...calls), long };
             };
             """
         for room in ["atrium", "living", "atrium", "gaming", "atrium", "project-hub"] { await visit(room, webView: webView, sampleMs: 500, label: "p7-warm") }
@@ -221,14 +235,18 @@ enum WorldProbe {
         let order = ["living", "gaming", "project-hub", "gaming", "living", "project-hub", "atrium", "living", "atrium", "gaming", "atrium", "project-hub"]
         var from = "project-hub"
         for room in order {
-            let r = await js(webView, "\(helpers) return JSON.stringify({ from: '\(from)', to: '\(room)', ...(await measure(() => go('\(room)'), () => idle() && window.__AURA_DIAGNOSTICS__.world.room === '\(room)')) });")
+            front(webView)
+            let r = await js(webView, "\(helpers) const m = await measure(() => go('\(room)'), () => idle() && window.__AURA_DIAGNOSTICS__.world.room === '\(room)'); const { long, ...rest } = m; window.__AURA_LONG__ = long; return JSON.stringify({ from: '\(from)', to: '\(room)', ...rest });")
             log.notice("world probe p7 room \(r, privacy: .public)")
+            if traced { await logLong(webView, "\(from)>\(room)") }
             from = room
             try? await Task.sleep(for: .milliseconds(600))
         }
         for label in ["AI Lab", "Studio", "Software", "Studio", "Hardware", "Projects", "Studio"] {
-            let r = await js(webView, "\(helpers) return JSON.stringify({ station: '\(label)', ...(await measure(() => station('\(label)'), idle)) });")
+            front(webView)
+            let r = await js(webView, "\(helpers) const m = await measure(() => station('\(label)'), idle); const { long, ...rest } = m; window.__AURA_LONG__ = long; return JSON.stringify({ station: '\(label)', ...rest });")
             log.notice("world probe p7 station \(r, privacy: .public)")
+            if traced { await logLong(webView, "station \(label)") }
             try? await Task.sleep(for: .milliseconds(600))
         }
         log.notice("world probe p7 marker transitions-done")
@@ -236,6 +254,76 @@ enum WorldProbe {
         let end = await js(webView, "\(counters) return JSON.stringify({ resources: snap.resources, loaded: snap.loaded, canvases: document.querySelectorAll('canvas').length });")
         log.notice("world probe p7 end \(end, privacy: .public)")
         log.notice("world probe done")
+    }
+
+    /// Phase 7 visual review: WKWebView snapshots (the app's web content only, never the desktop) written to the
+    /// app container's temporary folder, plus DOM/diagnostic checks of the Explore doorway prompt and doorway hover.
+    private static func visuals(webView: WKWebView) async {
+        let helpers = """
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+            const go = async (room) => { [...document.querySelectorAll('button')].find((b) => b.textContent.includes('World map'))?.click(); await sleep(350); document.querySelector(`[data-room="${room}"] button`)?.click(); };
+            const idle = () => { const d = window.__AURA_DIAGNOSTICS__; return d.world.phase === 'idle' && d.cameraSettled; };
+            /** Screen position of a world point for the current camera (diagnostics pose and FOV). */
+            const screen = (p) => { const c = window.__AURA_DIAGNOSTICS__.camera, canvas = document.querySelector('canvas'), r = canvas.getBoundingClientRect();
+              const n = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); }, dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+              const f = n(c.target.map((v, i) => v - c.position[i])), right = n([-f[2], 0, f[0]]), up = [right[1] * f[2] - right[2] * f[1], right[2] * f[0] - right[0] * f[2], right[0] * f[1] - right[1] * f[0]];
+              const v = p.map((x, i) => x - c.position[i]), z = dot(v, f), t = Math.tan(c.fov * Math.PI / 360);
+              return [r.left + (dot(v, right) / (z * t * r.width / r.height) + 1) / 2 * r.width, r.top + (1 - dot(v, up) / (z * t)) / 2 * r.height]; };
+            const pointer = (type, [x, y]) => document.querySelector('canvas').dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, bubbles: true, pointerType: 'mouse', pointerId: 1, isPrimary: true }));
+            """
+        func settle(_ room: String) async { for _ in 0..<200 { if await js(webView, "\(helpers) return String(idle() && window.__AURA_DIAGNOSTICS__.world.room === '\(room)');") == "true" { return }; try? await Task.sleep(for: .milliseconds(50)) } }
+        for room in ["atrium", "living", "atrium", "gaming", "atrium", "project-hub"] { await visit(room, webView: webView, sampleMs: 300, label: "p7v-warm") }
+        // Filmstrips: Living → Hub (the reported wall frames), Hub → Gaming, Atrium → Living.
+        for (from, to) in [("project-hub", "living"), ("living", "project-hub"), ("project-hub", "gaming"), ("gaming", "atrium"), ("atrium", "living")] {
+            front(webView)
+            _ = await js(webView, "\(helpers) await go('\(to)'); return 'ok';")
+            for i in 0..<14 { await snapshot(webView, "film-\(from)-\(to)-\(String(format: "%02d", i))"); try? await Task.sleep(for: .milliseconds(240)) }
+            await settle(to)
+            let travel = await js(webView, "return JSON.stringify(window.__AURA_DIAGNOSTICS__.travel);")
+            log.notice("world probe p7v film \(from, privacy: .public)>\(to, privacy: .public) \(travel, privacy: .public)")
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+        // Doorway hover glow, seen from the Atrium framing: the Hub doorway's hit area, then away.
+        front(webView)
+        _ = await js(webView, "\(helpers) await go('atrium'); return 'ok';"); await settle("atrium"); try? await Task.sleep(for: .milliseconds(1200))
+        await snapshot(webView, "hover-0-before")
+        let hover = await js(webView, "\(helpers) const at = screen([0, 1.4, -3.95]); pointer('pointermove', at); await sleep(700); const cursor = document.querySelector('canvas').style.cursor; return JSON.stringify({ at: at.map(Math.round), cursor });")
+        log.notice("world probe p7v hover \(hover, privacy: .public)")
+        await snapshot(webView, "hover-1-hub-door")
+        let away = await js(webView, "\(helpers) pointer('pointermove', [5, 5]); await sleep(700); return document.querySelector('canvas').style.cursor || 'default';")
+        log.notice("world probe p7v hover-away cursor=\(away, privacy: .public)")
+        await snapshot(webView, "hover-2-after")
+        // Free Explore doorway prompt: in the Hub the explore position is beside the Atrium doorway.
+        _ = await js(webView, "\(helpers) await go('project-hub'); return 'ok';"); await settle("project-hub"); try? await Task.sleep(for: .milliseconds(800))
+        let explore = await js(webView, "\(helpers) [...document.querySelectorAll('.world-hud button')].find((b) => b.textContent.trim() === 'Free Explore')?.click(); await sleep(1000); const hint = document.querySelector('.explore-hint'); return JSON.stringify({ mode: window.__AURA_DIAGNOSTICS__.world.mode, prompt: hint?.textContent?.trim() ?? null, visible: !!hint && hint.getBoundingClientRect().height > 0 });")
+        log.notice("world probe p7v explore \(explore, privacy: .public)")
+        await snapshot(webView, "explore-hub-prompt")
+        _ = await js(webView, "\(helpers) [...document.querySelectorAll('.world-hud button')].find((b) => b.textContent.trim() === 'Inspect')?.click(); await sleep(600); return 'ok';")
+        log.notice("world probe done")
+    }
+
+    private static func snapshot(_ webView: WKWebView, _ name: String) async {
+        guard let image = try? await webView.takeSnapshot(configuration: WKSnapshotConfiguration()), let tiff = image.tiffRepresentation,
+              let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { log.notice("world probe p7v snapshot failed \(name, privacy: .public)"); return }
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("aura-p7v", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? png.write(to: folder.appendingPathComponent("\(name).png"))
+    }
+
+    /// Brings the probe window forward and records whether it is actually visible (an occluded window settles travel instantly).
+    private static func front(_ webView: WKWebView) {
+        if !NSApp.isActive { NSApp.activate() }
+        webView.window?.makeKeyAndOrderFront(nil)
+        if !(webView.window?.occlusionState.contains(.visible) ?? false) || !NSApp.isActive { log.notice("world probe p7 window not frontmost active=\(NSApp.isActive, privacy: .public)") }
+    }
+
+    /// One log line per traced long frame (unified logging truncates long messages).
+    private static func logLong(_ webView: WKWebView, _ label: String) async {
+        let count = Int(await js(webView, "return String((window.__AURA_LONG__ ?? []).length);")) ?? 0
+        for i in 0..<min(count, 16) {
+            let line = await js(webView, "return JSON.stringify(window.__AURA_LONG__[\(i)]);")
+            log.notice("world probe p7t long \(label, privacy: .public) \(line, privacy: .public)")
+        }
     }
 
     /// Memory bisect: each stage repeats one interaction 30 times; sample WebContent with `footprint` between the logged markers.
