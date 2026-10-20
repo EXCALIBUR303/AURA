@@ -211,7 +211,7 @@ enum WorldProbe {
             const idle = () => { const d = window.__AURA_DIAGNOSTICS__; return d.world.phase === 'idle' && d.cameraSettled; };
             const measure = async (start, done) => {
               const frames = [], calls = []; let last = performance.now(), on = true;
-              const tick = (t) => { frames.push(t - last); last = t; calls.push(window.__AURA_DIAGNOSTICS__.drawCalls ?? 0); if (on) requestAnimationFrame(tick); }; requestAnimationFrame(tick);
+              const stamps = [], clocks = []; const tick = (t) => { frames.push(t - last); stamps.push(t); clocks.push(performance.now()); last = t; calls.push(window.__AURA_DIAGNOSTICS__.drawCalls ?? 0); if (on) requestAnimationFrame(tick); }; requestAnimationFrame(tick);
               if (\(traced)) window.__AURA_TRACE__?.start({ sync: \(sync) });
               const t0 = performance.now(); await start(); await sleep(60);
               for (let i = 0; i < 400 && !done(); i++) await sleep(25); on = false;
@@ -219,6 +219,9 @@ enum WorldProbe {
               // outside the frame before the next one, resource deltas, and every mark in between.
               const long = [];
               if (\(traced)) { const tr = window.__AURA_TRACE__.stop(), f = tr.frames;
+                // The probe's own rAF view of the same move: long frames by rAF timestamp, relative to the tracer's first frame.
+                const base = f[0]?.start ?? 0; long.push({ probeLong: frames.map((d, i) => [Math.round(stamps[i] - base), Math.round(d), Math.round(clocks[i] - (clocks[i - 1] ?? clocks[i])), Math.round(clocks[i] - stamps[i])]).filter(([, d], i) => i > 0 && d > 40), traceFrames: f.length });
+                { const L = long[0].probeLong[0]?.[0]; if (L !== undefined) long[0].near = f.filter((x) => Math.abs(x.start - base - L + 40) < 90).map((x) => [Math.round(x.start - base), Math.round(x.callbacksMs), Math.round(x.renderMs)]); }
                 for (let i = 0; i + 1 < f.length; i++) { const a = f[i], b = f[i + 1], gap = b.start - a.start; if (gap <= 25) continue;
                   const prev = f[i - 1] ?? a;
                   long.push({ atMs: Math.round(a.start - f[0].start), gapMs: +gap.toFixed(1), callbacksMs: +a.callbacksMs.toFixed(1), renderMs: +a.renderMs.toFixed(1), syncMs: a.syncMs === undefined ? undefined : +a.syncMs.toFixed(1), outsideMs: +(gap - a.callbacksMs - a.renderMs - (a.syncMs ?? 0)).toFixed(1), programs: a.programs - prev.programs, textures: a.textures - prev.textures, geometries: a.geometries - prev.geometries, calls: a.calls,
@@ -253,6 +256,15 @@ enum WorldProbe {
         await sample(webView, "p7-after", ms: 3000)
         let end = await js(webView, "\(counters) return JSON.stringify({ resources: snap.resources, loaded: snap.loaded, canvases: document.querySelectorAll('canvas').length });")
         log.notice("world probe p7 end \(end, privacy: .public)")
+        // AURA_DEV_PROBE_GC=1: allocate and drop ~1 GB of short-lived arrays so JavaScriptCore collects, then let the
+        // footprint sampler see whether memory returns (garbage awaiting collection) or stays (retained).
+        if ProcessInfo.processInfo.environment["AURA_DEV_PROBE_GC"] == "1" {
+            try? await Task.sleep(for: .seconds(20))
+            log.notice("world probe p7 marker gc-pressure-start")
+            _ = await js(webView, "let keep = []; for (let i = 0; i < 64; i++) { keep.push(new Float64Array(2000000).fill(i)); if (keep.length > 4) keep.shift(); await new Promise((r) => setTimeout(r, 30)); } keep = null; return 'ok';")
+            log.notice("world probe p7 marker gc-pressure-done")
+            try? await Task.sleep(for: .seconds(30))
+        }
         log.notice("world probe done")
     }
 
