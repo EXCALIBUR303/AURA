@@ -25,7 +25,6 @@ export default function Gaming({connected,travel,options,active,act,settings,red
   <RoomGraphic title="Game library" detail="No games installed · browse upcoming" position={[0,1.30,-3.405]} size={[2.30,1.26]}/>
   <RoomGraphic title="Game library" detail="No games installed" position={[-2.9,1.42,-2.41]} size={[.64,.47]}/>
   <GamingDisplay settings={settings} reduced={reduced} active={active} motion={motion}/>
-  {active&&options.gamingLights&&<pointLight position={[2.6,1.45,2.3]} color="#a4b5e2" intensity={4} distance={5} decay={2}/>}
   <HitTarget position={[-2.9,1.1,-2.6]} size={[.86,1.9,1.05]} label="Arcade game library" act={()=>act("gaming.games")}/>
   <HitTarget position={[0,1.30,-3.38]} size={[2.4,1.36,.1]} label="Game library display" act={()=>act("gaming.games")}/>
   <HitTarget position={[2.78,1.144,-2.79]} size={[.93,.85,.1]} label="Gaming workstation display" act={()=>act("gaming.games")}/>

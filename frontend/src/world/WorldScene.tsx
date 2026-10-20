@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { traceMark, traceTime } from "../studio/frameTrace.ts";
 import { Box3, Color, Fog, Frustum, Matrix4, Object3D, Vector3 } from "three";
-import type { DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial, PointLight } from "three";
+import type { Camera, DirectionalLight, Group, HemisphereLight, MeshStandardMaterial, PointLight, Scene, Texture, WebGLRenderer } from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { pinRenderedRoom } from "./assets/resources.ts";
 import { ROOM_GLOW, roomEnvironment } from "./environment.ts";
@@ -37,9 +38,18 @@ export function atmosphereWeights(p:[number,number,number],loaded:readonly RoomI
  * (always present, so no shader recompiles) carries the destination's colour along a journey and
  * softly lights the focused Hub station when idle.
  */
+/**
+ * Room lamps (the Living floor lamp, the Gaming desk lights): lit while the camera rests in that room
+ * with its lamps on. They share one light that is always in the scene, because a light mounting or
+ * unmounting changes the scene's light count, which recompiles every lit material on the next frame.
+ */
+const LAMPS:Partial<Record<RoomId,{at:[number,number,number];color:string;on:(o:WorldSnapshot["options"])=>boolean}>>={
+  living:{at:[-2.1,1.5,-1.9],color:"#ffd09b",on:o=>o.livingLights},
+  gaming:{at:[2.6,1.45,2.3],color:"#a4b5e2",on:o=>o.gamingLights},
+};
 function Atmosphere({snapshot,reduced}:{snapshot:WorldSnapshot;reduced:boolean}){
   const {scene,camera}=useThree();
-  const hemi=useRef<HemisphereLight>(null),key=useRef<DirectionalLight>(null),fill=useRef<DirectionalLight>(null),accent=useRef<PointLight>(null);
+  const hemi=useRef<HemisphereLight>(null),key=useRef<DirectionalLight>(null),fill=useRef<DirectionalLight>(null),accent=useRef<PointLight>(null),practical=useRef<PointLight>(null);
   const keyTarget=useMemo(()=>new Object3D(),[]);
   const curtains=snapshot.options.curtainsOpen?1:.5;
   const palettes=useMemo(()=>Object.fromEntries(ROOM_LIST.map(r=>[r.id,mixOf(r.id,snapshot.settings.lightingPreset,curtains)])) as Record<RoomId,Mix>,[snapshot.settings.lightingPreset,curtains]);
@@ -62,6 +72,11 @@ function Atmosphere({snapshot,reduced}:{snapshot:WorldSnapshot;reduced:boolean})
     if(key.current){key.current.color.copy(state.key);key.current.intensity=state.keyPower;key.current.position.set(state.origin.x-3,ceiling-.35,state.origin.z+1);}
     if(fill.current){fill.current.color.copy(state.fill);fill.current.intensity=state.fillPower;fill.current.position.set(state.origin.x+3,3,state.origin.z+3);}
     keyTarget.position.copy(state.origin);keyTarget.updateMatrixWorld();
+    const lamp=LAMPS[snap.room],lit=!!lamp&&snap.phase==="idle"&&lamp.on(snap.options);
+    if(practical.current){
+      if(lamp){const o=ROOMS[snap.room].origin;practical.current.position.set(o[0]+lamp.at[0],lamp.at[1],o[2]+lamp.at[2]);practical.current.color.set(lamp.color);}
+      practical.current.intensity=lit?4:0;
+    }
     // Accent: the destination's colour just ahead of the camera on a walk between rooms; otherwise the focused Hub station.
     const light=accent.current;if(!light)return;
     let goal=0;
@@ -83,14 +98,10 @@ function Atmosphere({snapshot,reduced}:{snapshot:WorldSnapshot;reduced:boolean})
     <directionalLight ref={key} target={keyTarget} castShadow shadow-mapSize={[1024,1024]} shadow-camera-left={-8} shadow-camera-right={8} shadow-camera-top={8} shadow-camera-bottom={-8} shadow-bias={-.0008} shadow-normalBias={.018} shadow-radius={3}/>
     <directionalLight ref={fill} target={keyTarget}/>
     <pointLight ref={accent} intensity={0} distance={7} decay={1.6}/>
+    <pointLight ref={practical} intensity={0} distance={5} decay={2}/>
   </>;
 }
 
-/**
- * A newly mounted room is usually out of view (behind a wall or doorway) when a walk begins, so
- * its shaders would otherwise compile, and its textures upload, on the frame it first comes into
- * view, mid-journey. Prepare both as soon as it mounts, while the camera is still easing out.
- */
 /**
  * Rooms are closed boxes joined only by doorways, so a loaded neighbour can only be seen through
  * the doorway between it and the camera's room. While the camera rests in a room, a neighbour
@@ -99,11 +110,46 @@ function Atmosphere({snapshot,reduced}:{snapshot:WorldSnapshot;reduced:boolean})
  */
 const doorwayBoxes=new Map<string,Box3>();
 function doorwayBox(id:string){let box=doorwayBoxes.get(id);if(!box){const e=CONNECTIONS.find(c=>c.id===id)!;box=new Box3(new Vector3(e.floor.minX,0,e.floor.minZ),new Vector3(e.floor.maxX,2.9,e.floor.maxZ));doorwayBoxes.set(id,box);}return box;}
+/**
+ * A room that has just mounted stays hidden while the GPU work its first frame would otherwise do
+ * at once is spread over the next few frames: shader programs are created, then each is checked
+ * (the check waits for its compile and link) one per frame, then textures upload within a small
+ * per-frame budget. It is revealed when that is done, or after WARM_CAP_MS whatever happens, so
+ * a slow driver can never keep a room hidden. Geometry still uploads on the first visible frame.
+ */
+const WARM_CAP_MS=500;
+const TEXTURE_KEYS=["map","normalMap","roughnessMap","metalnessMap","emissiveMap","aoMap","alphaMap"] as const;
+type Warm={started:number;stage:"compile"|"link"|"textures"|"done";programs:{isReady:()=>boolean;getUniforms:()=>unknown}[];textures:Texture[]};
+function warmStep(w:Warm,g:Group,gl:WebGLRenderer,camera:Camera,scene:Scene){
+  if(w.stage==="compile"){
+    const programs=new Set<Warm["programs"][number]>(),textures=new Set<Texture>();
+    for(const m of gl.compile(g,camera,scene)){
+      const program=(gl.properties.get(m) as {currentProgram?:unknown}).currentProgram as Warm["programs"][number]|undefined;if(program)programs.add(program);
+      for(const key of TEXTURE_KEYS){const t=(m as MeshStandardMaterial&{alphaMap?:Texture|null})[key];if(t)textures.add(t);}
+    }
+    w.programs=[...programs];w.textures=[...textures];w.stage="link";return;
+  }
+  if(w.stage==="link"){
+    // Without KHR_parallel_shader_compile every program reports ready and its first check blocks, so one per frame.
+    const p=w.programs[0];if(p&&p.isReady()){p.getUniforms();w.programs.shift();}
+    if(!w.programs.length)w.stage="textures";return;
+  }
+  if(w.stage==="textures"){const until=performance.now()+4;while(w.textures.length&&performance.now()<until)gl.initTexture(w.textures.shift()!);if(!w.textures.length)w.stage="done";}
+}
 function RoomAssetScope({room,children,snapshot}:{room:RoomId;children:ReactNode;snapshot:{current:WorldSnapshot}}){
   const group=useRef<Group>(null);const {gl,camera,scene}=useThree();
   const view=useMemo(()=>({frustum:new Frustum(),matrix:new Matrix4()}),[]);
+  const warm=useRef<Warm|null>(null);
+  // Before the first frame that could draw the room.
+  useLayoutEffect(()=>{traceMark(`mount:${room}`);if(group.current)group.current.visible=false;roomVisible[room]=false;warm.current={started:performance.now(),stage:"compile",programs:[],textures:[]};
+    return()=>{traceMark(`unmount:${room}`);warm.current=null;};},[room]);
   useFrame(()=>{
-    const g=group.current;if(!g)return;const s=snapshot.current;
+    const g=group.current;if(!g)return;const w=warm.current;
+    if(w){
+      if(w.stage!=="done"&&performance.now()-w.started<WARM_CAP_MS){g.visible=false;roomVisible[room]=false;traceTime(`warm:${w.stage}:${room}`,()=>warmStep(w,g,gl,camera,scene));return;}
+      traceMark(w.stage==="done"?`reveal:${room}`:`reveal-capped:${room}`);warm.current=null;
+    }
+    const s=snapshot.current;
     const here=s.phase==="idle"?roomAt(camera.position.toArray() as [number,number,number],s.loaded):undefined;
     if(!here||here===room)g.visible=true;
     else{
@@ -115,17 +161,12 @@ function RoomAssetScope({room,children,snapshot}:{room:RoomId;children:ReactNode
   });
   useEffect(()=>()=>{delete roomVisible[room];},[room]);
   useEffect(()=>pinRenderedRoom(room),[room]);
-  useEffect(()=>{
-    let live=true;const frame=requestAnimationFrame(()=>{const g=group.current;if(!live||!g)return;
-      g.traverse(o=>{const material=(o as Mesh).material;for(const m of Array.isArray(material)?material:material?[material]:[])for(const key of ["map","normalMap","roughnessMap","metalnessMap","emissiveMap","aoMap"] as const){const t=(m as MeshStandardMaterial)[key];if(t)gl.initTexture(t);}});
-      void gl.compileAsync(g,camera,scene).catch(()=>{});});
-    return()=>{live=false;cancelAnimationFrame(frame);};
-  },[room,gl,camera,scene]);
   return <group ref={group}>{children}</group>;
 }
 
 export function WorldScene({snapshot,travel,openMap,children,act,active,reduced,motion}:{motion:MotionSamples;act:(id:string)=>void;active:boolean;reduced:boolean;snapshot:WorldSnapshot;travel:(id:RoomId)=>void;openMap:()=>void;children:ReactNode}){
-  const latest=useRef(snapshot);latest.current=snapshot;
+  const latest=useRef(snapshot);latest.current=snapshot;traceMark("render:world");
+  useLayoutEffect(()=>traceMark("commit:world"));
   return <>
     <Atmosphere snapshot={snapshot} reduced={reduced}/>
     {snapshot.loaded.map(id=>{const Shell=snapshot.modules[id]?.default;return Shell?<RoomAssetScope key={id} room={id} snapshot={latest}><Shell connected={snapshot.loaded} travel={travel} openMap={openMap} motion={motion} settings={snapshot.settings} options={snapshot.options} active={active&&id===snapshot.room} reduced={reduced} act={act}>{id==="project-hub"?children:null}</Shell></RoomAssetScope>:null;})}

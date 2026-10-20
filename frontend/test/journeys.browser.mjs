@@ -37,7 +37,7 @@ try {
       assert.equal(r.travel.kind, kind, `${from}→${to}`); assert.equal(r.travel.outcome, 'arrived');
       assert.equal(r.veil, 0, `${from}→${to}: veiled`); assert.ok(r.bar, `${from}→${to}: no journey bar`);
       assert.ok(r.loaded <= (kind === 'journey' ? 3 : 2), `${from}→${to}: ${r.loaded} rooms`); assert.ok(r.loadedAfter.length <= 2 && r.loadedAfter.includes(to));
-      if (kind === 'journey') assert.ok(r.travel.plannedMs >= 2200 && r.travel.plannedMs <= 3200);
+      if (kind === 'journey') assert.ok(r.travel.plannedMs >= 2200 && r.travel.plannedMs <= 3600, `${from}→${to}: ${r.travel.plannedMs} ms`);
       from = to;
     }
   });

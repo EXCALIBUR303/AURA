@@ -21,7 +21,6 @@ export default function Living({connected,travel,options,reduced,active,act,sett
   <Curtain open={options.curtainsOpen} reduced={reduced} active={active}/>
   <RoomGraphic title="Original AURA study" detail="" art position={[-3.25,1.72,-3.94]} size={[1.09,.78]}/>
   <RoomGraphic title="Media display" detail="No media source connected" position={[0,1.30,3.458]} size={[2.30,1.26]} rotation={Math.PI}/>
-  {active&&options.livingLights&&<pointLight position={[-2.1,1.5,-1.9]} color="#ffd09b" intensity={4} distance={5} decay={2}/>}
   <HitTarget position={[-2.1,1.3,-1.9]} size={[.6,.8,.6]} label="Living floor lamp" act={()=>act("living.lamp")}/>
   <HitTarget position={[0,1.6,-3.85]} size={[4.1,2.2,.12]} label="Living curtains" act={()=>act("living.curtains")}/>
   <HitTarget position={[-4.1,1.1,-.8]} size={[.4,2.2,1.6]} label="Living bookshelf" act={()=>act("living.books")}/>
