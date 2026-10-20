@@ -1,4 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { traceMark } from "./studio/frameTrace.ts";
 import type { CSSProperties } from "react";
 import { useGLTF } from "@react-three/drei";
 import type { AppInfo, ZoneId } from "@aura/contracts";
@@ -40,6 +41,7 @@ import "./spatial/spatial.css";
 
 const StableStudio = memo(Studio);
 export function App() {
+  traceMark("render:app");useLayoutEffect(()=>traceMark("commit:app"));
   const [restorePose, setRestorePose] = useState<CameraPose | null>(null);
   const clearRestorePose = useCallback(() => setRestorePose(null), []);
   const studio = useStudio(clearRestorePose);
@@ -87,7 +89,7 @@ export function App() {
   useEffect(()=>{if(diagnostics.graphicsAvailable===false&&world.request)worldController.arrive(world.request.id);},[diagnostics.graphicsAvailable,world.request,worldController]);
   const [showDiagnostics, setShowDiagnostics] = useState(false), [sceneKey, setSceneKey] = useState(0);
   const diagnosticsRef = useRef(diagnostics); diagnosticsRef.current = diagnostics;
-  const report = useCallback((patch: Partial<StudioDiagnostics>) => { setDiagnostics((current) => { const next = { ...current, ...patch }; window.__AURA_DIAGNOSTICS__ = next; return next; }); }, []);
+  const report = useCallback((patch: Partial<StudioDiagnostics>) => { traceMark("report"); setDiagnostics((current) => { const next = { ...current, ...patch }; window.__AURA_DIAGNOSTICS__ = next; return next; }); }, []);
   const restart = useCallback(() => { if (diagnosticsRef.current.status === "error") useGLTF.clear(AVATAR_URL); report({ status: "loading", error: undefined, context: "restoring", cameraSettled: false, perZone: {} }); setSceneKey((value) => value + 1); }, [report]);
   const returnToView = useCallback(() => {
     const saved = previousView.current; previousView.current = null;

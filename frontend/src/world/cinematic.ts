@@ -1,4 +1,4 @@
-import { safePoint } from "./collision.ts";
+import { clearSegment, safePoint } from "./collision.ts";
 import type { Collider, Point, Rect } from "./types.ts";
 
 /**
@@ -7,12 +7,14 @@ import type { Collider, Point, Rect } from "./types.ts";
  *
  *  route  — a collision-checked walkway (adjacent rooms, in-room inspection): eased along
  *           its arc length, looking ahead along the path before settling on the arrival target.
+ *  journey — a route through an intermediate room (Hub → Atrium → Living/Gaming): the same
+ *           walkway rules over a longer, bounded duration, so rooms stay physically connected.
  *  bridge — rooms that are not physically connected: a short rise-and-pull-back departure,
  *           a veil while the camera crosses, then a dolly into the destination's framing.
  *  cut    — reduced motion, instant requests or no safe framing: place the camera at once.
  */
 export type TravelSample = { position: Point; target: Point; veil: number };
-export type TravelPlan = { kind: "route" | "bridge" | "cut"; duration: number; sample: (elapsed: number) => TravelSample };
+export type TravelPlan = { kind: "route" | "journey" | "bridge" | "cut"; duration: number; length?: number; sample: (elapsed: number) => TravelSample };
 export type Geometry = { floors: readonly Rect[]; colliders: readonly Collider[] };
 export type PlanInput = {
   from: { position: Point; target: Point };
@@ -24,6 +26,10 @@ export type PlanInput = {
   instant: boolean;
   /** Veil opacity already on screen when this plan replaces an unfinished one. */
   carryVeil?: number;
+  /** The route passes through an intermediate room. */
+  journey?: boolean;
+  /** Passages the route crosses, as [entry, exit] in travel order (collision.passagesFor). */
+  doors?: readonly (readonly [Point, Point])[];
 };
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -51,6 +57,11 @@ const project = (p: Point, v: Aim): Point => {
 
 /** Bounded so cinematic travel never delays ordinary use. */
 export const ROUTE_MIN = 0.9, ROUTE_MAX = 1.9, BRIDGE_DEPART = 0.5, BRIDGE_ARRIVE = 0.85;
+export const JOURNEY_MIN = 2.2, JOURNEY_MAX = 3.6;
+/** A walk into an adjacent room may take a little longer than an in-room move, so it can turn in the open before the doorway. */
+export const WALKWAY_MAX = 2.2;
+/** Journeys cover 15–20 m through two doorways: a calm walking pace, still bounded and always skippable. */
+export const journeyDuration = (length: number, turnRadians = 0) => Math.min(JOURNEY_MAX, Math.max(JOURNEY_MIN, 1.2 + length / 9, 1.875 * Math.abs(turnRadians) * 180 / Math.PI / 170));
 /** Long enough for the distance and for the turn (peak turn rate ≤ about 170°/s under smootherstep), never longer than ROUTE_MAX. */
 export const routeDuration = (length: number, turnRadians = 0) => Math.min(ROUTE_MAX, Math.max(ROUTE_MIN, 0.75 + length / 7, 1.875 * Math.abs(turnRadians) * 180 / Math.PI / 170));
 
@@ -68,6 +79,34 @@ function polyline(points: readonly Point[]) {
   return { total, at };
 }
 
+/**
+ * Rounds each corner of a collision-checked polyline with a quadratic curve, so the camera
+ * sweeps through doorways instead of pivoting on a point. A corner keeps its curve only if
+ * every sampled chord of the curve is itself clear; otherwise the radius halves, then the
+ * corner stays sharp (the original, already-checked path).
+ */
+export function roundCorners(points: readonly Point[], geometry: Geometry, radius = 1.1): Point[] {
+  if (points.length < 3) return points.map(p => [...p] as Point);
+  const out: Point[] = [[...points[0]!]];
+  for (let i = 1; i < points.length - 1; i++) {
+    const a = points[i - 1]!, b = points[i]!, c = points[i + 1]!;
+    const lin = dist(a, b), lout = dist(b, c);
+    let placed = false;
+    for (const r of [radius, radius / 2]) {
+      const cut = Math.min(r, lin * 0.45, lout * 0.45);
+      if (cut < 0.15) break;
+      const p0 = mix(b, a, cut / lin), p2 = mix(b, c, cut / lout);
+      const curve: Point[] = [];
+      for (let k = 0; k <= 6; k++) { const t = k / 6, u = 1 - t; curve.push([u * u * p0[0] + 2 * u * t * b[0] + t * t * p2[0], u * u * p0[1] + 2 * u * t * b[1] + t * t * p2[1], u * u * p0[2] + 2 * u * t * b[2] + t * t * p2[2]]); }
+      const chain = [out.at(-1)!, ...curve];
+      if (chain.every((p, k) => k === 0 || clearSegment(chain[k - 1]!, p, geometry.floors, geometry.colliders))) { out.push(...curve); placed = true; break; }
+    }
+    if (!placed) out.push([...b]);
+  }
+  out.push([...points.at(-1)!]);
+  return out;
+}
+
 /** A pose pulled back along its own view direction and lifted, if that space is free. */
 export function framingOffset(pose: { position: Point; target: Point }, back: number, lift: number, geometry: Geometry): Point | undefined {
   const dx = pose.position[0] - pose.target[0], dz = pose.position[2] - pose.target[2];
@@ -79,30 +118,156 @@ export function framingOffset(pose: { position: Point; target: Point }, back: nu
   return undefined;
 }
 
+/** Peak view turn rate doorway travel is paced for, in degrees per second (2.8° per 60 Hz frame). */
+export const TURN_RATE = 168;
+/**
+ * Progress over time for doorway travel: smootherstep-shaped acceleration over the first and last
+ * EASE of the duration and a steady walk between, so pacing for a turn mid-walk costs little time.
+ * Tabulated with its inverse; C2-continuous with zero velocity at both ends, like smootherstep.
+ */
+const EASE = 0.3;
+const WALK = (() => {
+  const n = 2048, out = new Float64Array(n + 1);
+  for (let i = 1; i <= n; i++) { const t = (i - 0.5) / n; out[i] = out[i - 1]! + Math.min(smootherstep(t / EASE), smootherstep((1 - t) / EASE)); }
+  for (let i = 0; i <= n; i++) out[i] = out[i]! / out[n]!;
+  return out;
+})();
+const walk = (t: number) => { const x = clamp01(t) * (WALK.length - 1), i = Math.min(WALK.length - 2, Math.floor(x)); return WALK[i]! + (WALK[i + 1]! - WALK[i]!) * (x - i); };
+/** Inverse of walk on [0, 1]. */
+const unwalk = (y: number) => {
+  if (y <= 0) return 0; if (y >= 1) return 1;
+  let lo = 0, hi = WALK.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (WALK[m]! < y) lo = m; else hi = m; }
+  const a = WALK[lo]!, b = WALK[hi]!; return (lo + (b > a ? (y - a) / (b - a) : 0)) / (WALK.length - 1);
+};
+const direction = (v: Aim): Point => [Math.sin(v.yaw) * Math.cos(v.pitch), Math.sin(v.pitch), Math.cos(v.yaw) * Math.cos(v.pitch)];
+
+/**
+ * Travel through doorways. The view is a function of where the camera is, not of time: through
+ * the middle of each passage it looks along the passage, so it never sweeps across a wall at arm's
+ * length, and every turn happens in the open part of a room. A room left from a view that faces
+ * away from its door is backed out of, still looking at what is being left.
+ * The camera is then paced along the path (eased walk, slowed where the view turns quickly per
+ * metre) so the turn rate stays under TURN_RATE, lengthening the walk within its bound if needed.
+ */
+function doorwayPlan(input: PlanInput, fadeCarry: (elapsed: number) => number): TravelPlan {
+  const { from, to, route, geometry } = input;
+  const journey = !!input.journey;
+  const path = polyline(roundCorners([from.position, ...route], geometry));
+  const L = Math.max(path.total, 1e-3), N = 480, ds = L / N;
+  const grid: Point[] = []; for (let j = 0; j <= N; j++) grid.push(path.at(j / N));
+  let cursor = 0;
+  /** Arc length nearest a point, searching forward from the previous door so a path never matches backwards. */
+  const arcOf = (p: Point) => { let best = cursor, bd = Infinity; for (let j = cursor; j <= N; j++) { const d = Math.hypot(grid[j]![0] - p[0], grid[j]![2] - p[2]); if (d < bd) { bd = d; best = j; } } cursor = best; return best * ds; };
+  const doors = input.doors!.map(([a, b]) => ({ in: arcOf(a), out: arcOf(b), yaw: Math.atan2(b[0] - a[0], b[2] - a[2]) }));
+  const start = aim(from.position, from.target), finish = aim(to.position, to.target);
+  type View = (position: Point) => Aim;
+  const fixed = (v: Aim): View => () => v;
+  const along = (yaw: number): View => fixed({ yaw, pitch: -0.12, distance: 3 });
+  const backing = Math.cos(angleBetween(start.yaw, doors[0]!.yaw)) < -0.2;
+  // The view is held along the passage through its middle; it may still be finishing or starting a turn at either mouth.
+  const inset = 0.7;
+  const keys: { view: View; a: number; b: number }[] = [];
+  if (backing) keys.push({ view: (p) => aim(p, from.target), a: 0, b: doors[0]!.out - inset });
+  else keys.push({ view: fixed(start), a: 0, b: 0 }, { view: along(doors[0]!.yaw), a: doors[0]!.in + inset, b: doors[0]!.out - inset });
+  for (const d of doors.slice(1)) keys.push({ view: along(d.yaw), a: d.in + inset, b: d.out - inset });
+  keys.push({ view: fixed(finish), a: L, b: L });
+  for (let i = 0; i < keys.length; i++) { const k = keys[i]!; k.a = Math.min(L, Math.max(i ? keys[i - 1]!.b : 0, k.a)); k.b = Math.min(L, Math.max(k.a, k.b)); }
+  const viewAt = (s: number, p: Point): Aim => {
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i]!;
+      if (s > k.b && i < keys.length - 1) continue;
+      if (s >= k.a || i === 0) return k.view(p);
+      const prev = keys[i - 1]!, span = k.a - prev.b;
+      return blendAim(prev.view(p), k.view(p), span > 1e-6 ? smootherstep((s - prev.b) / span) : 1);
+    }
+    return finish;
+  };
+  // Turn per metre along the path, spread over ±0.8 m so the pace changes gently.
+  const dirs = grid.map((p, j) => direction(viewAt(j * ds, p)));
+  const turn = new Float64Array(N);
+  for (let j = 0; j < N; j++) { const u = dirs[j]!, w = dirs[j + 1]!; turn[j] = Math.acos(Math.min(1, Math.max(-1, u[0] * w[0] + u[1] * w[1] + u[2] * w[2]))); }
+  const spread = Math.max(1, Math.round(0.8 / ds)), perMetre = new Float64Array(N);
+  for (let j = 0; j < N; j++) { let sum = 0, n = 0; for (let i = Math.max(0, j - spread); i <= Math.min(N - 1, j + spread); i++) { sum += turn[i]!; n++; } perMetre[j] = sum / n / ds; }
+  const pace = (duration: number, slow: number) => {
+    const q = new Float64Array(N + 1); for (let j = 0; j < N; j++) q[j + 1] = q[j]! + (1 + slow * perMetre[j]!) * ds;
+    let peak = 0, speed = 0, last = 0;
+    for (let j = 1; j <= N; j++) { const t = duration * unwalk(q[j]! / q[N]!), dt = Math.max(t - last, 1e-6); if (turn[j - 1]! > 1e-7) peak = Math.max(peak, turn[j - 1]! / dt); speed = Math.max(speed, ds / dt); last = t; }
+    return { duration, q, peak: peak * 180 / Math.PI, speed };
+  };
+  const [lowest, highest] = journey ? [journeyDuration(L), JOURNEY_MAX] : [routeDuration(L), WALKWAY_MAX];
+  // Slowing for a turn never speeds the rest of the walk past the plain eased walk at the shortest duration.
+  const cruise = 1.9 * L / lowest;
+  const slows = [0, 0.3, 0.6, 1, 1.5, 2.5, 4, 6, 10];
+  let chosen: ReturnType<typeof pace> | undefined;
+  for (let step = 0, d = lowest; !chosen && step < 40; step++, d = Math.min(highest, d + 0.05)) {
+    for (const slow of slows) { const p = pace(d, slow); if (p.peak <= TURN_RATE && p.speed <= cruise) { chosen = p; break; } }
+    if (d >= highest) break;
+  }
+  // Out of time: the closest the longest duration gets to both limits.
+  const excess = (p: ReturnType<typeof pace>) => Math.max(p.peak / TURN_RATE, p.speed / cruise);
+  chosen ??= slows.map(slow => pace(highest, slow)).reduce((a, b) => (excess(b) < excess(a) ? b : a));
+  const { duration, q } = chosen, total = q[N]!;
+  return { kind: journey ? "journey" : "route", duration, length: path.total, sample: (elapsed) => {
+    const t = clamp01(elapsed / duration);
+    if (t >= 1) return { position: [...to.position], target: [...to.target], veil: 0 };
+    const x = walk(t) * total;
+    let lo = 0, hi = N; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (q[m]! <= x) lo = m; else hi = m; }
+    const s = (lo + (q[hi]! > q[lo]! ? (x - q[lo]!) / (q[hi]! - q[lo]!) : 0)) * ds;
+    const position = path.at(s / L);
+    return { position, target: project(position, viewAt(s, position)), veil: fadeCarry(elapsed) };
+  } };
+}
+
 export function planTravel(input: PlanInput): TravelPlan {
   const { from, to, route, geometry, reduced, instant } = input;
   const carry = clamp01(input.carryVeil ?? 0);
   const fadeCarry = (elapsed: number) => carry * (1 - window01(elapsed, 0, 0.25));
   if (reduced || instant) return { kind: "cut", duration: 0, sample: () => ({ position: [...to.position], target: [...to.target], veil: 0 }) };
 
+  if (route.length && input.doors?.length) return doorwayPlan(input, fadeCarry);
   if (route.length) {
-    const path = polyline([from.position, ...route]);
+    const journey = !!input.journey;
+    const path = polyline(roundCorners([from.position, ...route], geometry));
     const start = aim(from.position, from.target), finish = aim(to.position, to.target);
-    const duration = routeDuration(path.total, angleBetween(start.yaw, finish.yaw));
+    const turn = angleBetween(start.yaw, finish.yaw);
+    const duration = journey ? journeyDuration(path.total, turn) : routeDuration(path.total, turn);
     const endHeading = path.at(1), lastLeg = path.at(Math.max(0, 1 - 1.5 / Math.max(path.total, 0.001)));
     const travelYaw = Math.atan2(endHeading[0] - lastLeg[0], endHeading[2] - lastLeg[2]);
     // Long walks look where they are going only when the arrival view continues that way;
     // otherwise (e.g. arriving facing back the way we came) the camera keeps a steady pull-back.
     const agrees = Math.max(0, Math.cos(angleBetween(travelYaw, finish.yaw)));
-    const lookAhead = clamp01((path.total - 5) / 3) * agrees;
-    return { kind: "route", duration, sample: (elapsed) => {
+    // A journey that starts by backing out of a room (room introductions face inward, away from
+    // the door) keeps facing the room it leaves and turns gradually while crossing the Atrium.
+    const first = path.at(Math.min(1, 1 / Math.max(path.total, 0.001)));
+    const departYaw = Math.atan2(first[0] - from.position[0], first[2] - from.position[2]);
+    const backing = journey && Math.cos(angleBetween(start.yaw, departYaw)) < 0.7;
+    const lookAhead = journey ? (backing ? 0 : 1) : clamp01((path.total - 5) / 3) * agrees;
+    // Arc fraction where the route first bends away (> 40°) from the way it set off.
+    let bend = 0.4;
+    if (backing) for (let k = 2; k <= 100; k++) { const p = path.at(k / 100), q = path.at((k - 1) / 100); if (Math.hypot(p[0] - q[0], p[2] - q[2]) < 1e-4) continue; if (Math.cos(angleBetween(departYaw, Math.atan2(p[0] - q[0], p[2] - q[2]))) < 0.77) { bend = k / 100; break; } }
+    // The time the camera reaches the bend (inverse of the easing), and a fixed view down the route after it:
+    // fixed endpoints keep the turn's direction and rate predictable.
+    let lo = 0, hi = 1; for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (smootherstep(m) < bend) lo = m; else hi = m; }
+    const tBend = Math.min(0.5, Math.max(0.36, lo));
+    const b0 = path.at(bend), b1 = path.at(Math.min(1, bend + 2 / Math.max(path.total, 0.001)));
+    const bendGaze = aim(b0, [b1[0], b0[1] - 0.35, b1[2]]);
+    // A journey keeps looking down the passages until it is inside the destination room.
+    const settleFrom = journey ? 0.7 : 0.5;
+    return { kind: journey ? "journey" : "route", duration, length: path.total, sample: (elapsed) => {
       const t = clamp01(elapsed / duration), s = smootherstep(t);
       if (t >= 1) return { position: [...to.position], target: [...to.target], veil: 0 };
       const position = path.at(s);
       const ahead = path.at(Math.min(1, s + 1.2 / Math.max(path.total, 0.001)));
-      const gaze = Math.hypot(ahead[0] - position[0], ahead[2] - position[2]) > 0.05 ? aim(position, [ahead[0], position[1] - 0.6, ahead[2]]) : finish;
-      const leave = smootherstep(window01(t, 0, 0.35)), settle = smootherstep(window01(t, 0.5, 1));
-      const view = lookAhead ? blendAim(blendAim(start, gaze, leave * lookAhead), finish, settle) : blendAim(start, finish, s);
+      const gaze = Math.hypot(ahead[0] - position[0], ahead[2] - position[2]) > 0.05 ? aim(position, [ahead[0], position[1] - 0.6, ahead[2]]) : aim(position, [position[0] + endHeading[0] - lastLeg[0], position[1] - 0.6, position[2] + endHeading[2] - lastLeg[2]]);
+      const leave = smootherstep(window01(t, 0, journey ? 0.2 : 0.35)), settle = smootherstep(window01(t, settleFrom, 1));
+      let view: Aim;
+      if (backing) {
+        // Pull back through the doorway still looking at what we are leaving, then turn to look
+        // down the route once the path bends, then settle on the arrival framing.
+        const holding = aim(position, from.target);
+        const turnAway = smootherstep(window01(t, tBend - 0.3, tBend + 0.27));
+        view = blendAim(blendAim(holding, bendGaze, turnAway), finish, smootherstep(window01(t, 0.52, 1)));
+      } else view = lookAhead ? blendAim(blendAim(start, gaze, leave * lookAhead), finish, settle) : blendAim(start, finish, s);
       return { position, target: project(position, view), veil: fadeCarry(elapsed) };
     } };
   }

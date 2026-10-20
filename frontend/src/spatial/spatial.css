@@ -237,3 +237,22 @@
 .station-repos button[aria-pressed="true"]{outline:1px solid #6fa7ad;outline-offset:-1px}
 .station-foot{margin:2px 0 0;font-size:11px;color:#8fa6ae}
 .experience .viewport-heading h1 em{margin-left:.3em}
+
+/* Phase 7 — travel feedback lives at the bottom edge, never over the room being revealed. */
+.spatial-os .journey-bar{position:absolute;z-index:6;left:50%;bottom:92px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;min-width:min(440px,calc(100% - 300px));max-width:calc(100% - 300px);padding:8px 10px 8px 14px;border-radius:10px;background:rgb(12 24 38 / .82);border:1px solid rgb(120 160 180 / .25);color:#e1edf5;font-size:12px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.spatial-os .journey-copy{display:grid;gap:1px;min-width:0}
+.spatial-os .journey-copy small{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#9fb6c2}
+.spatial-os .journey-copy strong{font-size:13px;font-weight:560;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spatial-os .journey-track{flex:1;min-width:60px;height:2px;border-radius:2px;background:rgb(160 190 205 / .2);overflow:hidden}
+.spatial-os .journey-track>span{display:block;height:100%;background:#8fd0d2;transform-origin:left;transform:scaleX(0)}
+.spatial-os .journey-bar button{padding:4px 10px;font-size:12px;color:#ddedf5;background:#213b50;border:1px solid #526e83;border-radius:7px;white-space:nowrap}
+.spatial-os .arrival-title{position:absolute;z-index:5;left:50%;bottom:150px;transform:translateX(-50%);display:grid;justify-items:center;gap:3px;pointer-events:none;text-align:center;color:#eef5f7;text-shadow:0 2px 18px rgb(3 8 14 / .9);animation:arrival-title 2.6s ease both}
+.spatial-os .arrival-title span{font-size:10px;letter-spacing:.24em;color:#a9c2cc}
+.spatial-os .arrival-title strong{font-size:22px;font-weight:560;letter-spacing:-.01em}
+.spatial-os .arrival-title strong::after{content:"";display:block;margin:6px auto 0;width:48px;height:2px;border-radius:2px;background:var(--room-accent,#8fd0d2);filter:brightness(1.8)}
+.spatial-os .arrival-title small{font-size:12px;color:#c3d4dc;max-width:420px}
+@keyframes arrival-title{0%{opacity:0;transform:translate(-50%,6px)}18%{opacity:1;transform:translate(-50%,0)}75%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion: reduce){.spatial-os .arrival-title{animation:arrival-title-still 2.6s step-end both}}
+@keyframes arrival-title-still{0%{opacity:1}100%{opacity:0}}
+.spatial-os .explore-hint strong{color:#f1e2bf;font-weight:560}
+@media (max-width:1100px){.spatial-os .journey-bar{min-width:0;max-width:calc(100% - 140px);bottom:140px}}

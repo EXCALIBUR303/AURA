@@ -4,12 +4,14 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as Orbit } from "three-stdlib";
 import { Euler, PerspectiveCamera, Vector3 } from "three";
-import { cameraPath, clearSegment, movePlayer, safePoint } from "./collision.ts";
+import { cameraPath, clearSegment, doorwayPath, movePlayer, passagesFor, safePoint } from "./collision.ts";
 import { planTravel } from "./cinematic.ts";
 import type { TravelPlan } from "./cinematic.ts";
 import { connectionFor, roomAt, ROOMS, CONNECTIONS, worldGeometry } from "./registry.ts";
 import type { CameraPose, Point, WorldSnapshot } from "./types.ts";
 import type { WorldController } from "./WorldController.ts";
+import { travelSignal } from "./travelSignal.ts";
+import { traceTime } from "../studio/frameTrace.ts";
 import type { Report } from "../studio/diagnostics.ts";
 export type WorldCameraHandle={capture:()=>CameraPose|undefined};
 
@@ -40,9 +42,16 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
     // An unsafe requested pose falls back to the room's landing, framed by the bridge transition.
     const destination:CameraPose=valid?request.pose:{...request.pose,position:[...ROOMS[request.room].landing]};goal.current=destination;
     // Only rooms joined by a passage have a walkway; others use the depart/veil/arrive bridge.
-    const source=roomAt(from,snapshot.loaded);const walkway=valid&&(!source||source===request.room||!!connectionFor(source,request.room));
-    const route=walkway?cameraPath(from,destination.position,geometry.floors,geometry.colliders):[];
-    plan.current=planTravel({from:{position:from,target:(orbit.current?.target.toArray()??destination.target) as Point},to:destination,route,geometry,reduced:reducedMotion,instant:!!request.instant,carryVeil:veilValue.current});elapsed.current=0;
+    // Rooms joined by a passage, or by a room in between (a journey), are walked; anything else uses the depart/veil/arrive bridge.
+    const source=roomAt(from,snapshot.loaded);const walkway=valid&&(!source||source===request.room||!!connectionFor(source,request.room)||!!request.via&&snapshot.loaded.includes(request.via));
+    // Between rooms, walk through the middle of each doorway; within a room, the grid route.
+    const rooms=!source||source===request.room?[]:connectionFor(source,request.room)?[source,request.room]:request.via?[source,request.via,request.room]:[];
+    const route:Point[]=walkway&&rooms.length?doorwayPath(from,destination.position,rooms,geometry.floors,geometry.colliders):[];
+    // Through the passages' centres the view is held along each passage; a grid fallback route keeps the plain walk.
+    const doors=route.length?passagesFor(rooms):[];
+    if(walkway&&!route.length)route.push(...cameraPath(from,destination.position,geometry.floors,geometry.colliders));
+    plan.current=traceTime("plan",()=>planTravel({from:{position:from,target:(orbit.current?.target.toArray()??destination.target) as Point},to:destination,route,geometry,reduced:reducedMotion,instant:!!request.instant,carryVeil:veilValue.current,journey:!!request.via&&!!source&&source!==request.room&&!connectionFor(source,request.room),doors}));elapsed.current=0;
+    travelSignal.destination=request.room;travelSignal.via=request.via??null;travelSignal.kind=plan.current.kind;travelSignal.progress=0;
     if(orbit.current)orbit.current.enabled=false;
     if(plan.current.kind==="cut"){setVeil(0);applyLimits(controller.zoneAfterArrival());camera.position.fromArray(destination.position);target.current.fromArray(destination.target);orbit.current?.target.copy(target.current);orbit.current?.update();}
     settled.current=false;report({zone:snapshot.selectedZone,cameraRevision:revision,cameraSettled:false,travel:{kind:plan.current.kind,plannedMs:Math.round(plan.current.duration*1000)}});
@@ -57,7 +66,7 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
     if(plan.current)report({travel:{kind:plan.current.kind,plannedMs:Math.round(plan.current.duration*1000),elapsedMs:Math.round(elapsed.current*1000),outcome:"settled-inactive"}});
     plan.current=null;controls.enabled=false;applyLimits(controller.zoneAfterArrival());
     camera.position.fromArray(destination.position);controls.target.fromArray(destination.target);controls.update();
-    safe.current={...destination,room:request.room};goal.current=null;
+    safe.current={...destination,room:request.room};goal.current=null;travelSignal.destination=null;travelSignal.via=null;travelSignal.kind=null;
     controller.arrive(request.id);controller.updatePose(safe.current);settled.current=true;
     report({cameraSettled:true,cameraRevision:revision,cameraSampledAt:Date.now(),camera:{position:camera.position.toArray(),target:controls.target.toArray(),fov:camera instanceof PerspectiveCamera?camera.fov:undefined}});
   },[active,snapshot.request,camera,controller,report,revision]);
@@ -138,12 +147,13 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
       const skipped=snapshot.skip===request.id&&elapsed.current<travel.duration;
       // Real time, capped at 1/30 s per frame: a room-mount hitch slows the move for one frame instead of jumping along the path.
       const shown=elapsed.current;elapsed.current=skipped?travel.duration:elapsed.current+Math.min(delta,1/30);
-      const sample=travel.sample(elapsed.current);
+      const sample=travel.sample(elapsed.current);travelSignal.progress=travel.duration?Math.min(1,elapsed.current/travel.duration):1;
       camera.position.fromArray(sample.position);controls.target.fromArray(sample.target);camera.lookAt(controls.target);setVeil(sample.veil);
       controller.updatePose({position:sample.position,target:sample.target,room:roomAt(sample.position,snapshot.loaded)??snapshot.room});
       if(elapsed.current>=travel.duration){
         const destination=goal.current;applyLimits(controller.zoneAfterArrival());camera.position.fromArray(destination.position);controls.target.fromArray(destination.target);controls.update();setVeil(0);
-        goal.current=null;plan.current=null;controller.arrive(request.id);settled.current=true;safe.current={position:camera.position.toArray(),target:controls.target.toArray(),room:request.room};controller.updatePose(safe.current);
+        goal.current=null;plan.current=null;const previousRoom=controller.getSnapshot().room;controller.arrive(request.id);settled.current=true;
+        if(request.room!==previousRoom||travel.kind==="journey"){travelSignal.arrivedAt=performance.now();travelSignal.arrivedRoom=request.room;}travelSignal.destination=null;travelSignal.via=null;travelSignal.kind=null;safe.current={position:camera.position.toArray(),target:controls.target.toArray(),room:request.room};controller.updatePose(safe.current);
         report({cameraSettled:true,cameraRevision:revision,zone:snapshot.selectedZone,cameraSampledAt:Date.now(),travel:{kind:travel.kind,plannedMs:Math.round(travel.duration*1000),elapsedMs:Math.round((skipped?shown:elapsed.current)*1000),outcome:skipped?"skipped":"arrived"},camera:{position:camera.position.toArray(),target:controls.target.toArray(),fov:camera instanceof PerspectiveCamera?camera.fov:undefined}});
       }
       return;

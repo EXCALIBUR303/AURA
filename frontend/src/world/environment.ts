@@ -14,3 +14,6 @@ export function roomEnvironment(room:RoomId,preset:LightingPreset):Environment{
  if(room==="project-hub"||room==="atrium")return{sky:"#bbd6ec",ground:"#465569",key:"#f5dfc4",keyPower:2.15,fill:"#91bfeb",fillPower:.8,ambient:1.35,background:"#122135"};
  return{sky:palette.day,ground:palette.ground,key:"#fff0d8",keyPower:1.75,fill:palette.accent,fillPower:1.15,ambient:1.95,background:"#cbd3d7"};
 }
+
+/** Practical light colour each room is known by: doorway strips, journey light, arrival glow. */
+export const ROOM_GLOW:Record<RoomId,string>={"project-hub":"#7fd0cf",atrium:"#b4c8ee",living:"#f2c08a",gaming:"#a690ff"};

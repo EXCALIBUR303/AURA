@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { CanvasTexture, SRGBColorSpace } from "three";
 import type { LightingPreset } from "../settings.ts";
 import type { ReactNode } from "react";
-import { ArchitectureBatch, Block, Portal, Sign } from "./Architecture.tsx";
+import { ArchitectureBatch, Block, Portal, RoomGlow, Sign } from "./Architecture.tsx";
 import { surfaceTexture } from "./Surfaces.tsx";
 import type { RoomId } from "../types.ts";
 function WindowView({lighting}:{lighting:LightingPreset}){
@@ -13,7 +13,8 @@ function WindowView({lighting}:{lighting:LightingPreset}){
  },[lighting]);useEffect(()=>()=>texture.dispose(),[texture]);
  return <mesh position={[0,1.92,-4.16]}><planeGeometry args={[4.2,1.86]}/><meshBasicMaterial map={texture} toneMapped={false}/></mesh>;
 }
-export function HomeShell({kind,connected,travel,children,lighting}:{lighting:LightingPreset;kind:"living"|"gaming";connected:readonly RoomId[];travel:(room:RoomId)=>void;children:ReactNode}){
+const LIVING_DOOR=[{at:[4.5,0,0] as [number,number,number],side:"east" as const,to:"atrium" as const}],GAMING_DOOR=[{at:[-4.5,0,0] as [number,number,number],side:"west" as const,to:"atrium" as const}];
+export function HomeShell({kind,connected,travel,children,lighting,reduced=false}:{reduced?:boolean;lighting:LightingPreset;kind:"living"|"gaming";connected:readonly RoomId[];travel:(room:RoomId)=>void;children:ReactNode}){
  const living=kind==="living",entry=living?1:-1,wall=living?"#c2b59f":"#454b63";
  const wood=useMemo(()=>{const t=surfaceTexture("walnut");t.repeat.set(2,2);return t;},[]);useEffect(()=>()=>wood.dispose(),[wood]);
  return <ArchitectureBatch><group position={[living?-11:11,0,0]}>
@@ -30,7 +31,8 @@ export function HomeShell({kind,connected,travel,children,lighting}:{lighting:Li
   {[-2.14,0,2.14].map(x=><Block key={x} at={[x,1.92,-4.03]} size={[.05,1.9,.07]} color="#6d6b5d"/>)}
   {[.98,2.86].map(y=><Block key={y} at={[0,y,-4]} size={[4.35,.06,.20]} color="#6d6b5d"/>)}
   {[-4.49,4.49].map(x=><Block key={x} at={[x,.045,0]} size={[.035,.09,8]} color="#6e6456"/>)}
-  <Portal showSign={false} side={living?"east":"west"} at={[entry*4.5,0,0]} open={connected.includes("atrium")} label="CENTRAL ATRIUM" detail="Project Hub · Living · Gaming" onSelect={()=>travel("atrium")}/>
+  <RoomGlow doors={living?LIVING_DOOR:GAMING_DOOR} reduced={reduced}/>
+  <Portal showSign={false} side={living?"east":"west"} at={[entry*4.5,0,0]} open={connected.includes("atrium")} to="atrium" label="CENTRAL ATRIUM" detail="Project Hub · Living · Gaming" onSelect={()=>travel("atrium")}/>
   <Sign label="CENTRAL ATRIUM" detail="Project Hub · World map" position={[entry*4.48,2.35,2.6]} rotation={living?-Math.PI/2:Math.PI/2}/>
   {children}
  </group></ArchitectureBatch>;

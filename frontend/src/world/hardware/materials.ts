@@ -47,11 +47,27 @@ export type HardwareMaterials = {
  * `envMap` is applied only to these materials (not to scene.environment), so the other rooms' lighting
  * is untouched. Reflections come from three's built-in procedural studio, which needs no network.
  */
+/**
+ * The studio reflection and the circuit texture are identical every time, so they are made once and
+ * kept for the session (one small cube texture per renderer, one 512 px canvas): rebuilding the
+ * reflection compiles PMREM's shaders and renders about twenty passes in the frame the Hub mounts.
+ * Keyed by renderer, so a restored WebGL context builds its own.
+ */
+const reflections = new WeakMap<WebGLRenderer, Texture>();
+let sharedBoard: CanvasTexture | undefined;
+function studioReflection(gl: WebGLRenderer): Texture {
+  let envMap = reflections.get(gl);
+  if (!envMap) {
+    const pmrem = new PMREMGenerator(gl), studio = new RoomEnvironment();
+    envMap = pmrem.fromScene(studio, 0.04).texture;
+    studio.dispose(); pmrem.dispose(); reflections.set(gl, envMap);
+  }
+  return envMap;
+}
+
 export function createHardwareMaterials(gl: WebGLRenderer): HardwareMaterials {
-  const pmrem = new PMREMGenerator(gl), studio = new RoomEnvironment();
-  const envMap: Texture = pmrem.fromScene(studio, 0.04).texture;
-  studio.dispose(); pmrem.dispose();
-  const board = circuitTexture();
+  const envMap = studioReflection(gl);
+  const board = sharedBoard ??= circuitTexture();
   const standard = (color: string, metalness: number, roughness: number, extra: Partial<MeshStandardMaterial> = {}) =>
     new MeshStandardMaterial({ color, metalness, roughness, envMap, envMapIntensity: 0.9, ...extra });
   const rgb = new MeshBasicMaterial({ color: new Color(1, 1, 1), vertexColors: true, toneMapped: false });
@@ -71,6 +87,6 @@ export function createHardwareMaterials(gl: WebGLRenderer): HardwareMaterials {
   const outline = { hover: new LineBasicMaterial({ color: "#9cdeeb", transparent: true, opacity: 0.45, toneMapped: false }), select: new LineBasicMaterial({ color: "#9cdeeb", toneMapped: false }) };
   return {
     mats, rgb, outline,
-    dispose() { Object.values(mats).forEach((m) => m.dispose()); board.dispose(); envMap.dispose(); outline.hover.dispose(); outline.select.dispose(); },
+    dispose() { Object.values(mats).forEach((m) => m.dispose()); outline.hover.dispose(); outline.select.dispose(); },
   };
 }

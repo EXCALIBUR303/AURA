@@ -1,6 +1,8 @@
-import { ArchitectureBatch, Block, Portal } from "./Architecture.tsx";
+import { ArchitectureBatch, Block, Portal, RoomGlow } from "./Architecture.tsx";
+import type { GlowDoor } from "./Architecture.tsx";
+const DOORS:GlowDoor[]=[{at:[0,0,-4],side:"north",to:"project-hub"},{at:[-4,0,0],side:"west",to:"living"},{at:[4,0,0],side:"east",to:"gaming"}];
 import type { RoomShellProps } from "../types.ts";
-export default function Atrium({travel,openMap,connected}:RoomShellProps){
+export default function Atrium({travel,openMap,connected,reduced}:RoomShellProps){
   return <ArchitectureBatch><group>
     <Block at={[0,-.08,0]} size={[8,.16,8]} color="#657180"/>
     <Block at={[0,2.3,4.09]} size={[8.36,4.6,.18]} color="#3d4d60"/>
@@ -15,9 +17,10 @@ export default function Atrium({travel,openMap,connected}:RoomShellProps){
     {[-3.65,3.65].flatMap(x=>[-3.65,3.65].map(z=><group key={`${x}:${z}`}><Block at={[x,2.15,z]} size={[.32,4.3,.32]} color="#536376"/><Block at={[x,4.3,z]} size={[.6,.18,.6]} color="#68798a"/></group>))}
     <Block at={[0,.006,0]} size={[.035,.012,7.9]} color="#b9996c"/>
     <Block at={[0,.007,0]} size={[7.9,.012,.035]} color="#b9996c"/>
-    <Portal side="north" at={[0,0,-4]} open={connected.includes("project-hub")} label="PROJECT HUB" detail="Hardware · Software · AI · GitHub" onSelect={()=>travel("project-hub")}/>
-    <Portal side="west" at={[-4,0,0]} open={connected.includes("living")} label="PERSONAL LIVING" detail="A quieter place · Enter" onSelect={()=>travel("living")}/>
-    <Portal side="east" at={[4,0,0]} open={connected.includes("gaming")} label="GAMING & ENTERTAINMENT" detail="Game library · Enter" onSelect={()=>travel("gaming")}/>
+    <RoomGlow doors={DOORS} reduced={reduced} pulseRoom="atrium"/>
+    <Portal side="north" at={[0,0,-4]} open={connected.includes("project-hub")} to="project-hub" label="PROJECT HUB" detail="Hardware · Software · AI · GitHub" onSelect={()=>travel("project-hub")}/>
+    <Portal side="west" at={[-4,0,0]} open={connected.includes("living")} to="living" label="PERSONAL LIVING" detail="A quieter place · Enter" onSelect={()=>travel("living")}/>
+    <Portal side="east" at={[4,0,0]} open={connected.includes("gaming")} to="gaming" label="GAMING & ENTERTAINMENT" detail="Game library · Enter" onSelect={()=>travel("gaming")}/>
     <group position={[2.5,0,2.4]} onClick={e=>{e.stopPropagation();openMap();}}>
       <Block at={[0,.48,0]} size={[.85,.96,.35]} color="#80644c" metal={.6} rough={.4}/>
       <Block at={[0,1.02,0]} size={[1.2,.12,.5]} color="#b9996c"/>

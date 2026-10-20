@@ -2,6 +2,7 @@ import { GLTFLoader } from "three-stdlib";
 import type { GLTF } from "three-stdlib";
 import { Material, Mesh, Texture } from "three";
 import type { RoomId } from "../types.ts";
+import { traceMark } from "../../studio/frameTrace.ts";
 
 export type AssetId = "workstation" | "room-kit" | "sofa" | "chair";
 export const ASSETS:Record<AssetId,{url:string;title:string;requiredBy:readonly RoomId[]}>= {
@@ -54,6 +55,7 @@ async function acquire(id:AssetId,owner:RoomId){
     const start=performance.now();
     const value=await loader.parseAsync(bytes.buffer,new URL("./world/",document.baseURI).href);
     current.timing={downloadMs:Math.round(bytes.downloadMs),decodeMs:Math.round(performance.now()-start),prefetched};
+    traceMark(`decode:${id}`,performance.now()-start);
     return value;
   })().then(value=>{
     if(REQUIRED_PARTS[id]?.some(name=>!value.scene.getObjectByName(name))){dispose(value);throw Error("Incomplete workstation asset");}

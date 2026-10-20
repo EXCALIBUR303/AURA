@@ -1,7 +1,8 @@
+import { traceMark } from "../studio/frameTrace.ts";
 import { DEFAULT_ROOM_OPTIONS, roomOptionsPatch, DEFAULT_WORLD_SETTINGS, worldSettingsPatch } from "./settings.ts";
 import type { RoomOptions, WorldSettings } from "./settings.ts";
 import type { ZoneId } from "@aura/contracts";
-import { ROOMS, zonePose, connectionFor, worldGeometry } from "./registry.ts";
+import { ROOMS, zonePose, connectionFor, passageAt, roomAt, viaRoom, worldGeometry } from "./registry.ts";
 import { safeLanding, safePoint } from "./collision.ts";
 import type { CameraMode, CameraPose, RoomId, RoomModule, WorldSnapshot } from "./types.ts";
 
@@ -22,7 +23,7 @@ export class WorldController {
   private loader:(id:RoomId)=>Promise<RoomModule>;
   getSnapshot=()=>this.snapshot;
   subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
-  private patch(patch:Partial<WorldSnapshot>){this.snapshot={...this.snapshot,...patch};this.listeners.forEach(fn=>fn());}
+  private patch(patch:Partial<WorldSnapshot>){this.snapshot={...this.snapshot,...patch};traceMark(`world:${this.snapshot.phase}:${this.snapshot.loaded.join("+")}`);this.listeners.forEach(fn=>fn());}
   private async load(id:RoomId){
     const ready=this.snapshot.modules[id];if(ready)return ready;
     let promise=this.pendingLoads.get(id);
@@ -36,15 +37,20 @@ export class WorldController {
     if(this.zoneRequested){this.zoneRequested=false;this.clearZoneOnArrive=false;}else if(this.snapshot.inspectionZone)this.clearZoneOnArrive=true;
     const id=++this.generation;this.retryRequest={room,pose,kind,arrivalMode};
     this.patch({loadTiming:{room,startedAt:performance.now()},phase:"preparing",pending:room,error:undefined,request:undefined,skip:undefined,mode:kind==="door"?this.snapshot.mode:"cinematic"});
+    // Where the camera physically is now (it may be mid-journey, in another room or a passage).
+    const here=this.cameraRooms();const origin=here[0]??this.snapshot.room;
+    // Unconnected rooms are reached by walking through the room they share (a journey), never by a cut.
+    const via=kind==="travel"||kind==="workspace"?viaRoom(origin,room):undefined;
     try{
-      const module=await this.load(room);if(id!==this.generation)return;
-      // At most two room instances: the destination and the room being left. A room that is not
-      // connected to the destination is released on arrival (see arrive), after the cinematic veil.
-      const keep=[...new Set([this.snapshot.room,room])].filter(r=>r===room||!!this.snapshot.modules[r]&&(kind!=="door"||!!connectionFor(r,room)));
-      const modules:Partial<Record<RoomId,RoomModule>>={};for(const r of keep)modules[r]=r===room?module:this.snapshot.modules[r];
+      const [module,viaModule]=await Promise.all([this.load(room),via?this.load(via):undefined]);if(id!==this.generation)return;
+      // The destination, the room(s) the camera is in, and a journey's intermediate room. Settled, at most
+      // two rooms remain (see arrive); a journey holds three only while the camera walks through.
+      const base=kind==="door"||!here.length?[this.snapshot.room]:here;
+      const keep=[...new Set([...base,...(via?[via]:[]),room])].filter(r=>r===room||r===via||!!this.snapshot.modules[r]&&(kind!=="door"||!!connectionFor(r,room)));
+      const modules:Partial<Record<RoomId,RoomModule>>={};for(const r of keep)modules[r]=r===room?module:r===via?viaModule??this.snapshot.modules[r]:this.snapshot.modules[r];
       const loadTiming={...this.snapshot.loadTiming!,readyMs:Math.round(performance.now()-this.snapshot.loadTiming!.startedAt)};
       if(kind==="door")this.patch({loadTiming,phase:"idle",pending:undefined,error:undefined,loaded:keep,modules,request:undefined});
-      else this.patch({loadTiming,phase:"travelling",loaded:keep,modules,request:{id,room,pose:{...pose,room},kind,arrivalMode,instant:kind==="restore"}});
+      else this.patch({loadTiming,phase:"travelling",loaded:keep,modules,request:{id,room,pose:{...pose,room},kind,arrivalMode,instant:kind==="restore",origin,...(via?{via}:{})}});
     }catch{
       if(id!==this.generation)return;
       this.patch({phase:"error",pending:undefined,request:undefined,mode:"inspect",error:`${definition.title} could not load. Your current room and tools are still available.`});
@@ -87,11 +93,18 @@ export class WorldController {
   };
   retry=()=>{const r=this.retryRequest;if(r){if(this.snapshot.inspectionZone&&!this.clearZoneOnArrive)this.zoneRequested=true;void this.request(r.room,r.pose,r.kind,r.arrivalMode);}};
   arrive=(id:number)=>{const request=this.snapshot.request;if(!request||request.id!==id)return;const previousRoom=this.snapshot.room;this.lastPose=request.pose;
-    const loaded=this.snapshot.loaded.filter(r=>r===request.room||!!connectionFor(r,request.room));const modules:Partial<Record<RoomId,RoomModule>>={};for(const r of loaded)modules[r]=this.snapshot.modules[r];
+    let loaded=this.snapshot.loaded.filter(r=>r===request.room||!!connectionFor(r,request.room));
+    // The Atrium connects to every room: after a journey or a cancel there, keep it plus the room the camera came from.
+    if(loaded.length>2){const keepAlso=loaded.includes(request.origin??previousRoom)&&request.origin!==request.room?request.origin??previousRoom:loaded.find(r=>r!==request.room)!;loaded=loaded.filter(r=>r===request.room||r===keepAlso);}const modules:Partial<Record<RoomId,RoomModule>>={};for(const r of loaded)modules[r]=this.snapshot.modules[r];
     if(this.clearZoneOnArrive){this.clearZoneOnArrive=false;this.snapshot={...this.snapshot,inspectionZone:undefined};}
     this.patch({loaded,modules,skip:undefined,room:request.room,pending:undefined,phase:"idle",mode:request.arrivalMode??"inspect",request:undefined,error:undefined,loadTiming:this.snapshot.loadTiming?{...this.snapshot.loadTiming,settledMs:Math.round(performance.now()-this.snapshot.loadTiming.startedAt)}:undefined});
     if(request.kind!=="restore"&&request.room!==previousRoom)this.userChange({type:"room",value:request.room});
   };
+  /** Rooms containing the camera now: one room, or both ends of a passage it stands in. */
+  private cameraRooms():RoomId[]{
+    const p=this.lastPose.position;const room=roomAt(p,this.snapshot.loaded);if(room)return [room];
+    const edge=passageAt(p);return edge?[edge.from,edge.to].filter(r=>this.snapshot.loaded.includes(r)):[];
+  }
   updatePose=(pose:CameraPose)=>{this.lastPose={position:[...pose.position],target:[...pose.target],room:pose.room??this.snapshot.room};};
   capture=():CameraPose=>({...this.lastPose,position:[...this.lastPose.position],target:[...this.lastPose.target]});
   setMode=(mode:CameraMode)=>{if(mode==="cinematic"||this.snapshot.phase!=="idle"&&!(mode==="inspect"&&this.snapshot.phase==="preparing"&&this.retryRequest?.kind==="door"))return;if(mode===this.snapshot.mode)return;this.patch({mode,error:undefined});this.userChange({type:"camera",value:mode});};
@@ -102,7 +115,7 @@ export class WorldController {
     if(this.snapshot.inspectionZone)this.clearZoneOnArrive=true;
     const safe=safeLanding(this.lastPose.position,this.snapshot.loaded);
     const pose:CameraPose={position:safe.position,target:[safe.position[0],1.62,safe.position[2]-1],room:safe.room};this.lastPose=pose;
-    this.patch({phase:"travelling",mode:"cinematic",room:safe.room,pending:undefined,error:undefined,request:{id:this.generation,room:safe.room,pose,kind:"restore",instant:true}});
+    this.patch({phase:"travelling",mode:"cinematic",room:safe.room,pending:undefined,error:undefined,request:{id:this.generation,room:safe.room,pose,kind:"restore",instant:true,origin:this.cameraRooms().find(r=>r!==safe.room)??this.snapshot.room}});
   };
   suspend=()=>{++this.generation;this.pendingLoads.clear();};
 }

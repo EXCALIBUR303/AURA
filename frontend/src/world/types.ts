@@ -17,7 +17,8 @@ export type RoomDefinition = {
   colliders: readonly Collider[]; load?: () => Promise<RoomModule>;
 };
 export type Connection = { id: string; from: RoomId; to: RoomId; floor: Rect; fromPoint: Point; toPoint: Point };
-export type CameraRequest = { id: number; room: RoomId; pose: CameraPose; kind: "travel" | "workspace" | "restore"; instant?: boolean; arrivalMode?: "inspect"|"explore" };
+export type CameraRequest = { id: number; room: RoomId; pose: CameraPose; kind: "travel" | "workspace" | "restore"; instant?: boolean; arrivalMode?: "inspect"|"explore";
+  /** The room the camera left from, and the intermediate room a journey walks through. */ origin?: RoomId; via?: RoomId };
 export type WorldSnapshot = {
   room: RoomId; mode: CameraMode; phase: "preparing" | "travelling" | "idle" | "error";
   settings:WorldSettings; options:RoomOptions; loadTiming?:{room:RoomId;startedAt:number;readyMs?:number;settledMs?:number}; pending?: RoomId; error?: string; request?: CameraRequest;
