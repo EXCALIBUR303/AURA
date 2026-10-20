@@ -57,12 +57,20 @@ export function safeLanding(position:Point,loaded:readonly RoomId[]):{room:RoomI
  * leg is a checked straight line, or a grid route when something stands in the way; empty if
  * the rooms are not joined.
  */
-export function doorwayPath(a:Point,b:Point,rooms:readonly RoomId[],floors:readonly Rect[],colliders:readonly Collider[]):Point[]{
-  const marks:Point[]=[];
+/** Each passage a walk through `rooms` crosses, as [entry, exit] in travel order, at the walk's height. */
+export function passagesFor(rooms:readonly RoomId[]):[Point,Point][]{
+  const out:[Point,Point][]=[];
   for(let i=0;i<rooms.length-1;i++){
     const e=connectionFor(rooms[i]!,rooms[i+1]!);if(!e)return [];
     const [near,far]=e.from===rooms[i]?[e.fromPoint,e.toPoint]:[e.toPoint,e.fromPoint];
-    marks.push([near[0],1.72,near[2]],[far[0],1.72,far[2]]);
+    out.push([[near[0],1.72,near[2]],[far[0],1.72,far[2]]]);
+  }
+  return out;
+}
+export function doorwayPath(a:Point,b:Point,rooms:readonly RoomId[],floors:readonly Rect[],colliders:readonly Collider[]):Point[]{
+  const marks:Point[]=[];const passages=passagesFor(rooms);if(rooms.length>1&&!passages.length)return [];
+  for(let i=0;i<passages.length;i++){
+    marks.push([...passages[i]![0]],[...passages[i]![1]]);
     // In a room the walk only passes through (a journey's intermediate room), cross its open centre:
     // the turn towards the next doorway then happens in open space, not inside the passage.
     if(i+2<rooms.length){const o=ROOMS[rooms[i+1]!].origin;marks.push([o[0],1.72,o[2]]);}

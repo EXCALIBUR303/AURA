@@ -4,7 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as Orbit } from "three-stdlib";
 import { Euler, PerspectiveCamera, Vector3 } from "three";
-import { cameraPath, clearSegment, doorwayPath, movePlayer, safePoint } from "./collision.ts";
+import { cameraPath, clearSegment, doorwayPath, movePlayer, passagesFor, safePoint } from "./collision.ts";
 import { planTravel } from "./cinematic.ts";
 import type { TravelPlan } from "./cinematic.ts";
 import { connectionFor, roomAt, ROOMS, CONNECTIONS, worldGeometry } from "./registry.ts";
@@ -46,8 +46,10 @@ export function WorldNavigation({controller,snapshot,reducedMotion,active,report
     // Between rooms, walk through the middle of each doorway; within a room, the grid route.
     const rooms=!source||source===request.room?[]:connectionFor(source,request.room)?[source,request.room]:request.via?[source,request.via,request.room]:[];
     const route:Point[]=walkway&&rooms.length?doorwayPath(from,destination.position,rooms,geometry.floors,geometry.colliders):[];
+    // Through the passages' centres the view is held along each passage; a grid fallback route keeps the plain walk.
+    const doors=route.length?passagesFor(rooms):[];
     if(walkway&&!route.length)route.push(...cameraPath(from,destination.position,geometry.floors,geometry.colliders));
-    plan.current=planTravel({from:{position:from,target:(orbit.current?.target.toArray()??destination.target) as Point},to:destination,route,geometry,reduced:reducedMotion,instant:!!request.instant,carryVeil:veilValue.current,journey:!!request.via&&!!source&&source!==request.room&&!connectionFor(source,request.room)});elapsed.current=0;
+    plan.current=planTravel({from:{position:from,target:(orbit.current?.target.toArray()??destination.target) as Point},to:destination,route,geometry,reduced:reducedMotion,instant:!!request.instant,carryVeil:veilValue.current,journey:!!request.via&&!!source&&source!==request.room&&!connectionFor(source,request.room),doors});elapsed.current=0;
     travelSignal.destination=request.room;travelSignal.via=request.via??null;travelSignal.kind=plan.current.kind;travelSignal.progress=0;
     if(orbit.current)orbit.current.enabled=false;
     if(plan.current.kind==="cut"){setVeil(0);applyLimits(controller.zoneAfterArrival());camera.position.fromArray(destination.position);target.current.fromArray(destination.target);orbit.current?.target.copy(target.current);orbit.current?.update();}

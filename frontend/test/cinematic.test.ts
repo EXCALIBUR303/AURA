@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { framingOffset, planTravel, roundCorners, routeDuration, JOURNEY_MAX, JOURNEY_MIN, ROUTE_MAX, ROUTE_MIN, BRIDGE_ARRIVE, BRIDGE_DEPART, smootherstep } from "../src/world/cinematic.ts";
-import { cameraPath, doorwayPath, safePoint } from "../src/world/collision.ts";
-import { connectionFor, ROOMS, worldGeometry, zonePose } from "../src/world/registry.ts";
+import { framingOffset, planTravel, roundCorners, routeDuration, JOURNEY_MAX, JOURNEY_MIN, ROUTE_MAX, ROUTE_MIN, BRIDGE_ARRIVE, BRIDGE_DEPART, WALKWAY_MAX, smootherstep } from "../src/world/cinematic.ts";
+import { cameraPath, doorwayPath, passagesFor, safePoint } from "../src/world/collision.ts";
+import { connectionFor, ROOMS, viaRoom, worldGeometry, zonePose } from "../src/world/registry.ts";
 import { WorldController } from "../src/world/WorldController.ts";
 import type { Point, RoomId, RoomModule } from "../src/world/types.ts";
 
@@ -215,4 +215,65 @@ test("Living object inspection poses are collision-safe and face their objects",
     assert.ok(safePoint(pose.position, g.floors, g.colliders, 0.12, false), `${id} camera clear`);
     assert.ok(dist(pose.position, pose.target) > 1 && dist(pose.position, pose.target) < 3, `${id} framing distance`);
   }
+});
+
+/** Share of a 9×5 ray grid across the view (50° vertical FOV, 16:10) that meets a collider within `near` metres. */
+function closeWalls(f: { position: Point; target: Point }, colliders: readonly { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number }[], near = 1.6) {
+  const o = f.position, d0 = f.target.map((v, i) => v - o[i]!), l0 = Math.hypot(...d0), fw = d0.map(v => v / l0);
+  const rl = Math.hypot(fw[2]!, fw[0]!) || 1, right = [-fw[2]! / rl, 0, fw[0]! / rl];
+  const up = [right[1]! * fw[2]! - right[2]! * fw[1]!, right[2]! * fw[0]! - right[0]! * fw[2]!, right[0]! * fw[1]! - right[1]! * fw[0]!];
+  const tan = Math.tan(25 * Math.PI / 180); let hits = 0;
+  for (let iy = 0; iy < 5; iy++) for (let ix = 0; ix < 9; ix++) {
+    const nx = (ix / 4 - 1) * 0.9 * tan * 1.6, ny = (iy / 2 - 1) * 0.9 * tan;
+    const d = fw.map((v, k) => v + right[k]! * nx + up[k]! * ny), dl = Math.hypot(...d); d.forEach((v, k) => (d[k] = v / dl));
+    let best = Infinity;
+    for (const c of colliders) {
+      let t0 = 0, t1 = Infinity; const lo = [c.minX, c.minY, c.minZ], hi = [c.maxX, c.maxY, c.maxZ];
+      for (let k = 0; k < 3 && t0 <= t1; k++) { if (Math.abs(d[k]!) < 1e-9) { if (o[k]! < lo[k]! || o[k]! > hi[k]!) t0 = Infinity; continue; } let a = (lo[k]! - o[k]!) / d[k]!, b = (hi[k]! - o[k]!) / d[k]!; if (a > b) [a, b] = [b, a]; t0 = Math.max(t0, a); t1 = Math.min(t1, b); }
+      if (t0 <= t1 && t0 < best) best = t0;
+    }
+    if (d[1]! < 0 && -o[1]! / d[1]! < best) best = Infinity; // the floor is open view, not a wall
+    if (best < near) hits++;
+  }
+  return hits / 45;
+}
+
+test("doorway travel between every pair of rooms never faces a wall at close range and turns in the open", () => {
+  const rooms = ["project-hub", "atrium", "living", "gaming"] as const;
+  for (const x of rooms) for (const y of rooms) {
+    if (x === y) continue;
+    const via = viaRoom(x, y), list = via ? [x, via, y] : [x, y], geometry = worldGeometry(list);
+    const from = intro(x), to = intro(y);
+    // Exactly as WorldNavigation plans it.
+    const route = doorwayPath(from.position, to.position, list, geometry.floors, geometry.colliders);
+    assert.ok(route.length, `${x}→${y}: no walkway`);
+    const plan = planTravel({ from, to, route, geometry, reduced: false, instant: false, journey: !!via, doors: passagesFor(list) });
+    assert.equal(plan.kind, via ? "journey" : "route");
+    assert.ok(via ? plan.duration >= JOURNEY_MIN && plan.duration <= JOURNEY_MAX : plan.duration >= ROUTE_MIN && plan.duration <= WALKWAY_MAX, `${x}→${y}: ${plan.duration}`);
+    const shots = frames(plan);
+    for (const [i, f] of shots.entries()) {
+      assert.equal(f.veil, 0); assert.ok(safePoint(f.position, geometry.floors, geometry.colliders, 0.1, false), `${x}→${y}: unsafe ${f.position}`);
+      const cover = closeWalls(f, geometry.colliders);
+      assert.ok(cover < 0.4, `${x}→${y}: ${Math.round(cover * 100)}% of the view is a wall within 1.6 m at frame ${i}`);
+    }
+    for (let i = 1; i < shots.length; i++) assert.ok(turn(shots[i - 1]!, shots[i]!) < 3.2, `${x}→${y}: ${turn(shots[i - 1]!, shots[i]!).toFixed(1)}° at frame ${i}`);
+    for (let i = 1; i < shots.length; i++) assert.ok(dist(shots[i - 1]!.position, shots[i]!.position) < 0.25, `${x}→${y}: ${dist(shots[i - 1]!.position, shots[i]!.position).toFixed(2)} m in one frame`);
+    const end = shots.at(-1)!; assert.ok(dist(end.position, to.position) < 1e-6 && dist(end.target, to.target) < 1e-6, `${x}→${y}: lands off the framing`);
+  }
+});
+
+test("doorway travel is skippable, cancels cleanly and cuts under reduced motion", () => {
+  const list = ["living", "atrium", "project-hub"] as const, geometry = worldGeometry(list);
+  const from = intro("living"), to = intro("project-hub");
+  const route = doorwayPath(from.position, to.position, list, geometry.floors, geometry.colliders), doors = passagesFor(list);
+  const plan = planTravel({ from, to, route, geometry, reduced: false, instant: false, journey: true, doors });
+  const end = plan.sample(plan.duration); assert.deepEqual(end.position, to.position); assert.deepEqual(end.target, to.target);
+  assert.equal(planTravel({ from, to, route, geometry, reduced: true, instant: false, journey: true, doors }).kind, "cut");
+  assert.equal(planTravel({ from, to, route, geometry, reduced: false, instant: true, journey: true, doors }).kind, "cut");
+  // A replan from mid-walk (retarget) starts exactly where the camera is.
+  const mid = plan.sample(plan.duration * 0.45), back = intro("living");
+  const g2 = worldGeometry(["atrium", "living"]);
+  const r2 = doorwayPath(mid.position, back.position, ["atrium", "living"], g2.floors, g2.colliders);
+  const again = planTravel({ from: mid, to: back, route: r2, geometry: g2, reduced: false, instant: false, doors: passagesFor(["atrium", "living"]) });
+  const first = again.sample(0); assert.ok(dist(first.position, mid.position) < 1e-6 && turn(first, mid) < 0.5, "no jump on retarget");
 });
