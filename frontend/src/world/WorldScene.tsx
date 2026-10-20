@@ -112,22 +112,27 @@ const doorwayBoxes=new Map<string,Box3>();
 function doorwayBox(id:string){let box=doorwayBoxes.get(id);if(!box){const e=CONNECTIONS.find(c=>c.id===id)!;box=new Box3(new Vector3(e.floor.minX,0,e.floor.minZ),new Vector3(e.floor.maxX,2.9,e.floor.maxZ));doorwayBoxes.set(id,box);}return box;}
 /**
  * A room that has just mounted stays hidden while the GPU work its first frame would otherwise do
- * at once is spread over the next few frames: shader programs are created, then each is checked
- * (the check waits for its compile and link) one per frame, then textures upload within a small
+ * at once is spread over the next few frames: shader programs are created at most one per frame,
+ * then each is checked (the check waits for its compile and link) one per frame, then textures upload within a small
  * per-frame budget. It is revealed when that is done, or after WARM_CAP_MS whatever happens, so
  * a slow driver can never keep a room hidden. Geometry still uploads on the first visible frame.
  */
 const WARM_CAP_MS=500;
 const TEXTURE_KEYS=["map","normalMap","roughnessMap","metalnessMap","emissiveMap","aoMap","alphaMap"] as const;
-type Warm={started:number;stage:"compile"|"link"|"textures"|"done";programs:{isReady:()=>boolean;getUniforms:()=>unknown}[];textures:Texture[]};
+type Warm={started:number;stage:"compile"|"link"|"textures"|"done";queue?:Object3D[];programs:{isReady:()=>boolean;getUniforms:()=>unknown}[];textures:Texture[]};
 function warmStep(w:Warm,g:Group,gl:WebGLRenderer,camera:Camera,scene:Scene){
   if(w.stage==="compile"){
-    const programs=new Set<Warm["programs"][number]>(),textures=new Set<Texture>();
-    for(const m of gl.compile(g,camera,scene)){
-      const program=(gl.properties.get(m) as {currentProgram?:unknown}).currentProgram as Warm["programs"][number]|undefined;if(program)programs.add(program);
-      for(const key of TEXTURE_KEYS){const t=(m as MeshStandardMaterial&{alphaMap?:Texture|null})[key];if(t)textures.add(t);}
+    // One object at a time, stopping once a frame has created a new program: the driver compiles
+    // shaders in the GPU process, so creating every program at once stalls presentation for one long frame.
+    if(!w.queue){w.queue=[];g.traverse(o=>{if((o as Object3D&{material?:unknown}).material)w.queue!.push(o);});}
+    const before=gl.info.programs?.length??0;
+    while(w.queue.length&&(gl.info.programs?.length??0)===before){
+      for(const m of gl.compile(w.queue.shift()!,camera,scene)){
+        const program=(gl.properties.get(m) as {currentProgram?:unknown}).currentProgram as Warm["programs"][number]|undefined;if(program&&!w.programs.includes(program))w.programs.push(program);
+        for(const key of TEXTURE_KEYS){const t=(m as MeshStandardMaterial&{alphaMap?:Texture|null})[key];if(t&&!w.textures.includes(t))w.textures.push(t);}
+      }
     }
-    w.programs=[...programs];w.textures=[...textures];w.stage="link";return;
+    if(!w.queue.length)w.stage="link";return;
   }
   if(w.stage==="link"){
     // Without KHR_parallel_shader_compile every program reports ready and its first check blocks, so one per frame.
