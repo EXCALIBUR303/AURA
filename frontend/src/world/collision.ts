@@ -1,5 +1,5 @@
 import type { Collider, Point, Rect } from "./types.ts";
-import { contains, ROOMS, roomAt } from "./registry.ts";
+import { connectionFor, contains, ROOMS, roomAt } from "./registry.ts";
 import type { RoomId } from "./types.ts";
 
 export function safePoint(p:Point,floors:readonly Rect[],colliders:readonly Collider[],radius=.26,body=true){
@@ -50,4 +50,29 @@ export function cameraPath(a:Point,b:Point,floors:readonly Rect[],colliders:read
 export function safeLanding(position:Point,loaded:readonly RoomId[]):{room:RoomId;position:Point}{
   const room=roomAt(position,loaded)??loaded.reduce((best,id)=>Math.hypot(position[0]-ROOMS[id].landing[0],position[2]-ROOMS[id].landing[2])<Math.hypot(position[0]-ROOMS[best].landing[0],position[2]-ROOMS[best].landing[2])?id:best,loaded[0]??"project-hub");
   return {room,position:[...ROOMS[room].landing]};
+}
+/**
+ * A walk between rooms that goes through the middle of each doorway, at eye height plus a
+ * little: the camera never grazes a door frame or hugs a wall the way a grid route can. Each
+ * leg is a checked straight line, or a grid route when something stands in the way; empty if
+ * the rooms are not joined.
+ */
+export function doorwayPath(a:Point,b:Point,rooms:readonly RoomId[],floors:readonly Rect[],colliders:readonly Collider[]):Point[]{
+  const marks:Point[]=[];
+  for(let i=0;i<rooms.length-1;i++){
+    const e=connectionFor(rooms[i]!,rooms[i+1]!);if(!e)return [];
+    const [near,far]=e.from===rooms[i]?[e.fromPoint,e.toPoint]:[e.toPoint,e.fromPoint];
+    marks.push([near[0],1.72,near[2]],[far[0],1.72,far[2]]);
+    // In a room the walk only passes through (a journey's intermediate room), cross its open centre:
+    // the turn towards the next doorway then happens in open space, not inside the passage.
+    if(i+2<rooms.length){const o=ROOMS[rooms[i+1]!].origin;marks.push([o[0],1.72,o[2]]);}
+  }
+  marks.push([...b]);
+  const out:Point[]=[];let from=a;
+  for(const mark of marks){
+    if(clearSegment(from,mark,floors,colliders))out.push(mark);
+    else{const leg=cameraPath(from,mark,floors,colliders);if(!leg.length)return [];out.push(...leg);}
+    from=mark;
+  }
+  return out;
 }

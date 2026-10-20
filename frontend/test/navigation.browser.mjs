@@ -31,12 +31,16 @@ async function scan(page, name) { const r = await new AxeBuilder({ page }).withT
 
 try {
   const page = await open();
-  await check('Hub to Gaming crosses unconnected rooms behind a veil and arrives framed in about 1.4 s', async () => {
-    const r = await recordTravel(page, () => chooseRoom(page, 'gaming'), 'gaming'); travels.push({ to: 'gaming', ...r });
-    assert.equal(r.travel.kind, 'bridge'); assert.equal(r.travel.outcome, 'arrived'); assert.ok(r.maxVeil >= 0.95, `veil ${r.maxVeil}`); assert.equal(r.lastVeil, 0);
-    assert.ok(r.maxLoaded <= 2); assert.deepEqual((await diag(page)).world.loadedRooms, ['gaming'], 'the departed Hub is released on arrival');
-    // Wall-clock includes the first (cold) asset load; the cinematic itself is bounded.
-    assert.equal(r.travel.plannedMs, 1350); assert.ok(r.travel.elapsedMs >= 1350 && r.travel.elapsedMs < 1700, `${r.travel.elapsedMs} ms`);
+  await check('Hub to Gaming walks through the Atrium without a veil, names the journey and arrives framed', async () => {
+    const r = await recordTravel(page, async () => {
+      await chooseRoom(page, 'gaming');
+      const bar = page.getByRole('status').filter({ hasText: 'Gaming & Entertainment' }).filter({ hasText: 'Through the Central Atrium' });
+      await bar.waitFor({ timeout: 10000 }); assert.ok(await bar.getByRole('button', { name: 'Skip', exact: true }).isVisible());
+    }, 'gaming'); travels.push({ to: 'gaming', ...r });
+    assert.equal(r.travel.kind, 'journey'); assert.equal(r.travel.outcome, 'arrived'); assert.equal(r.maxVeil, 0, 'rooms are walked, not cut');
+    assert.ok(r.maxLoaded <= 3, `${r.maxLoaded} rooms during the walk`); assert.deepEqual([...(await diag(page)).world.loadedRooms].sort(), ['atrium', 'gaming'], 'the departed Hub is released on arrival');
+    assert.ok(r.travel.plannedMs >= 2200 && r.travel.plannedMs <= 3200, `${r.travel.plannedMs} ms planned`);
+    assert.match(await page.locator('.arrival-title').innerText(), /Gaming & Entertainment/);
   });
   await check('Gaming to Atrium walks the real passage without a veil and lands on the room framing', async () => {
     const r = await recordTravel(page, () => chooseRoom(page, 'atrium'), 'atrium'); travels.push({ to: 'atrium', ...r });
@@ -61,7 +65,7 @@ try {
     assert.equal(await page.locator('.travel-veil').evaluate((v) => Number(v.style.opacity || 0)), 0);
     assert.ok(await page.getByRole('button', { name: 'Free Explore', exact: true }).isEnabled());
   });
-  await check('Rapid repeated destinations settle once on the last choice with at most two rooms', async () => {
+  await check('Rapid repeated destinations settle once on the last choice with at most two rooms (three only mid-walk)', async () => {
     const before = (await diag(page)).world.room; const order = ['living', 'gaming', 'atrium'].filter((r) => r !== before);
     for (const room of order) { await chooseRoom(page, room); await page.waitForTimeout(120); }
     await settled(page, order.at(-1)); const d = await diag(page);

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { framingOffset, planTravel, routeDuration, ROUTE_MAX, ROUTE_MIN, BRIDGE_ARRIVE, BRIDGE_DEPART, smootherstep } from "../src/world/cinematic.ts";
-import { cameraPath, safePoint } from "../src/world/collision.ts";
-import { ROOMS, worldGeometry, zonePose } from "../src/world/registry.ts";
+import { framingOffset, planTravel, roundCorners, routeDuration, JOURNEY_MAX, JOURNEY_MIN, ROUTE_MAX, ROUTE_MIN, BRIDGE_ARRIVE, BRIDGE_DEPART, smootherstep } from "../src/world/cinematic.ts";
+import { cameraPath, doorwayPath, safePoint } from "../src/world/collision.ts";
+import { connectionFor, ROOMS, worldGeometry, zonePose } from "../src/world/registry.ts";
 import { WorldController } from "../src/world/WorldController.ts";
 import type { Point, RoomId, RoomModule } from "../src/world/types.ts";
 
@@ -98,17 +98,30 @@ test("framing offsets back off from walls instead of entering them", () => {
   assert.ok(!p || safePoint(p, g.floors, g.colliders, 0.12, false));
 });
 
-test("non-adjacent travel keeps the source room until arrival, then releases it (at most two rooms)", async () => {
+test("unconnected rooms are reached by a journey through the Atrium; settled, at most two rooms remain", async () => {
   const c = await ready();
   c.travel("gaming"); await tick();
-  assert.deepEqual([...c.getSnapshot().loaded].sort(), ["gaming", "project-hub"]);
-  c.arrive(c.getSnapshot().request!.id);
-  assert.deepEqual(c.getSnapshot().loaded, ["gaming"]);
-  c.travel("atrium"); await tick(); assert.deepEqual([...c.getSnapshot().loaded].sort(), ["atrium", "gaming"]);
+  const request = c.getSnapshot().request!;
+  assert.equal(request.via, "atrium"); assert.equal(request.origin, "project-hub");
+  assert.deepEqual([...c.getSnapshot().loaded].sort(), ["atrium", "gaming", "project-hub"], "the walk needs both doorways");
+  c.arrive(request.id);
+  assert.deepEqual([...c.getSnapshot().loaded].sort(), ["atrium", "gaming"], "the Hub is released on arrival");
+  c.travel("atrium"); await tick(); assert.equal(c.getSnapshot().request!.via, undefined, "adjacent rooms need no journey");
   c.arrive(c.getSnapshot().request!.id); assert.deepEqual([...c.getSnapshot().loaded].sort(), ["atrium", "gaming"], "adjacent pair kept");
   for (const room of ["living", "project-hub", "gaming", "living", "atrium", "project-hub"] as const) {
-    c.travel(room); await tick(); assert.ok(c.getSnapshot().loaded.length <= 2); c.arrive(c.getSnapshot().request!.id); assert.ok(c.getSnapshot().loaded.length <= 2);
+    c.travel(room); await tick(); assert.ok(c.getSnapshot().loaded.length <= 3); c.arrive(c.getSnapshot().request!.id); assert.ok(c.getSnapshot().loaded.length <= 2, `${room}: ${c.getSnapshot().loaded}`);
   }
+});
+
+test("retargeting mid-journey keeps the room the camera is standing in", async () => {
+  const c = await ready();
+  c.travel("living"); await tick();
+  c.updatePose({ position: [0.4, 1.62, 0.3], target: [-3, 1.5, 0], room: "atrium" });
+  c.travel("gaming"); await tick();
+  const s = c.getSnapshot();
+  assert.ok(s.loaded.includes("atrium") && s.loaded.includes("gaming"), String(s.loaded));
+  assert.ok(!s.loaded.includes("project-hub"), "the Hub behind the camera is released");
+  assert.equal(s.request!.via, undefined, "Atrium to Gaming is a direct walk");
 });
 
 test("skip marks only the active travel and is cleared by arrival or a newer request", async () => {
@@ -130,13 +143,49 @@ test("look sensitivity is bounded, finite and session-only", async () => {
   assert.equal(changes.length, 0, "no persistence intent");
 });
 
-test("cancel during a bridge lands safely in a loaded room and releases the other", async () => {
+test("cancel during a journey lands safely in a loaded room and keeps at most two", async () => {
   const c = await ready();
   c.travel("living"); await tick();
   c.updatePose({ position: [0, 2.6, -7.6], target: [0, 1.4, -10], room: "project-hub" });
-  c.cancel(); const s = c.getSnapshot();
+  c.cancel(); let s = c.getSnapshot();
   assert.equal(s.request!.instant, true); assert.equal(s.room, "project-hub");
-  c.arrive(s.request!.id); assert.deepEqual(c.getSnapshot().loaded, ["project-hub"]); assert.equal(c.getSnapshot().phase, "idle");
+  c.arrive(s.request!.id); s = c.getSnapshot(); assert.equal(s.phase, "idle"); assert.ok(s.loaded.includes("project-hub") && s.loaded.length <= 2 && !s.loaded.includes("living"), String(s.loaded));
+  // Cancelling in the Atrium, which connects to everything, still settles on two rooms.
+  c.travel("gaming"); await tick();
+  c.updatePose({ position: [0.5, 1.62, 0.5], target: [3, 1.5, 0], room: "atrium" });
+  c.cancel(); s = c.getSnapshot(); assert.equal(s.room, "atrium");
+  c.arrive(s.request!.id); s = c.getSnapshot(); assert.ok(s.loaded.includes("atrium") && s.loaded.length === 2, String(s.loaded));
+});
+
+test("every journey through the Atrium is collision-safe, bounded, rounded at doorways and free of whip pans", () => {
+  for (const [a, b] of [["project-hub", "living"], ["project-hub", "gaming"], ["living", "gaming"]] as const)
+    for (const [x, y] of [[a, b], [b, a]] as const) {
+      const geometry = worldGeometry([x, "atrium", y]);
+      const from = intro(x), to = intro(y);
+      const route = doorwayPath(from.position, to.position, [x, "atrium", y], geometry.floors, geometry.colliders);
+      assert.ok(route.length, `${x}→${y}: no walkway`);
+      // Through the middle of both doorways.
+      for (const edge of [connectionFor(x, "atrium")!, connectionFor("atrium", y)!]) assert.ok(route.some(p => Math.hypot(p[0] - edge.fromPoint[0], p[2] - edge.fromPoint[2]) < 1e-6) && route.some(p => Math.hypot(p[0] - edge.toPoint[0], p[2] - edge.toPoint[2]) < 1e-6), `${x}→${y}: off-centre at ${edge.id}`);
+      const plan = planTravel({ from, to, route, geometry, reduced: false, instant: false, journey: true });
+      assert.equal(plan.kind, "journey");
+      assert.ok(plan.duration >= JOURNEY_MIN && plan.duration <= JOURNEY_MAX, `${x}→${y}: ${plan.duration}`);
+      const shots = frames(plan);
+      for (const f of shots) { assert.equal(f.veil, 0, "no veil: the rooms are walked"); assert.ok(safePoint(f.position, geometry.floors, geometry.colliders, 0.1, false), `${x}→${y}: unsafe ${f.position}`); }
+      for (let i = 1; i < shots.length; i++) assert.ok(turn(shots[i - 1]!, shots[i]!) < 3.2, `${x}→${y}: ${turn(shots[i - 1]!, shots[i]!).toFixed(1)}° at frame ${i}`);
+      const end = shots.at(-1)!; assert.ok(dist(end.position, to.position) < 1e-6 && dist(end.target, to.target) < 1e-6);
+      // Visits the intermediate room for real.
+      assert.ok(shots.some(f => Math.abs(f.position[0]) < 3.5 && Math.abs(f.position[2]) < 3.5), `${x}→${y}: never crosses the Atrium`);
+    }
+});
+
+test("doorway corners are rounded only where the curve itself is clear", () => {
+  const geometry = worldGeometry(["project-hub", "atrium", "gaming"]);
+  const sharp: Point[] = [[0, 1.62, -7.5], [0, 1.62, 0], [8, 1.62, 0]];
+  const round = roundCorners(sharp, geometry);
+  assert.ok(round.length > sharp.length, "a free corner gets a curve");
+  for (let i = 1; i < round.length; i++) assert.ok(cameraPath(round[i - 1]!, round[i]!, geometry.floors, geometry.colliders).length === 1);
+  const walled: Point[] = [[0, 1.62, -7.5], [0, 1.62, -4.2], [3.9, 1.62, -4.2]];
+  assert.ok(roundCorners(walled, geometry).length >= walled.length);
 });
 
 test("every walkway and every Hub workspace move stays collision-safe without whip pans", () => {

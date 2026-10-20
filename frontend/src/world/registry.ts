@@ -18,7 +18,9 @@ export const CONNECTIONS: readonly Connection[] = [
   { id:"atrium-gaming", from:"atrium", to:"gaming", floor:{minX:4,maxX:6.5,minZ:-1.2,maxZ:1.2}, fromPoint:[4,1.62,0], toPoint:[6.5,1.62,0] },
 ];
 const hubWalls = [wall("hub.north",0,-15.59,12.36,.18),wall("hub.west",-6.09,-11,.18,9),wall("hub.east",6.09,-11,.18,9),wall("hub.south.west",-3.6,-6.41,4.8,.18),wall("hub.south.east",3.6,-6.41,4.8,.18)];
-const hubProps: Collider[] = [-3.25,3.25].flatMap(x=>[-2.5,2.5].flatMap(z=>[wall(`desk.${x}.${z}`,x,z-11,2.5,1.16,1.9),wall(`chair.${x}.${z}`,x,z-11+(z<0?1.08:-1.08),.8,.8,1.25)]));
+const hubProps: Collider[] = [...[-3.25,3.25].flatMap(x=>[-2.5,2.5].flatMap(z=>[wall(`desk.${x}.${z}`,x,z-11,2.5,1.16,1.9),wall(`chair.${x}.${z}`,x,z-11+(z<0?1.08:-1.08),.8,.8,1.25)])),
+  // Wall-mounted station identity: the Hardware parts rack and the Software planning board (HubDetails.tsx).
+  wall("hardware.rack",-5.86,-13.5,.3,1.9,2.2),wall("software.board",5.9,-13.5,.22,2,2.25),wall("ai-lab.wall",-5.93,-8.5,.14,2.1,2.4)];
 const atriumWalls = [wall("atrium.south",0,4.09,8.36,.18,4.6),wall("atrium.north.west",-2.6,-4.09,2.8,.18,4.6),wall("atrium.north.east",2.6,-4.09,2.8,.18,4.6),...[-1,1].flatMap(side=>[-2.6,2.6].map(z=>wall(`atrium.side.${side}.${z}`,side*4.09,z,.18,2.8,4.6)))];
 
 function homeColliders(id:"living"|"gaming"):Collider[]{
@@ -39,6 +41,10 @@ export const ROOM_LIST = Object.values(ROOMS);
 export const contains = (r:Rect, p:Point) => p[0]>=r.minX && p[0]<=r.maxX && p[2]>=r.minZ && p[2]<=r.maxZ;
 export function roomAt(p:Point, loaded:readonly RoomId[]): RoomId | undefined { return loaded.find(id=>contains(ROOMS[id].floor,p)); }
 export function connectionFor(a:RoomId,b:RoomId) { return CONNECTIONS.find(e=>(e.from===a&&e.to===b)||(e.from===b&&e.to===a)); }
+/** The room a journey between two unconnected rooms walks through (the Atrium today), if any. */
+export function viaRoom(a:RoomId,b:RoomId):RoomId|undefined { if(a===b||connectionFor(a,b))return undefined; return ROOM_LIST.find(r=>r.availability==="available"&&!!connectionFor(a,r.id)&&!!connectionFor(r.id,b))?.id; }
+/** The passage whose floor contains a point (the camera between two rooms). */
+export function passageAt(p:Point){ return CONNECTIONS.find(e=>contains(e.floor,p)); }
 export function zonePose(zone:ZoneId):CameraPose {
   const poses:Record<ZoneId,CameraPose> = {
     studio:ROOMS["project-hub"].introduction,
