@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { traceMark, traceTime } from "../studio/frameTrace.ts";
 import { Box3, Color, Fog, Frustum, Matrix4, Object3D, Vector3 } from "three";
-import type { Camera, DirectionalLight, Group, HemisphereLight, MeshStandardMaterial, PointLight, Scene, Texture, WebGLRenderer } from "three";
+import type { Camera, DirectionalLight, Group, HemisphereLight, PointLight, Scene, WebGLRenderer } from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { pinRenderedRoom } from "./assets/resources.ts";
 import { ROOM_GLOW, roomEnvironment } from "./environment.ts";
@@ -111,48 +111,34 @@ function Atmosphere({snapshot,reduced}:{snapshot:WorldSnapshot;reduced:boolean})
 const doorwayBoxes=new Map<string,Box3>();
 function doorwayBox(id:string){let box=doorwayBoxes.get(id);if(!box){const e=CONNECTIONS.find(c=>c.id===id)!;box=new Box3(new Vector3(e.floor.minX,0,e.floor.minZ),new Vector3(e.floor.maxX,2.9,e.floor.maxZ));doorwayBoxes.set(id,box);}return box;}
 /**
- * A room that has just mounted stays hidden while the GPU work its first frame would otherwise do
- * at once is spread over the next few frames: shader programs are created at most one per frame,
- * then each is checked (the check waits for its compile and link) one per frame, then textures upload within a small
- * per-frame budget. It is revealed when that is done, or after WARM_CAP_MS whatever happens, so
- * a slow driver can never keep a room hidden. Geometry still uploads on the first visible frame.
+ * A room that has just mounted stays hidden while its shader programs are created, at most one
+ * new program per frame: creating all of them in its first rendered frame stalled that frame, and
+ * the driver compiles in the GPU process, which stalls presentation for one long frame. It is
+ * revealed when every program exists, or after WARM_CAP_MS whatever happens, so a slow driver can
+ * never keep a room hidden. Textures and geometry still upload on the first visible frame. (Staged
+ * link polling and texture upload were tried and removed: they delayed the reveal and made the
+ * polish suite's Living asset check fail in most runs; the cause was not identified.)
  */
 const WARM_CAP_MS=500;
-const TEXTURE_KEYS=["map","normalMap","roughnessMap","metalnessMap","emissiveMap","aoMap","alphaMap"] as const;
-type Warm={started:number;stage:"compile"|"link"|"textures"|"done";queue?:Object3D[];programs:{isReady:()=>boolean;getUniforms:()=>unknown}[];textures:Texture[]};
+type Warm={started:number;done:boolean;queue?:Object3D[]};
 function warmStep(w:Warm,g:Group,gl:WebGLRenderer,camera:Camera,scene:Scene){
-  if(w.stage==="compile"){
-    // One object at a time, stopping once a frame has created a new program: the driver compiles
-    // shaders in the GPU process, so creating every program at once stalls presentation for one long frame.
-    if(!w.queue){w.queue=[];g.traverse(o=>{if((o as Object3D&{material?:unknown}).material)w.queue!.push(o);});}
-    const before=gl.info.programs?.length??0;
-    while(w.queue.length&&(gl.info.programs?.length??0)===before){
-      for(const m of gl.compile(w.queue.shift()!,camera,scene)){
-        const program=(gl.properties.get(m) as {currentProgram?:unknown}).currentProgram as Warm["programs"][number]|undefined;if(program&&!w.programs.includes(program))w.programs.push(program);
-        for(const key of TEXTURE_KEYS){const t=(m as MeshStandardMaterial&{alphaMap?:Texture|null})[key];if(t&&!w.textures.includes(t))w.textures.push(t);}
-      }
-    }
-    if(!w.queue.length)w.stage="link";return;
-  }
-  if(w.stage==="link"){
-    // Without KHR_parallel_shader_compile every program reports ready and its first check blocks, so one per frame.
-    const p=w.programs[0];if(p&&p.isReady()){p.getUniforms();w.programs.shift();}
-    if(!w.programs.length)w.stage="textures";return;
-  }
-  if(w.stage==="textures"){const until=performance.now()+4;while(w.textures.length&&performance.now()<until)gl.initTexture(w.textures.shift()!);if(!w.textures.length)w.stage="done";}
+  if(!w.queue){w.queue=[];g.traverse(o=>{if((o as Object3D&{material?:unknown}).material)w.queue!.push(o);});}
+  const before=gl.info.programs?.length??0;
+  while(w.queue.length&&(gl.info.programs?.length??0)===before)gl.compile(w.queue.shift()!,camera,scene);
+  if(!w.queue.length)w.done=true;
 }
 function RoomAssetScope({room,children,snapshot}:{room:RoomId;children:ReactNode;snapshot:{current:WorldSnapshot}}){
   const group=useRef<Group>(null);const {gl,camera,scene}=useThree();
   const view=useMemo(()=>({frustum:new Frustum(),matrix:new Matrix4()}),[]);
   const warm=useRef<Warm|null>(null);
   // Before the first frame that could draw the room.
-  useLayoutEffect(()=>{traceMark(`mount:${room}`);if(group.current)group.current.visible=false;roomVisible[room]=false;warm.current={started:performance.now(),stage:"compile",programs:[],textures:[]};
+  useLayoutEffect(()=>{traceMark(`mount:${room}`);if(group.current)group.current.visible=false;roomVisible[room]=false;warm.current={started:performance.now(),done:false};
     return()=>{traceMark(`unmount:${room}`);warm.current=null;};},[room]);
   useFrame(()=>{
     const g=group.current;if(!g)return;const w=warm.current;
     if(w){
-      if(w.stage!=="done"&&performance.now()-w.started<WARM_CAP_MS){g.visible=false;roomVisible[room]=false;traceTime(`warm:${w.stage}:${room}`,()=>warmStep(w,g,gl,camera,scene));return;}
-      traceMark(w.stage==="done"?`reveal:${room}`:`reveal-capped:${room}`);warm.current=null;
+      if(!w.done&&performance.now()-w.started<WARM_CAP_MS){g.visible=false;roomVisible[room]=false;traceTime(`warm:${room}`,()=>warmStep(w,g,gl,camera,scene));return;}
+      traceMark(w.done?`reveal:${room}`:`reveal-capped:${room}`);warm.current=null;
     }
     const s=snapshot.current;
     const here=s.phase==="idle"?roomAt(camera.position.toArray() as [number,number,number],s.loaded):undefined;
