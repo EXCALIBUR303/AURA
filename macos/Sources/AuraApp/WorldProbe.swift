@@ -15,9 +15,9 @@ enum WorldProbe {
     private static let log = Logger(subsystem: Log.subsystem, category: "world-probe")
 
     /// "1" = M6 baseline pass; "m9" = full M9 pass; "relaunch" = persistence check; "failure" = failed model + context loss;
-    /// "p2" = Phase 5 cinematic travel pacing, skip/cancel/rapid/hide; "leak" = memory bisect stages (sample `footprint` externally).
+    /// "p2" = Phase 5 cinematic travel pacing, skip/cancel/rapid/hide; "p7" = every room-to-room and Hub station transition in both directions; "leak" = memory bisect stages (sample `footprint` externally).
     static var scenario: String? { ProcessInfo.processInfo.environment["AURA_DEV_WORLD_PROBE"] }
-    static var isEnabled: Bool { ["1", "m9", "relaunch", "failure", "leak", "p2"].contains(scenario ?? "") }
+    static var isEnabled: Bool { ["1", "m9", "relaunch", "failure", "leak", "p2", "p7"].contains(scenario ?? "") }
 
     private static let counters = """
         const d = window.__AURA_DIAGNOSTICS__;
@@ -34,6 +34,9 @@ enum WorldProbe {
         let sampleMs = Int(ProcessInfo.processInfo.environment["AURA_DEV_PROBE_SAMPLE_MS"] ?? "") ?? 5000
         let visits = Int(ProcessInfo.processInfo.environment["AURA_DEV_WORLD_VISITS"] ?? "") ?? 4
         log.notice("world probe start pid=\(ProcessInfo.processInfo.processIdentifier, privacy: .public) sampleMs=\(sampleMs, privacy: .public) visits=\(visits, privacy: .public)")
+        // Dev-only: the WebContent process to sample with `footprint` (WKWebView SPI, read by key).
+        let webPid = (webView.value(forKey: "_webProcessIdentifier") as? Int32) ?? -1
+        log.notice("world probe webcontent pid=\(webPid, privacy: .public)")
 
         // Frame rates are only meaningful while AURA is visible and frontmost (it throttles otherwise).
         NSApp.activate()
@@ -66,6 +69,7 @@ enum WorldProbe {
         case "failure": await failure(webView: webView); return
         case "leak": await leak(webView: webView); return
         case "p2": await cinematic(webView: webView); return
+        case "p7": await journeys(webView: webView); return
         default: break
         }
         // One pass through all four rooms (cold loads), then repeated visits.
@@ -191,6 +195,46 @@ enum WorldProbe {
         let back = await js(webView, "const d = window.__AURA_DIAGNOSTICS__; return JSON.stringify({ hidden: document.hidden, phase: d.world.phase, room: d.world.room, settled: d.cameraSettled, loaded: d.world.loadedRooms, veil: document.querySelector('.travel-veil')?.style.opacity, explore: !document.querySelector('.world-hud button[aria-pressed]')?.disabled });")
         log.notice("world probe p2 hide-mid-travel hidden=\(hidden, privacy: .public) restored=\(back, privacy: .public)")
         await sample(webView, "p2-after", ms: 3000)
+        log.notice("world probe done")
+    }
+
+    /// Phase 7: frame pacing for every directed room transition and the Hub station moves, after one warm pass.
+    /// Sample WebContent memory with `footprint` externally; the probe logs markers.
+    private static func journeys(webView: WKWebView) async {
+        let helpers = """
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+            const go = async (room) => { [...document.querySelectorAll('button')].find((b) => b.textContent.includes('World map'))?.click(); await sleep(350); document.querySelector(`[data-room="${room}"] button`)?.click(); };
+            const station = async (label) => { [...document.querySelectorAll('nav[aria-label="Studio zones"] button')].find((b) => b.textContent.trim().startsWith(label))?.click(); };
+            const idle = () => { const d = window.__AURA_DIAGNOSTICS__; return d.world.phase === 'idle' && d.cameraSettled; };
+            const measure = async (start, done) => {
+              const frames = [], calls = []; let last = performance.now(), on = true;
+              const tick = (t) => { frames.push(t - last); last = t; calls.push(window.__AURA_DIAGNOSTICS__.drawCalls ?? 0); if (on) requestAnimationFrame(tick); }; requestAnimationFrame(tick);
+              const t0 = performance.now(); await start(); await sleep(60);
+              for (let i = 0; i < 400 && !done(); i++) await sleep(25); on = false;
+              const s = frames.slice(1).sort((a, b) => a - b); const q = (p) => s[Math.min(s.length - 1, Math.floor(p * s.length))];
+              const d = window.__AURA_DIAGNOSTICS__;
+              return { ok: done(), wallMs: Math.round(performance.now() - t0), travel: d.travel, loaded: d.world.loadedRooms, frames: s.length, p50Ms: +q(0.5).toFixed(1), p95Ms: +q(0.95).toFixed(1), maxMs: +(s.at(-1) ?? 0).toFixed(1), over20: s.filter((x) => x > 20.9).length, peakDrawCalls: Math.max(...calls) };
+            };
+            """
+        for room in ["atrium", "living", "atrium", "gaming", "atrium", "project-hub"] { await visit(room, webView: webView, sampleMs: 500, label: "p7-warm") }
+        log.notice("world probe p7 marker warm-done")
+        let order = ["living", "gaming", "project-hub", "gaming", "living", "project-hub", "atrium", "living", "atrium", "gaming", "atrium", "project-hub"]
+        var from = "project-hub"
+        for room in order {
+            let r = await js(webView, "\(helpers) return JSON.stringify({ from: '\(from)', to: '\(room)', ...(await measure(() => go('\(room)'), () => idle() && window.__AURA_DIAGNOSTICS__.world.room === '\(room)')) });")
+            log.notice("world probe p7 room \(r, privacy: .public)")
+            from = room
+            try? await Task.sleep(for: .milliseconds(600))
+        }
+        for label in ["AI Lab", "Studio", "Software", "Studio", "Hardware", "Projects", "Studio"] {
+            let r = await js(webView, "\(helpers) return JSON.stringify({ station: '\(label)', ...(await measure(() => station('\(label)'), idle)) });")
+            log.notice("world probe p7 station \(r, privacy: .public)")
+            try? await Task.sleep(for: .milliseconds(600))
+        }
+        log.notice("world probe p7 marker transitions-done")
+        await sample(webView, "p7-after", ms: 3000)
+        let end = await js(webView, "\(counters) return JSON.stringify({ resources: snap.resources, loaded: snap.loaded, canvases: document.querySelectorAll('canvas').length });")
+        log.notice("world probe p7 end \(end, privacy: .public)")
         log.notice("world probe done")
     }
 
